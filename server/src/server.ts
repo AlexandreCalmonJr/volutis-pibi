@@ -74,12 +74,14 @@ export async function buildServer() {
   await app.register(websocketHandler);
 
   // Em produção: servir arquivos estáticos do frontend (SPA)
-  const clientDist = join(__dirname, "..", "..", "client", "dist");
+  const clientDist = existsSync(join(process.cwd(), "client", "dist"))
+    ? join(process.cwd(), "client", "dist")
+    : join(__dirname, "..", "..", "client", "dist");
+
   if (isProd && existsSync(clientDist)) {
     await app.register(fastifyStatic, {
       root: clientDist,
       prefix: "/",
-      wildcard: false,
     });
 
     // SPA fallback: rotas que não são /api, /ws, /health → index.html
@@ -94,10 +96,7 @@ export async function buildServer() {
   return app;
 }
 
-const isMain = process.argv[1]?.endsWith("server.ts") || process.argv[1]?.endsWith("server.js");
-if (isMain) {
-  const app = await buildServer();
-  const port = Number(process.env.PORT ?? 3333);
-  await app.listen({ port, host: "0.0.0.0" });
-  console.log(`🚀 Volutis PIBI API rodando em http://localhost:${port}`);
-}
+const app = await buildServer();
+const port = Number(process.env.PORT ?? 3333);
+await app.listen({ port, host: "0.0.0.0" });
+console.log(`🚀 Volutis PIBI API rodando em http://localhost:${port}`);
