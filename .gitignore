@@ -1,0 +1,31 @@
+# Dependências
+node_modules/
+
+# Builds
+dist/
+client/dist/
+
+# Banco de dados local SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+server/prisma/*.db
+
+# Variáveis de ambiente (segredos)
+.env
+.env.local
+.env.*.local
+server/.env
+client/.env
+
+# Logs e builds TypeScript
+*.log
+*.tsbuildinfo
+.system_generated/
+
+# Arquivos temporários do OS/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

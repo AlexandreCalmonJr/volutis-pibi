@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Outfit", "Inter", sans-serif;
+
+  --color-bg: #0f0a1e;
+  --color-surface: #1a1330;
+  --color-surface-2: #241a42;
+  --color-border: #322659;
+  --color-accent: #8b5cf6;
+  --color-accent-soft: #a78bfa;
+  --color-ink: #f2eefb;
+  --color-muted: #9a8fc0;
+  --color-ok: #34d399;
+  --color-warn: #fbbf24;
+  --color-danger: #f87171;
+}
+
+html, body { background: var(--color-bg); color: var(--color-ink); }
+body { font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; }
+
+/* Safe areas iOS */
+.pb-safe { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem); }
+.bottom-nav { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+@keyframes toast-in { from { transform: translateY(-1rem); opacity: 0 } to { transform: none; opacity: 1 } }
+.toast-in { animation: toast-in .25s ease-out; }

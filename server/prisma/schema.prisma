@@ -1,0 +1,255 @@
+// Volutis PIBI — Prisma Schema
+// Dev: SQLite | Prod: PostgreSQL (trocar provider + DATABASE_URL)
+// Nota: enums e listas são String (JSON) para portabilidade SQLite;
+// a validação de valores é feita via Zod nas rotas.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Church {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+
+  // Configuração Holyrics
+  holyricsMode      String? // "local" | "online"
+  holyricsLocalIp   String?
+  holyricsLocalPort Int?    @default(8091)
+  holyricsToken     String?
+  holyricsApiKey    String?
+
+  members    Member[]
+  ministries Ministry[]
+  events     Event[]
+  songs      Song[]
+  invites    Invite[]
+  createdAt  DateTime   @default(now())
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("MEMBER") // ADMIN | MINISTRY_LEADER | VOLUNTEER | MEMBER
+  member       Member?
+  refreshTokens RefreshToken[]
+  createdAt    DateTime @default(now())
+}
+
+model Invite {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  role          String    @default("VOLUNTEER") // papel concedido ao usar
+  createdByName String?
+  expiresAt     DateTime
+  usedAt        DateTime?
+  usedByEmail   String?
+  createdAt     DateTime  @default(now())
+
+  church   Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  churchId String
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Member {
+  id          String    @id @default(cuid())
+  name        String
+  phone       String? // formato E.164 p/ links wa.me (ex: 5571999999999)
+  photoUrl    String?
+  instruments String    @default("[]") // JSON array
+  birthDate   DateTime?
+
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String? @unique
+
+  church   Church @relation(fields: [churchId], references: [id])
+  churchId String
+
+  ministryMembers  MinistryMember[]
+  scheduleItems    ScheduleItem[]
+  unavailabilities Unavailability[]
+  checkins         CheckIn[]
+  badges           Badge[]
+  points           Int              @default(0)
+}
+
+model Ministry {
+  id    String  @id @default(cuid())
+  name  String
+  icon  String?
+  color String?
+
+  church   Church @relation(fields: [churchId], references: [id])
+  churchId String
+
+  roles   MinistryRole[]
+  members MinistryMember[]
+}
+
+model MinistryRole {
+  id         String   @id @default(cuid())
+  name       String
+  ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
+  ministryId String
+}
+
+model MinistryMember {
+  id         String   @id @default(cuid())
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId   String
+  ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
+  ministryId String
+  isLeader   Boolean  @default(false)
+  roles      String   @default("[]") // JSON array de funções
+
+  @@unique([memberId, ministryId])
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  title       String
+  type        String // SUNDAY_MORNING | SUNDAY_EVENING | WEDNESDAY_PRAYER | REHEARSAL | SPECIAL_EVENT
+  date        DateTime
+  startTime   DateTime
+  endTime     DateTime?
+  isRecurrent Boolean   @default(false)
+  recurrence  String? // "weekly:sunday" etc.
+
+  church   Church @relation(fields: [churchId], references: [id])
+  churchId String
+
+  scheduleItems ScheduleItem[]
+  liturgyItems  LiturgyItem[]
+  setlistItems  SetlistItem[]
+  chatMessages  ChatMessage[]
+}
+
+model ScheduleItem {
+  id            String  @id @default(cuid())
+  status        String  @default("PENDING") // PENDING | CONFIRMED | DECLINED | SWAP_REQUESTED
+  refusalReason String?
+  roleName      String
+
+  event    Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId  String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId String
+
+  checkin      CheckIn?
+  swapRequests SwapRequest[]
+
+  @@unique([eventId, memberId, roleName])
+}
+
+model SwapRequest {
+  id     String @id @default(cuid())
+  status String @default("PENDING") // PENDING | ACCEPTED | DECLINED | CANCELLED
+
+  scheduleItem   ScheduleItem @relation(fields: [scheduleItemId], references: [id], onDelete: Cascade)
+  scheduleItemId String
+  targetMemberId String // membro convidado a assumir a vaga
+  message        String?
+  createdAt      DateTime @default(now())
+  respondedAt    DateTime?
+}
+
+model Unavailability {
+  id        String   @id @default(cuid())
+  date      DateTime
+  reason    String?
+  recurring Boolean  @default(false)
+
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId String
+}
+
+model CheckIn {
+  id          String   @id @default(cuid())
+  checkedInAt DateTime @default(now())
+  method      String // "qrcode" | "manual"
+
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId       String
+  scheduleItem   ScheduleItem @relation(fields: [scheduleItemId], references: [id], onDelete: Cascade)
+  scheduleItemId String       @unique
+}
+
+model Song {
+  id           String  @id @default(cuid())
+  title        String
+  artist       String?
+  originalKey  String?
+  bpm          Int?
+  structure    String?
+  youtubeUrl   String?
+  spotifyUrl   String?
+  cifraClubUrl String?
+  lyrics       String?
+  chords       String?
+  holyricsId   String?
+
+  church   Church @relation(fields: [churchId], references: [id])
+  churchId String
+
+  setlistItems SetlistItem[]
+}
+
+model SetlistItem {
+  id      String  @id @default(cuid())
+  order   Int
+  songKey String?
+  notes   String?
+
+  song    Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+  songId  String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId String
+}
+
+model LiturgyItem {
+  id          String  @id @default(cuid())
+  order       Int
+  title       String
+  startTime   String?
+  durationMin Int?
+  responsible String?
+  bibleRef    String?
+  notes       String?
+
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId String
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  content    String
+  authorName String
+  createdAt  DateTime @default(now())
+
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId String
+}
+
+model Badge {
+  id   String @id @default(cuid())
+  name String
+  icon String
+
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId String
+  earnedAt DateTime @default(now())
+}
