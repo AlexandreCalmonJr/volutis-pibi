@@ -3,13 +3,13 @@ import { z } from "zod";
 import { prisma } from "../lib/db.js";
 import { requireAuth, type AuthUser } from "../middleware/auth.js";
 import { notifyMember } from "../services/notification.service.js";
-import { checkAndAwardBadges } from "../services/gamification.service.js";
+import { checkAndAwardBadges, POINTS } from "../services/gamification.service.js";
 
 const checkinSchema = z.object({
   method: z.enum(["qrcode", "manual"]).default("manual"),
 });
 
-const CHECKIN_POINTS = 10;
+const CHECKIN_POINTS = POINTS.CHECKIN;
 /** Janela: check-in permitido de 3h antes até 3h depois do início do evento */
 const WINDOW_MS = 3 * 60 * 60 * 1000;
 

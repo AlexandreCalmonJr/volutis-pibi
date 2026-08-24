@@ -143,6 +143,7 @@ model ScheduleItem {
   status        String  @default("PENDING") // PENDING | CONFIRMED | DECLINED | SWAP_REQUESTED
   refusalReason String?
   roleName      String
+  reminderSentAt DateTime?
 
   event    Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
   eventId  String

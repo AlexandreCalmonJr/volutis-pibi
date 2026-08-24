@@ -4,8 +4,12 @@ import { prisma, belongsToChurch, itemEventChurch } from "../lib/db.js";
 import { requireAuth, requireRole, type AuthUser } from "../middleware/auth.js";
 import { findConflict, isUnavailable, suggestVolunteers } from "../services/schedule.service.js";
 import { notifyMember } from "../services/notification.service.js";
-import { buildScheduleWhatsAppLink } from "../services/whatsapp.service.js";
-import { checkAndAwardBadges } from "../services/gamification.service.js";
+import {
+  buildScheduleWhatsAppLink,
+  sendScheduleAssignedWhatsApp,
+  sendDeclineAlertToLeader,
+} from "../services/whatsapp.service.js";
+import { checkAndAwardBadges, POINTS } from "../services/gamification.service.js";
 
 const assignSchema = z.object({
   memberId: z.string(),
@@ -130,6 +134,16 @@ export async function scheduleRoutes(app: FastifyInstance) {
         whatsappLink,
       });
 
+      // Dispara envio automático no WhatsApp se WAHA estiver ativo
+      sendScheduleAssignedWhatsApp({
+        memberName: item.member.name,
+        phone: item.member.phone,
+        eventTitle: item.event.title,
+        eventDate: item.event.startTime,
+        roleName: item.roleName,
+        confirmUrl: `${appUrl}/escala/${item.id}`,
+      }).catch(() => {});
+
       return reply.code(201).send({ ...item, whatsappLink });
     }
   );
@@ -188,14 +202,38 @@ export async function scheduleRoutes(app: FastifyInstance) {
       await checkAndAwardBadges(item.memberId);
     }
 
-    // Notifica líderes do ministério? Simplificação: notifica o próprio membro (feedback) —
-    // broadcast a líderes entra com o painel em tempo real da Fase 3.
+    // Notifica o próprio membro (feedback)
     notifyMember(item.memberId, {
       type: body.action === "CONFIRM" ? "SCHEDULE_CONFIRMED" : "SCHEDULE_DECLINED",
       title: body.action === "CONFIRM" ? "Presença confirmada ✅" : "Escala recusada",
       body: `${item.event.title} — ${item.roleName}`,
       data: { scheduleItemId: id },
     });
+
+    // Se recusou, alerta os líderes do ministério via WhatsApp
+    if (body.action === "DECLINE") {
+      prisma.ministryMember
+        .findMany({
+          where: { isLeader: true, member: { churchId: item.event.churchId } },
+          include: { member: true },
+          take: 3,
+        })
+        .then((leaders) => {
+          for (const l of leaders) {
+            if (l.member.phone) {
+              sendDeclineAlertToLeader({
+                leaderName: l.member.name,
+                leaderPhone: l.member.phone,
+                memberName: item.member.name,
+                eventTitle: item.event.title,
+                roleName: item.roleName,
+                reason: body.reason,
+              }).catch(() => {});
+            }
+          }
+        })
+        .catch(() => {});
+    }
 
     return updated;
   });

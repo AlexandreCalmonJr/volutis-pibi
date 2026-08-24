@@ -4,6 +4,11 @@
 import { prisma } from "../lib/db.js";
 import { notifyMember } from "./notification.service.js";
 
+export const POINTS = {
+  CONFIRM: 5,
+  CHECKIN: 10,
+} as const;
+
 interface BadgeRule {
   name: string;
   icon: string;

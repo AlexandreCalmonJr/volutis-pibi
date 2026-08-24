@@ -19,6 +19,7 @@ import { chatRoutes } from "./routes/chat.js";
 import { holyricsRoutes } from "./routes/holyrics.js";
 import { inviteRoutes } from "./routes/invites.js";
 import { websocketHandler } from "./websocket/handler.js";
+import { startReminderScheduler } from "./services/scheduler.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -100,3 +101,6 @@ const app = await buildServer();
 const port = Number(process.env.PORT ?? 3333);
 await app.listen({ port, host: "0.0.0.0" });
 console.log(`🚀 Volutis PIBI API rodando em http://localhost:${port}`);
+
+// Inicia o agendador de lembretes automáticos de 24h
+startReminderScheduler();

@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  # Servidor WhatsApp HTTP API (WAHA)
+  # Documentação: https://waha.devlike.pro/
+  # Dashboard Swagger / QR Code disponível em: http://localhost:3000/dashboard
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: volutis_waha
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - WAHA_LOG_LEVEL=info
+      - WAHA_DASHBOARD_ENABLED=true
+      - WAHA_DASHBOARD_USERNAME=admin
+      - WAHA_DASHBOARD_PASSWORD=admin
+      # - WAHA_API_KEY=sua_chave_secreta # Opcional
+    volumes:
+      - waha_sessions:/app/.sessions
+
+  # Aplicativo Volutis PIBI (Backend + Frontend)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: volutis_app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DATABASE_URL=file:./dev.db
+      - JWT_SECRET=volutis_pibi_jwt_secret_super_forte_producao_2026
+      - WHATSAPP_API_URL=http://waha:3000
+      - WHATSAPP_SESSION=default
+    depends_on:
+      - waha
+    volumes:
+      - app_data:/app/server
+
+volumes:
+  waha_sessions:
+  app_data:
