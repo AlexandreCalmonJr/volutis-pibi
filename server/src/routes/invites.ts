@@ -5,15 +5,21 @@ import { prisma } from "../lib/db.js";
 import { requireRole, type AuthUser } from "../middleware/auth.js";
 
 const INVITE_DAYS = 7;
-const APP_URL = process.env.APP_URL ?? "https://volutis-pibi.vercel.app";
+function getAppUrl(req: any): string {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  const origin = req.headers.origin;
+  if (origin) return origin;
+  const proto = req.headers["x-forwarded-proto"] ?? "https";
+  const host = req.headers["x-forwarded-host"] ?? req.headers.host;
+  return host ? `${proto}://${host}` : "https://volutis-pibi.vercel.app";
+}
 
 const createSchema = z.object({
-  role: z.enum(["MEMBER", "VOLUNTEER", "MINISTRY_LEADER"]).default("VOLUNTEER"),
-  inviteeName: z.string().optional(), // só para exibição/controle do líder
+  role: z.enum(["MEMBER", "VOLUNTEER", "MINISTRY_LEADER"]),
+  inviteeName: z.string().optional(),
 });
 
 function newCode() {
-  // 8 hex maiúsculos — legível e fácil de ditar (ex: 3F9A2C71)
   return crypto.randomBytes(4).toString("hex").toUpperCase();
 }
 
@@ -42,7 +48,8 @@ export async function inviteRoutes(app: FastifyInstance) {
       },
     });
 
-    const registerUrl = `${APP_URL}/login?convite=${invite.code}`;
+    const appUrl = getAppUrl(req);
+    const registerUrl = `${appUrl}/login?convite=${invite.code}`;
     const waText =
       `Olá${body.inviteeName ? `, ${body.inviteeName}` : ""}! 🙌\n\n` +
       `Você foi convidado(a) para o app *Volutis PIBI* (escalas e ministérios da igreja).\n\n` +

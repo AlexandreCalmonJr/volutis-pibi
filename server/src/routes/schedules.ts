@@ -27,9 +27,14 @@ const swapRespondSchema = z.object({
   action: z.enum(["ACCEPT", "DECLINE"]),
 });
 
-const POINTS = { CONFIRM: 5, CHECKIN: 10 };
-
-const APP_URL = process.env.APP_URL ?? "https://volutis-pibi.vercel.app";
+function getAppUrl(req: any): string {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  const origin = req.headers.origin;
+  if (origin) return origin;
+  const proto = req.headers["x-forwarded-proto"] ?? "https";
+  const host = req.headers["x-forwarded-host"] ?? req.headers.host;
+  return host ? `${proto}://${host}` : "https://volutis-pibi.vercel.app";
+}
 
 export async function scheduleRoutes(app: FastifyInstance) {
   // ── Sugestões inteligentes ───────────────────────────────────────────
@@ -107,13 +112,14 @@ export async function scheduleRoutes(app: FastifyInstance) {
         include: { member: true, event: true },
       });
 
+      const appUrl = getAppUrl(req);
       const whatsappLink = buildScheduleWhatsAppLink({
         memberName: item.member.name,
         phone: item.member.phone,
         eventTitle: item.event.title,
         eventDate: item.event.startTime,
         roleName: item.roleName,
-        confirmUrl: `${APP_URL}/escala/${item.id}`,
+        confirmUrl: `${appUrl}/escala/${item.id}`,
       });
 
       notifyMember(body.memberId, {
