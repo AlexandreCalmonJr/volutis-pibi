@@ -57,7 +57,7 @@ check("Sugestões retornam João (Vocal) e não Maria/Pedro", sug.statusCode ===
 const wsMessages: any[] = [];
 const ws = new WebSocket(`ws://127.0.0.1:3399/ws?token=${joaoTok}`);
 await new Promise<void>((res, rej) => { ws.on("open", () => res()); ws.on("error", rej); });
-ws.on("message", (d) => wsMessages.push(JSON.parse(d.toString())));
+ws.on("message", (d: any) => wsMessages.push(JSON.parse(d.toString())));
 await new Promise((r) => setTimeout(r, 200));
 
 // 3. Atribuir João como Vocal
@@ -123,7 +123,7 @@ check("Ranking ordenado por pontos", ranking.statusCode === 200 && ranking.json(
 
 // 13. WS com token inválido é rejeitado
 const badWs = new WebSocket(`ws://127.0.0.1:3399/ws?token=invalido`);
-const badCode = await new Promise<number>((res) => { badWs.on("close", (code) => res(code)); badWs.on("error", () => {}); });
+const badCode = await new Promise<number>((res) => { badWs.on("close", (code: number) => res(code)); badWs.on("error", () => {}); });
 check("WebSocket rejeita token inválido (4002)", badCode === 4002, badCode);
 
 ws.close();

@@ -29,7 +29,8 @@ export async function holyricsRoutes(app: FastifyInstance) {
         issues: err.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
       });
     }
-    return reply.code((err as any).statusCode ?? 500).send({ error: err.message });
+    const errorObj = err as any;
+    return reply.code(errorObj?.statusCode ?? 500).send({ error: errorObj?.message ?? "Erro interno" });
   });
 
   // ── Configuração ─────────────────────────────────────────

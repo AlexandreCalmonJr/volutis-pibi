@@ -52,9 +52,10 @@ export async function buildServer() {
       });
     }
     app.log.error(err);
-    const status = err.statusCode ?? 500;
+    const errorObj = err as any;
+    const status = errorObj?.statusCode ?? 500;
     // 500 não vaza detalhes internos em produção
-    const message = status >= 500 && isProd ? "Erro interno do servidor" : err.message;
+    const message = status >= 500 && isProd ? "Erro interno do servidor" : (errorObj?.message ?? "Erro interno");
     return reply.code(status).send({ error: message });
   });
 
