@@ -3,11 +3,15 @@ set -e
 
 cd /app/server
 
-# Rodar migrations no banco de dados se DATABASE_URL estiver presente
+# Rodar migrations / db push no banco de dados se DATABASE_URL estiver presente
 if [ -n "$DATABASE_URL" ]; then
-  echo "📦 Aplicando migrações do banco de dados..."
-  npx prisma migrate deploy --skip-generate 2>/dev/null || npx prisma migrate dev --name init --skip-generate 2>/dev/null || true
+  echo "📦 Sincronizando schema do banco de dados (Prisma)..."
+  npx prisma db push --skip-generate 2>/dev/null || npx prisma migrate deploy --skip-generate 2>/dev/null || true
+  
+  echo "🌱 Executando seed inicial (se necessário)..."
+  npx tsx prisma/seed.ts 2>/dev/null || true
 fi
 
 cd /app
 exec "$@"
+
