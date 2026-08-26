@@ -168,3 +168,112 @@ export async function sendDeclineAlertToLeader(n: DeclineAlertNotification): Pro
 
   return sendWhatsAppMessage({ to: n.leaderPhone, text: message });
 }
+
+// ─── Novas funções para Captação e Aprovação ─────────────────────
+
+export interface ApplicationConfirmation {
+  name: string;
+  phone: string;
+  churchName: string;
+}
+
+export interface ApprovalNotification {
+  name: string;
+  phone: string;
+  churchName: string;
+  setPasswordUrl: string;
+}
+
+export interface RejectionNotification {
+  name: string;
+  phone: string;
+  churchName: string;
+  reason?: string | null;
+}
+
+/**
+ * Envia confirmação imediata de cadastro via WhatsApp.
+ */
+export async function sendApplicationConfirmation(n: ApplicationConfirmation): Promise<boolean> {
+  const message =
+    `Olá, ${n.name}! 🙌\n\n` +
+    `Seu cadastro como voluntário(a) na *${n.churchName}* foi realizado com sucesso!\n\n` +
+    `📋 Seu pedido está sendo analisado pelo líder do ministério.\n` +
+    `Assim que for aprovado(a), você receberá um link para criar sua senha e acessar o app.\n\n` +
+    `Obrigado pelo seu interesse em servir! 🙏 — Volutis PIBI`;
+
+  return sendWhatsAppMessage({ to: n.phone, text: message });
+}
+
+/**
+ * Envia notificação de aprovação com link para definir senha.
+ */
+export async function sendApprovalNotification(n: ApprovalNotification): Promise<boolean> {
+  const message =
+    `Parabéns, ${n.name}! 🎉\n\n` +
+    `Seu cadastro como voluntário(a) na *${n.churchName}* foi *APROVADO*!\n\n` +
+    `Acesse o link abaixo para criar sua senha e acessar o app:\n` +
+    `${n.setPasswordUrl}\n\n` +
+    `⏰ O link expira em 48 horas.\n\n` +
+    `Bem-vindo(a) à equipe! 🙏 — Volutis PIBI`;
+
+  return sendWhatsAppMessage({ to: n.phone, text: message });
+}
+
+/**
+ * Envia notificação de rejeição.
+ */
+export async function sendRejectionNotification(n: RejectionNotification): Promise<boolean> {
+  const message =
+    `Olá, ${n.name}.\n\n` +
+    `Infelizmente seu cadastro como voluntário(a) na *${n.churchName}* não foi aprovado(a) neste momento.\n` +
+    (n.reason ? `\n📝 Motivo: ${n.reason}\n` : "") +
+    `\nCaso tenha dúvidas, entre em contato com o líder do ministério.\n\n` +
+    `Deus abençoe! — Volutis PIBI`;
+
+  return sendWhatsAppMessage({ to: n.phone, text: message });
+}
+
+export interface InteractiveScheduleNotification {
+  memberName: string;
+  phone: string | null;
+  eventTitle: string;
+  eventDate: Date;
+  roleName: string;
+  scheduleItemId: string;
+  confirmUrl?: string;
+}
+
+/**
+ * Envia lembrete interativo de escala — voluntário responde 1 (confirmar) ou 2 (recusar).
+ */
+export async function sendInteractiveScheduleReminder(n: InteractiveScheduleNotification): Promise<boolean> {
+  if (!n.phone) return false;
+  const { dateStr, timeStr } = formatDate(n.eventDate);
+
+  const message =
+    `Olá, ${n.memberName}! ⏰ *Lembrete de Escala*\n\n` +
+    `Lembrando que você está escalado(a) para *${n.eventTitle}* — ${dateStr} às ${timeStr}.\n` +
+    `Função: *${n.roleName}*\n\n` +
+    `Para confirmar ou recusar, responda:\n` +
+    `*1* — Confirmar presença ✅\n` +
+    `*2* — Recusar ❌\n\n` +
+    `Ou acesse o app: ${n.confirmUrl ?? ""}\n\n` +
+    `Contamos com você! 🙏 — Volutis PIBI`;
+
+  return sendWhatsAppMessage({ to: n.phone, text: message });
+}
+
+/**
+ * Processa resposta interativa do WhatsApp (1=confirmar, 2=recusar).
+ * Retorna a ação e o scheduleItemId para processamento.
+ */
+export function parseWhatsAppResponse(message: string): { action: "confirm" | "decline" | "unknown"; scheduleItemId?: string } {
+  const trimmed = message.trim();
+  if (trimmed === "1") return { action: "confirm" };
+  if (trimmed === "2") return { action: "decline" };
+  // Suporte a variações
+  if (/^(sim|ok|confirmo|confirmar|s)$/i.test(trimmed)) return { action: "confirm" };
+  if (/^(não|nao|recuso|recusar|n)$/i.test(trimmed)) return { action: "decline" };
+  return { action: "unknown" };
+}

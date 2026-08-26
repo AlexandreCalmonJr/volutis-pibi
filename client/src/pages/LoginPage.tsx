@@ -6,20 +6,27 @@ import { API_URL } from "../api";
 export default function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuth((s) => s.setSession);
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loginType, setLoginType] = useState<"email" | "phone">("email");
+
+  const isEmail = loginType === "email";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
+      const payload = isEmail
+        ? { email: identifier, password }
+        : { email: identifier, password };
+
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -40,6 +47,7 @@ export default function LoginPage() {
           email: data.user.email,
           role: data.user.role,
           memberId: data.user.memberId,
+          memberName: data.user.memberName,
         },
         data.accessToken,
         data.refreshToken
@@ -75,6 +83,30 @@ export default function LoginPage() {
           <h2 className="text-lg font-semibold text-[#1e1b4b] mb-1">Entrar</h2>
           <p className="text-sm text-[#7c6ea8] mb-6">Acesse sua conta para continuar</p>
 
+          {/* Login Type Tabs */}
+          <div className="flex gap-2 mb-6 bg-gray-100 rounded-xl p-1">
+            <button
+              onClick={() => { setLoginType("email"); setIdentifier(""); }}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                loginType === "email"
+                  ? "bg-white text-[#7c3aed] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              E-mail
+            </button>
+            <button
+              onClick={() => { setLoginType("phone"); setIdentifier(""); }}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                loginType === "phone"
+                  ? "bg-white text-[#7c3aed] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Telefone
+            </button>
+          </div>
+
           {error && (
             <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
               {error}
@@ -84,13 +116,13 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">
-                E-mail
+                {isEmail ? "E-mail" : "Telefone"}
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
+                type={isEmail ? "email" : "tel"}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder={isEmail ? "seu@email.com" : "(71) 99999-9999"}
                 required
                 className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] placeholder:text-[#c4b5fd] focus:outline-none focus:border-[#a78bfa] transition-colors"
               />

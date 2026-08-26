@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -25,22 +25,27 @@ model Church {
   holyricsToken     String?
   holyricsApiKey    String?
 
-  members    Member[]
-  ministries Ministry[]
-  events     Event[]
-  songs      Song[]
-  invites    Invite[]
-  createdAt  DateTime   @default(now())
+  members      Member[]
+  ministries   Ministry[]
+  events       Event[]
+  songs        Song[]
+  invites      Invite[]
+  applications Application[]
+  pendingTokens PendingToken[]
+  createdAt    DateTime   @default(now())
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  role         String   @default("MEMBER") // ADMIN | MINISTRY_LEADER | VOLUNTEER | MEMBER
-  member       Member?
-  refreshTokens RefreshToken[]
-  createdAt    DateTime @default(now())
+  id              String        @id @default(cuid())
+  email           String        @unique
+  phone           String?
+  passwordHash    String
+  role            String        @default("MEMBER") // ADMIN | MINISTRY_LEADER | VOLUNTEER | MEMBER
+  firstLogin      Boolean       @default(true)
+  lastPasswordReset DateTime?
+  member          Member?
+  refreshTokens   RefreshToken[]
+  createdAt       DateTime      @default(now())
 }
 
 model Invite {
@@ -67,12 +72,15 @@ model RefreshToken {
 }
 
 model Member {
-  id          String    @id @default(cuid())
-  name        String
-  phone       String? // formato E.164 p/ links wa.me (ex: 5571999999999)
-  photoUrl    String?
-  instruments String    @default("[]") // JSON array
-  birthDate   DateTime?
+  id             String    @id @default(cuid())
+  name           String
+  phone          String? // formato E.164 p/ links wa.me (ex: 5571999999999)
+  photoUrl       String?
+  instruments    String    @default("[]") // JSON array
+  birthDate      DateTime?
+  approvalStatus String    @default("ACTIVE") // PENDING | ACTIVE | INACTIVE
+  approvedAt     DateTime?
+  approvedBy     String?
 
   user   User?   @relation(fields: [userId], references: [id])
   userId String? @unique
@@ -86,9 +94,11 @@ model Member {
   checkins         CheckIn[]
   badges           Badge[]
   swapRequests     SwapRequest[]
+  applications     Application[]
   points           Int              @default(0)
 
   @@index([churchId])
+  @@index([approvalStatus])
 }
 
 model Ministry {
@@ -100,8 +110,9 @@ model Ministry {
   church   Church @relation(fields: [churchId], references: [id])
   churchId String
 
-  roles   MinistryRole[]
-  members MinistryMember[]
+  roles                  MinistryRole[]
+  members                MinistryMember[]
+  applicationPreferences ApplicationPreference[]
 }
 
 model MinistryRole {
@@ -270,4 +281,63 @@ model Badge {
   earnedAt DateTime @default(now())
 
   @@index([memberId])
+}
+
+// ─── Captação & Cadastro ───────────────────────────────────────────
+
+model Application {
+  id           String   @id @default(cuid())
+  name         String
+  email        String?
+  phone        String?
+  photoUrl     String?
+  instruments  String   @default("[]") // JSON array
+  availability String?  // JSON: { "monday": ["morning"], ... }
+  notes        String?  // notas internas do líder
+  status       String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  source       String   @default("PUBLIC") // PUBLIC | ADMIN | EXISTING
+  appliedAt    DateTime @default(now())
+  reviewedAt   DateTime?
+  reviewedBy   String?  // memberId do líder que revisou
+
+  church   Church @relation(fields: [churchId], references: [id])
+  churchId String
+
+  member   Member? @relation(fields: [memberId], references: [id])
+  memberId String?
+
+  preferences ApplicationPreference[]
+
+  @@index([churchId])
+  @@index([status])
+  @@index([memberId])
+}
+
+model ApplicationPreference {
+  id            String @id @default(cuid())
+  applicationId String
+  ministryId    String
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  ministry    Ministry    @relation(fields: [ministryId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, ministryId])
+}
+
+model PendingToken {
+  id        String   @id @default(cuid())
+  email     String
+  phone     String?
+  name      String
+  token     String   @unique
+  role      String   @default("VOLUNTEER")
+  churchId  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  church Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([churchId])
 }

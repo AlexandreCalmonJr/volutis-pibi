@@ -52,7 +52,7 @@ function getGreeting(): string {
 
 export default function Dashboard() {
   const user = useAuth((s) => s.user);
-  const displayName = user?.email?.split("@")[0] ?? "Usuário";
+  const displayName = user?.memberName || (user?.email?.split("@")[0] ?? "Usuário");
 
   const now = new Date();
   const dateStr = now.toLocaleDateString("pt-BR", {

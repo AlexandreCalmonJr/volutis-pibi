@@ -15,7 +15,7 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string(),
   password: z.string(),
 });
 
@@ -110,8 +110,15 @@ export async function authRoutes(app: FastifyInstance) {
         .send({ error: "Muitas tentativas de login. Tente novamente em alguns minutos." });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: body.email },
+    // Buscar por email OU por telefone
+    const input = body.email.trim();
+    const isPhone = /^\d{10,11}$/.test(input.replace(/\D/g, ""));
+    const normalizedPhone = isPhone ? input.replace(/\D/g, "").replace(/^(\d{2})(\d)/g, "$19$2") : undefined;
+
+    const user = await prisma.user.findFirst({
+      where: isPhone
+        ? { phone: normalizedPhone }
+        : { email: input },
       include: { member: true },
     });
     // Compare sempre executa (hash dummy) p/ não vazar existência do e-mail via timing
@@ -123,7 +130,7 @@ export async function authRoutes(app: FastifyInstance) {
     rateLimitReset(rlKey);
     const tokens = await issueTokens(app, toPayload(user));
     return {
-      user: { id: user.id, email: user.email, role: user.role, memberId: user.member?.id },
+      user: { id: user.id, email: user.email, role: user.role, memberId: user.member?.id, memberName: user.member?.name },
       ...tokens,
     };
   });
@@ -162,6 +169,6 @@ export async function authRoutes(app: FastifyInstance) {
     if (!user) return reply.code(404).send({ error: "Usuário não encontrado" });
     // NUNCA expor o hash de senha
     const { passwordHash: _ph, ...safeUser } = user;
-    return { user: safeUser };
+    return { user: { ...safeUser, memberName: user.member?.name } };
   });
 }
