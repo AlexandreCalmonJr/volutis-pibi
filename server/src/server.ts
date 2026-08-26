@@ -37,37 +37,12 @@ export async function buildServer() {
     throw new Error("JWT_SECRET ausente ou fraco em produção. Gere um com: openssl rand -hex 32");
   }
 
-  const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
-    .split(",")
-    .map((s) => s.trim().replace(/\/+$/, ""))
-    .filter(Boolean);
-
   await app.register(cors, {
-    origin: (origin, cb) => {
-      // Permite requisições diretas / mobile / healthcheck
-      if (!origin) return cb(null, true);
-
-      const cleanOrigin = origin.replace(/\/+$/, "");
-
-      // Se nenhuma lista foi definida, ou tem '*', aceita
-      if (!allowedOrigins.length || allowedOrigins.includes("*")) {
-        return cb(null, true);
-      }
-
-      // Verifica se está na lista ou se é da Vercel / localhost
-      if (
-        allowedOrigins.includes(cleanOrigin) ||
-        cleanOrigin.endsWith(".vercel.app") ||
-        cleanOrigin.startsWith("http://localhost:")
-      ) {
-        return cb(null, true);
-      }
-
-      return cb(null, false);
-    },
+    origin: true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    exposedHeaders: ["*"],
   });
   await app.register(jwt, {
     secret: jwtSecret ?? "dev-secret",
