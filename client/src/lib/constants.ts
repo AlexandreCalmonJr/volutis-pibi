@@ -6,6 +6,8 @@ export const MINISTERIO_COLORS: Record<string, { bg: string; text: string }> = {
   Jovens: { bg: "#d1fae5", text: "#059669" },
   Intercessão: { bg: "#e0e7ff", text: "#4338ca" },
   Diaconato: { bg: "#f3f4f6", text: "#4b5563" },
+  Staff: { bg: "#f1f5f9", text: "#64748b" },
+  Transmissão: { bg: "#fee2e2", text: "#ef4444" },
 };
 
 export const MINISTERIOS = [
@@ -16,6 +18,8 @@ export const MINISTERIOS = [
   "Jovens",
   "Intercessão",
   "Diaconato",
+  "Staff",
+  "Transmissão",
 ];
 
 export function getMinistryColor(ministryName: string): { bg: string; text: string } {

@@ -10,7 +10,9 @@ import Comunicacao from "./pages/Comunicacao";
 import Louvor from "./pages/Louvor";
 import Relatorios from "./pages/Relatorios";
 import Triagem from "./pages/TriagemPage";
+import Convites from "./pages/ConvitesPage";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import CadastroPage from "./pages/CadastroPage";
 import DefinirSenhaPage from "./pages/DefinirSenhaPage";
 import { useRealtimeNotifications } from "./ws";
@@ -26,6 +28,7 @@ const pageTitles: Record<string, string> = {
   "/louvor": "Louvor",
   "/relatorios": "Relatórios",
   "/triagem": "Triagem",
+  "/convites": "Convites",
 };
 
 function AppLayout() {
@@ -108,6 +111,7 @@ function AppLayout() {
             <Route path="/louvor" element={<Louvor />} />
             <Route path="/relatorios" element={<Relatorios />} />
             <Route path="/triagem" element={<Triagem />} />
+            <Route path="/convites" element={<Convites />} />
           </Routes>
         </main>
       </div>
@@ -121,6 +125,7 @@ export default function App() {
       <ToastHost />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/cadastro/:slug" element={<CadastroPage />} />
         <Route path="/definir-senha" element={<DefinirSenhaPage />} />
         <Route

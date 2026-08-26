@@ -39,6 +39,7 @@ async function main() {
     { name: "Recepção", icon: "🤝", color: "#10b981", roles: ["Recepcionista", "Estacionamento"] },
     { name: "Infantil/Kids", icon: "🧒", color: "#ec4899", roles: ["Professor", "Auxiliar", "Berçário"] },
     { name: "Diaconia", icon: "🍞", color: "#6366f1", roles: ["Diácono de Plantão", "Santa Ceia"] },
+    { name: "Staff", icon: "👥", color: "#64748b", roles: ["Coordenador", "Auxiliar", "Planejamento", "Logística"] },
   ];
 
   for (const m of ministries) {

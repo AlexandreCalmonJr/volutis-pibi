@@ -91,6 +91,20 @@ export interface ChatMessageAPI {
   eventId: string;
 }
 
+export interface InviteAPI {
+  id: string;
+  code: string;
+  role: string;
+  createdByName: string | null;
+  expiresAt: string;
+  usedAt: string | null;
+  usedByEmail: string | null;
+  createdAt: string;
+  churchId: string;
+  registerUrl?: string;
+  whatsappShare?: string;
+}
+
 /* ── Generic fetch hook ─── */
 
 export function useApiData<T>(path: string, deps: any[] = []) {
@@ -149,6 +163,10 @@ export function useEventChat(eventId: string) {
   return useApiData<ChatMessageAPI[]>(`/events/${eventId}/chat`, [eventId]);
 }
 
+export function useInvites() {
+  return useApiData<InviteAPI[]>("/invites");
+}
+
 /* ── Helpers ─── */
 
 export const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -180,6 +198,8 @@ export function getMinistryColor(ministryName: string): string {
     Jovens: "#059669",
     Intercessão: "#4338ca",
     Diaconato: "#4b5563",
+    Staff: "#64748b",
+    Transmissão: "#ef4444",
   };
   return colors[ministryName] || "#7c3aed";
 }
@@ -193,6 +213,8 @@ export function getMinistryBgColor(ministryName: string): { bg: string; text: st
     Jovens: { bg: "#d1fae5", text: "#059669" },
     Intercessão: { bg: "#e0e7ff", text: "#4338ca" },
     Diaconato: { bg: "#f3f4f6", text: "#4b5563" },
+    Staff: { bg: "#f1f5f9", text: "#64748b" },
+    Transmissão: { bg: "#fee2e2", text: "#ef4444" },
   };
   return colors[ministryName] || { bg: "#f5f3ff", text: "#7c3aed" };
 }
