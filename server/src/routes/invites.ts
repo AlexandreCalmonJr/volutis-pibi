@@ -5,6 +5,7 @@ import { prisma } from "../lib/db.js";
 import { requireRole, type AuthUser } from "../middleware/auth.js";
 
 const INVITE_DAYS = 7;
+
 function getAppUrl(req: any): string {
   if (process.env.APP_URL) return process.env.APP_URL;
   const origin = req.headers.origin;
@@ -17,13 +18,25 @@ function getAppUrl(req: any): string {
 const createSchema = z.object({
   role: z.enum(["MEMBER", "VOLUNTEER", "MINISTRY_LEADER"]),
   inviteeName: z.string().optional(),
+  ministryId: z.string().optional(),
 });
 
-function newCode() {
-  return crypto.randomBytes(4).toString("hex").toUpperCase();
+/** Gera código com iniciais do ministério + random */
+function newCode(ministryName?: string | null): string {
+  const random = crypto.randomBytes(3).toString("hex").toUpperCase();
+  if (!ministryName) return random;
+  const initials = ministryName
+    .split(/[\s\/]+/)
+    .filter((w) => w.length > 1)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 3);
+  return `${initials}-${random}`;
 }
 
 export async function inviteRoutes(app: FastifyInstance) {
+  /** Criar convite */
   app.post("/invites", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
@@ -34,25 +47,51 @@ export async function inviteRoutes(app: FastifyInstance) {
       return reply.code(403).send({ error: "Apenas o administrador pode convidar líderes" });
     }
 
+    // Líder não-admin só pode criar convites para o próprio ministério
+    let ministryId = body.ministryId || null;
+    if (auth.role !== "ADMIN") {
+      // Buscar ministério do líder
+      const leaderMember = auth.memberId
+        ? await prisma.ministryMember.findFirst({
+            where: { memberId: auth.memberId, isLeader: true },
+            select: { ministryId: true },
+          })
+        : null;
+      if (!leaderMember) {
+        return reply.code(403).send({ error: "Você não é líder de nenhum ministério" });
+      }
+      ministryId = leaderMember.ministryId;
+    }
+
+    // Buscar nome do ministério para o código
+    let ministryName: string | null = null;
+    if (ministryId) {
+      const ministry = await prisma.ministry.findUnique({ where: { id: ministryId }, select: { name: true } });
+      ministryName = ministry?.name ?? null;
+    }
+
     const creator = auth.memberId
       ? await prisma.member.findUnique({ where: { id: auth.memberId }, select: { name: true } })
       : null;
 
     const invite = await prisma.invite.create({
       data: {
-        code: newCode(),
+        code: newCode(ministryName),
         role: body.role,
         churchId: auth.churchId,
+        ministryId,
         createdByName: creator?.name ?? auth.email,
         expiresAt: new Date(Date.now() + INVITE_DAYS * 864e5),
       },
+      include: { ministry: { select: { id: true, name: true, icon: true, color: true } } },
     });
 
     const appUrl = getAppUrl(req);
     const registerUrl = `${appUrl}/register?convite=${invite.code}`;
+    const ministryInfo = invite.ministry ? ` — Ministério: *${invite.ministry.name}*` : "";
     const waText =
       `Olá${body.inviteeName ? `, ${body.inviteeName}` : ""}! 🙌\n\n` +
-      `Você foi convidado(a) para o app *Volutis PIBI* (escalas e ministérios da igreja).\n\n` +
+      `Você foi convidado(a) para o app *Volutis PIBI* (escalas e ministérios da igreja).${ministryInfo}\n\n` +
       `Cadastre-se aqui: ${registerUrl}\n` +
       `Código do convite: *${invite.code}* (válido por ${INVITE_DAYS} dias)`;
 
@@ -63,24 +102,80 @@ export async function inviteRoutes(app: FastifyInstance) {
     });
   });
 
+  /** Listar convites */
   app.get("/invites", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+
+    // Líder não-admin só vê convites do próprio ministério
+    const where: any = { churchId: auth.churchId };
+    if (auth.role !== "ADMIN") {
+      const leaderMember = auth.memberId
+        ? await prisma.ministryMember.findFirst({
+            where: { memberId: auth.memberId, isLeader: true },
+            select: { ministryId: true },
+          })
+        : null;
+      if (leaderMember) {
+        where.ministryId = leaderMember.ministryId;
+      } else {
+        return [];
+      }
+    }
+
     return prisma.invite.findMany({
-      where: { churchId: auth.churchId },
+      where,
+      include: { ministry: { select: { id: true, name: true, icon: true, color: true } } },
       orderBy: { createdAt: "desc" },
       take: 50,
     });
   });
 
+  /** Deletar convite */
   app.delete("/invites/:id", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const auth = req.user as AuthUser;
-    const invite = await prisma.invite.findUnique({ where: { id }, select: { churchId: true, usedAt: true } });
+    const invite = await prisma.invite.findUnique({ where: { id }, select: { churchId: true, ministryId: true } });
     if (!invite || invite.churchId !== auth.churchId)
       return reply.code(404).send({ error: "Convite não encontrado" });
-    if (invite.usedAt) return reply.code(409).send({ error: "Convite já utilizado — não pode ser revogado" });
+
+    // Líder não-admin só pode deletar convites do próprio ministério
+    if (auth.role !== "ADMIN") {
+      const leaderMember = auth.memberId
+        ? await prisma.ministryMember.findFirst({
+            where: { memberId: auth.memberId, isLeader: true },
+            select: { ministryId: true },
+          })
+        : null;
+      if (!leaderMember || leaderMember.ministryId !== invite.ministryId) {
+        return reply.code(403).send({ error: "Sem permissão para excluir este convite" });
+      }
+    }
+
     await prisma.invite.delete({ where: { id } });
     return reply.code(204).send();
+  });
+
+  /** Listar ministérios disponíveis (para o seletor) */
+  app.get("/invites/ministries", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+
+    // ADMIN vê todos, líder vê apenas o próprio
+    if (auth.role === "ADMIN") {
+      return prisma.ministry.findMany({
+        where: { churchId: auth.churchId },
+        select: { id: true, name: true, icon: true, color: true },
+        orderBy: { name: "asc" },
+      });
+    }
+
+    // Líder vê apenas o ministério que lidera
+    if (!auth.memberId) return [];
+    const leaderMinistries = await prisma.ministryMember.findMany({
+      where: { memberId: auth.memberId, isLeader: true },
+      include: { ministry: { select: { id: true, name: true, icon: true, color: true } } },
+    });
+    return leaderMinistries.map((lm) => lm.ministry);
   });
 }

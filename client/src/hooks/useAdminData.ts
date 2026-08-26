@@ -101,6 +101,8 @@ export interface InviteAPI {
   usedByEmail: string | null;
   createdAt: string;
   churchId: string;
+  ministryId: string | null;
+  ministry?: { id: string; name: string; icon: string | null; color: string | null } | null;
   registerUrl?: string;
   whatsappShare?: string;
 }

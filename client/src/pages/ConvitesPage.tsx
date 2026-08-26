@@ -1,7 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "../api";
 import { useAuth } from "../store";
 import { useInvites, type InviteAPI } from "../hooks/useAdminData";
+
+interface MinistryOption {
+  id: string;
+  name: string;
+  icon: string | null;
+  color: string | null;
+}
 
 const ROLE_OPTIONS = [
   { value: "MEMBER", label: "Membro", description: "Acesso básico ao app", color: "#6b7280" },
@@ -15,12 +22,28 @@ export default function ConvitesPage() {
   const [showModal, setShowModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [selectedRole, setSelectedRole] = useState("VOLUNTEER");
+  const [selectedMinistryId, setSelectedMinistryId] = useState("");
   const [inviteeName, setInviteeName] = useState("");
   const [createdInvite, setCreatedInvite] = useState<InviteAPI | null>(null);
   const [copied, setCopied] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [ministries, setMinistries] = useState<MinistryOption[]>([]);
 
   const isAdmin = user?.role === "ADMIN";
+
+  // Buscar ministérios disponíveis
+  useEffect(() => {
+    api<MinistryOption[]>("/invites/ministries")
+      .then(setMinistries)
+      .catch(() => {});
+  }, []);
+
+  // Se líder (não-admin), selecionar automaticamente o ministério
+  useEffect(() => {
+    if (!isAdmin && ministries.length === 1) {
+      setSelectedMinistryId(ministries[0].id);
+    }
+  }, [isAdmin, ministries]);
 
   const handleCreate = async () => {
     setActionError("");
@@ -28,7 +51,11 @@ export default function ConvitesPage() {
     try {
       const result = await api<InviteAPI>("/invites", {
         method: "POST",
-        body: { role: selectedRole, inviteeName: inviteeName.trim() || undefined },
+        body: {
+          role: selectedRole,
+          inviteeName: inviteeName.trim() || undefined,
+          ministryId: selectedMinistryId || undefined,
+        },
       });
       setCreatedInvite(result);
       refetch();
@@ -40,12 +67,12 @@ export default function ConvitesPage() {
   };
 
   const handleRevoke = async (id: string) => {
-    if (!confirm("Tem certeza que deseja revogar este convite?")) return;
+    if (!confirm("Tem certeza que deseja excluir este convite?")) return;
     try {
       await api(`/invites/${id}`, { method: "DELETE" });
       refetch();
     } catch (e: any) {
-      alert(e.message || "Erro ao revogar convite");
+      alert(e.message || "Erro ao excluir convite");
     }
   };
 
@@ -75,7 +102,7 @@ export default function ConvitesPage() {
           </p>
         </div>
         <button
-          onClick={() => { setShowModal(true); setCreatedInvite(null); setInviteeName(""); setSelectedRole("VOLUNTEER"); }}
+          onClick={() => { setShowModal(true); setCreatedInvite(null); setInviteeName(""); setSelectedRole("VOLUNTEER"); setSelectedMinistryId(!isAdmin && ministries.length === 1 ? ministries[0].id : ""); }}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
           style={{ backgroundColor: "#7c3aed" }}
         >
@@ -136,6 +163,14 @@ export default function ConvitesPage() {
                       >
                         {role.label}
                       </span>
+                      {invite.ministry && (
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                          style={{ backgroundColor: (invite.ministry.color || "#7c3aed") + "15", color: invite.ministry.color || "#7c3aed" }}
+                        >
+                          {invite.ministry.icon} {invite.ministry.name}
+                        </span>
+                      )}
                       {used && (
                         <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-green-100 text-green-700">
                           Usado
@@ -181,16 +216,17 @@ export default function ConvitesPage() {
                         >
                           WhatsApp
                         </a>
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleRevoke(invite.id)}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
-                          >
-                            Revogar
-                          </button>
-                        )}
                       </>
                     )}
+                    <button
+                      onClick={() => handleRevoke(invite.id)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                      title="Excluir convite"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -235,6 +271,13 @@ export default function ConvitesPage() {
                   <p className="font-mono text-2xl font-bold text-[#1e1b4b]">{createdInvite.code}</p>
                 </div>
 
+                {createdInvite.ministry && (
+                  <div className="p-4 bg-gray-50 rounded-xl flex items-center gap-2">
+                    <span className="text-lg">{createdInvite.ministry.icon}</span>
+                    <span className="text-sm font-medium text-gray-700">Ministério: {createdInvite.ministry.name}</span>
+                  </div>
+                )}
+
                 {createdInvite.registerUrl && (
                   <div className="p-4 bg-gray-50 rounded-xl">
                     <p className="text-xs text-gray-500 mb-1">Link de registro</p>
@@ -269,6 +312,40 @@ export default function ConvitesPage() {
             ) : (
               /* Create Form */
               <div className="space-y-4">
+                {/* Ministry Selector */}
+                {ministries.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                      Ministério
+                    </label>
+                    {isAdmin && ministries.length > 1 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {ministries.map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => setSelectedMinistryId(m.id)}
+                            className={`p-3 rounded-xl border-2 text-left transition-all ${
+                              selectedMinistryId === m.id
+                                ? "border-purple-500 bg-purple-50"
+                                : "border-gray-200 hover:border-gray-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{m.icon || "⛪"}</span>
+                              <span className="text-sm font-medium text-gray-700">{m.name}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-gray-50 rounded-xl flex items-center gap-2">
+                        <span className="text-lg">{ministries[0]?.icon || "⛪"}</span>
+                        <span className="text-sm font-medium text-gray-700">{ministries[0]?.name}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                     Papel do convidado
@@ -323,7 +400,7 @@ export default function ConvitesPage() {
 
                 <button
                   onClick={handleCreate}
-                  disabled={creating}
+                  disabled={creating || (!isAdmin && ministries.length === 0)}
                   className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {creating ? (

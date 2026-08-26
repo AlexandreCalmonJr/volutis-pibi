@@ -86,6 +86,19 @@ export async function authRoutes(app: FastifyInstance) {
         },
         include: { member: true },
       });
+
+      // Auto-vincular ao ministério do convite
+      if (invite.ministryId && created.member) {
+        await tx.ministryMember.create({
+          data: {
+            memberId: created.member.id,
+            ministryId: invite.ministryId,
+            isLeader: invite.role === "MINISTRY_LEADER",
+            roles: "[]",
+          },
+        });
+      }
+
       await tx.invite.update({
         where: { id: invite.id },
         data: { usedAt: new Date(), usedByEmail: body.email },
@@ -95,6 +108,25 @@ export async function authRoutes(app: FastifyInstance) {
 
     const tokens = await issueTokens(app, toPayload(user));
     return reply.code(201).send({ user: { id: user.id, email: user.email, role: user.role }, ...tokens });
+  });
+
+  /** GET /auth/validate-invite/:code — valida código e retorna dados do convite */
+  app.get("/auth/validate-invite/:code", async (req, reply) => {
+    const { code } = req.params as { code: string };
+    const invite = await prisma.invite.findUnique({
+      where: { code: code.trim().toUpperCase() },
+      include: { ministry: true },
+    });
+    if (!invite || invite.usedAt || invite.expiresAt < new Date()) {
+      return reply.code(404).send({ error: "Convite inválido ou expirado" });
+    }
+    return {
+      code: invite.code,
+      role: invite.role,
+      ministry: invite.ministry
+        ? { id: invite.ministry.id, name: invite.ministry.name, icon: invite.ministry.icon, color: invite.ministry.color }
+        : null,
+    };
   });
 
   app.post("/auth/login", async (req, reply) => {

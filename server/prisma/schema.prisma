@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -58,8 +58,11 @@ model Invite {
   usedByEmail   String?
   createdAt     DateTime  @default(now())
 
-  church   Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  church   Church  @relation(fields: [churchId], references: [id], onDelete: Cascade)
   churchId String
+
+  ministry   Ministry? @relation(fields: [ministryId], references: [id], onDelete: SetNull)
+  ministryId String?
 }
 
 model RefreshToken {
@@ -113,6 +116,7 @@ model Ministry {
   roles                  MinistryRole[]
   members                MinistryMember[]
   applicationPreferences ApplicationPreference[]
+  invites                Invite[]
 }
 
 model MinistryRole {
