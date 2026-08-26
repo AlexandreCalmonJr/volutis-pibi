@@ -3,10 +3,11 @@
 Arquitetura de produção:
 
 - **Frontend (PWA)** → **Vercel** (estático, grátis)
-- **Backend (API + WebSocket)** → **Railway** ou **Render** (a Vercel não suporta WebSocket persistente em serverless)
-- **Banco** → **PostgreSQL** (Supabase, Neon ou o Postgres do próprio Railway — todos têm tier gratuito)
+- **Backend (API + WebSocket)** → **Northflank**, **Railway** ou **Render**
+- **Banco** → **PostgreSQL** (Northflank Addon, Supabase, Neon ou Railway)
 
 ---
+
 
 ## 1. Banco de dados (PostgreSQL)
 
