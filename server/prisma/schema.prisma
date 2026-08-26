@@ -85,6 +85,7 @@ model Member {
   unavailabilities Unavailability[]
   checkins         CheckIn[]
   badges           Badge[]
+  swapRequests     SwapRequest[]
   points           Int              @default(0)
 
   @@index([churchId])
