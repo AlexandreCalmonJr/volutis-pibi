@@ -49,7 +49,7 @@ export async function inviteRoutes(app: FastifyInstance) {
     });
 
     const appUrl = getAppUrl(req);
-    const registerUrl = `${appUrl}/login?convite=${invite.code}`;
+    const registerUrl = `${appUrl}/register?convite=${invite.code}`;
     const waText =
       `Olá${body.inviteeName ? `, ${body.inviteeName}` : ""}! 🙌\n\n` +
       `Você foi convidado(a) para o app *Volutis PIBI* (escalas e ministérios da igreja).\n\n` +
