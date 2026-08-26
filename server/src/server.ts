@@ -7,6 +7,7 @@ import { ZodError } from "zod";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync } from "fs";
+import { prisma } from "./lib/db.js";
 import { authRoutes } from "./routes/auth.js";
 import { memberRoutes } from "./routes/members.js";
 import { ministryRoutes } from "./routes/ministries.js";
@@ -29,7 +30,6 @@ export async function buildServer() {
 
   const isProd = process.env.NODE_ENV === "production";
 
-  // Produção exige segredo forte — nunca subir com fallback de dev
   const jwtSecret = process.env.JWT_SECRET;
   if (isProd && (!jwtSecret || jwtSecret.length < 32 || jwtSecret.includes("dev"))) {
     throw new Error("JWT_SECRET ausente ou fraco em produção. Gere um com: openssl rand -hex 32");
@@ -54,12 +54,18 @@ export async function buildServer() {
     app.log.error(err);
     const errorObj = err as any;
     const status = errorObj?.statusCode ?? 500;
-    // 500 não vaza detalhes internos em produção
     const message = status >= 500 && isProd ? "Erro interno do servidor" : (errorObj?.message ?? "Erro interno");
     return reply.code(status).send({ error: message });
   });
 
-  app.get("/health", async () => ({ status: "ok", service: "volutis-pibi-api" }));
+  app.get("/health", async () => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return { status: "ok", service: "volutis-pibi-api", db: "connected" };
+    } catch {
+      return { status: "degraded", service: "volutis-pibi-api", db: "disconnected" };
+    }
+  });
 
   await app.register(websocket);
   await app.register(authRoutes, { prefix: "/api" });
@@ -75,7 +81,6 @@ export async function buildServer() {
   await app.register(inviteRoutes, { prefix: "/api" });
   await app.register(websocketHandler);
 
-  // Em produção: servir arquivos estáticos do frontend (SPA)
   const clientDist = existsSync(join(process.cwd(), "client", "dist"))
     ? join(process.cwd(), "client", "dist")
     : join(__dirname, "..", "..", "client", "dist");
@@ -86,7 +91,6 @@ export async function buildServer() {
       prefix: "/",
     });
 
-    // SPA fallback: rotas que não são /api, /ws, /health → index.html
     app.setNotFoundHandler(async (req, reply) => {
       if (req.url.startsWith("/api") || req.url.startsWith("/ws") || req.url === "/health") {
         return reply.code(404).send({ error: "Rota não encontrada" });
@@ -98,10 +102,24 @@ export async function buildServer() {
   return app;
 }
 
-const app = await buildServer();
-const port = Number(process.env.PORT ?? 3333);
-await app.listen({ port, host: "0.0.0.0" });
-console.log(`🚀 Volutis PIBI API rodando em http://localhost:${port}`);
+const isTest = process.env.NODE_ENV === "test" || process.argv[1]?.includes("smoke");
 
-// Inicia o agendador de lembretes automáticos de 24h
-startReminderScheduler();
+if (!isTest) {
+  const app = await buildServer();
+  const port = Number(process.env.PORT ?? 3333);
+  await app.listen({ port, host: "0.0.0.0" });
+  console.log(`🚀 Volutis PIBI API rodando em http://localhost:${port}`);
+
+  const schedulerInterval = startReminderScheduler();
+
+  const shutdown = async () => {
+    console.log("\n🛑 Encerrando servidor...");
+    clearInterval(schedulerInterval);
+    await app.close();
+    await prisma.$disconnect();
+    process.exit(0);
+  };
+
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
+}

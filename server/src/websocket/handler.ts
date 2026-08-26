@@ -2,10 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { registerClient } from "../services/notification.service.js";
 import type { AuthUser } from "../middleware/auth.js";
 
-/**
- * WS: conectar em /ws?token=<accessToken>
- * Recebe notificações JSON: { type, title, body, data, whatsappLink, at }
- */
+const HEARTBEAT_INTERVAL_MS = 30_000;
+
 export async function websocketHandler(app: FastifyInstance) {
   app.get("/ws", { websocket: true }, (socket, req) => {
     const { token } = req.query as { token?: string };
@@ -19,6 +17,21 @@ export async function websocketHandler(app: FastifyInstance) {
         socket.close(4003, "Usuário sem membro vinculado");
         return;
       }
+
+      let alive = true;
+      const heartbeat = setInterval(() => {
+        if (!alive) {
+          clearInterval(heartbeat);
+          try { socket.close(4004, "Heartbeat timeout"); } catch { /* ignore */ }
+          return;
+        }
+        alive = false;
+        try { socket.ping(); } catch { /* ignore */ }
+      }, HEARTBEAT_INTERVAL_MS);
+
+      socket.on("pong", () => { alive = true; });
+      socket.on("close", () => clearInterval(heartbeat));
+
       registerClient(user.memberId, socket);
       socket.send(
         JSON.stringify({ type: "CONNECTED", title: "Conectado", body: "Notificações em tempo real ativas", at: new Date().toISOString() })

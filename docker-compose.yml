@@ -1,9 +1,4 @@
-version: "3.8"
-
 services:
-  # Servidor WhatsApp HTTP API (WAHA)
-  # Documentação: https://waha.devlike.pro/
-  # Dashboard Swagger / QR Code disponível em: http://localhost:3000/dashboard
   waha:
     image: devlikeapro/waha:latest
     container_name: volutis_waha
@@ -13,13 +8,12 @@ services:
     environment:
       - WAHA_LOG_LEVEL=info
       - WAHA_DASHBOARD_ENABLED=true
-      - WAHA_DASHBOARD_USERNAME=admin
-      - WAHA_DASHBOARD_PASSWORD=admin
-      # - WAHA_API_KEY=sua_chave_secreta # Opcional
+      - WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME:-admin}
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD:-changeme}
+      - WAHA_API_KEY=${WAHA_API_KEY:-}
     volumes:
       - waha_sessions:/app/.sessions
 
-  # Aplicativo Volutis PIBI (Backend + Frontend)
   app:
     build:
       context: .
@@ -31,14 +25,17 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8080
-      - DATABASE_URL=file:./dev.db
-      - JWT_SECRET=volutis_pibi_jwt_secret_super_forte_producao_2026
+      - DATABASE_URL=${DATABASE_URL:-file:./dev.db}
+      - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET no .env}
       - WHATSAPP_API_URL=http://waha:3000
-      - WHATSAPP_SESSION=default
+      - WHATSAPP_SESSION=${WHATSAPP_SESSION:-default}
+      - WHATSAPP_API_KEY=${WHATSAPP_API_KEY:-}
+      - APP_URL=${APP_URL:-http://localhost:8080}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
     depends_on:
       - waha
     volumes:
-      - app_data:/app/server
+      - app_data:/app/server/data
 
 volumes:
   waha_sessions:

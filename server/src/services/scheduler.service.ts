@@ -77,17 +77,15 @@ export async function processScheduleReminders(): Promise<number> {
 /**
  * Inicia o ciclo de verificação do agendador.
  */
-export function startReminderScheduler(): NodeJS.Timeout {
+export function startReminderScheduler(): ReturnType<typeof setInterval> {
   console.log("⏰ Agendador de lembretes automáticos de 24h iniciado.");
 
-  // Primeira execução rápida (5s após subir o servidor)
   setTimeout(() => {
     processScheduleReminders().catch((err) =>
       console.error("[Scheduler] Erro na execução inicial:", err)
     );
   }, 5000);
 
-  // Execução periódica a cada 15 minutos
   return setInterval(() => {
     processScheduleReminders().catch((err) =>
       console.error("[Scheduler] Erro na execução periódica:", err)

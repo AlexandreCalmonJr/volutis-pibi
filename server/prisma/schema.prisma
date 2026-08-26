@@ -85,6 +85,8 @@ model Member {
   checkins         CheckIn[]
   badges           Badge[]
   points           Int              @default(0)
+
+  @@index([churchId])
 }
 
 model Ministry {
@@ -136,6 +138,9 @@ model Event {
   liturgyItems  LiturgyItem[]
   setlistItems  SetlistItem[]
   chatMessages  ChatMessage[]
+
+  @@index([churchId, date])
+  @@index([startTime])
 }
 
 model ScheduleItem {
@@ -154,6 +159,9 @@ model ScheduleItem {
   swapRequests SwapRequest[]
 
   @@unique([eventId, memberId, roleName])
+  @@index([memberId])
+  @@index([eventId])
+  @@index([status])
 }
 
 model SwapRequest {
@@ -162,10 +170,13 @@ model SwapRequest {
 
   scheduleItem   ScheduleItem @relation(fields: [scheduleItemId], references: [id], onDelete: Cascade)
   scheduleItemId String
-  targetMemberId String // membro convidado a assumir a vaga
+  targetMember   Member?      @relation(fields: [targetMemberId], references: [id], onDelete: SetNull)
+  targetMemberId String?
   message        String?
   createdAt      DateTime @default(now())
   respondedAt    DateTime?
+
+  @@index([targetMemberId])
 }
 
 model Unavailability {
@@ -243,6 +254,8 @@ model ChatMessage {
 
   event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
   eventId String
+
+  @@index([eventId, createdAt])
 }
 
 model Badge {
@@ -253,4 +266,6 @@ model Badge {
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   memberId String
   earnedAt DateTime @default(now())
+
+  @@index([memberId])
 }
