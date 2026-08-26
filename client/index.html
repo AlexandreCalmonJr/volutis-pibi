@@ -20,7 +20,11 @@
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").then((reg) => {
+            reg.update().catch(() => {});
+          }).catch(() => {});
+        });
       }
     </script>
   </body>

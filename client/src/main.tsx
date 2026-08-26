@@ -4,6 +4,12 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
 
+// Se um chunk JS falhar ao carregar após um novo deploy, recarrega a página automaticamente
+window.addEventListener('vite:preloadError', (event) => {
+  console.warn('Novo deploy detectado ou falha ao carregar chunk. Recarregando...', event);
+  window.location.reload();
+});
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -11,3 +17,4 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </React.StrictMode>,
 )
+
