@@ -37,11 +37,38 @@ export async function buildServer() {
     throw new Error("JWT_SECRET ausente ou fraco em produção. Gere um com: openssl rand -hex 32");
   }
 
-  const corsOrigins = process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean);
-  if (isProd && !corsOrigins?.length) {
-    app.log.warn("CORS aberto (origin:true) em produção — defina CORS_ORIGINS com a URL do frontend.");
-  }
-  await app.register(cors, { origin: corsOrigins?.length ? corsOrigins : true });
+  const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+
+  await app.register(cors, {
+    origin: (origin, cb) => {
+      // Permite requisições diretas / mobile / healthcheck
+      if (!origin) return cb(null, true);
+
+      const cleanOrigin = origin.replace(/\/+$/, "");
+
+      // Se nenhuma lista foi definida, ou tem '*', aceita
+      if (!allowedOrigins.length || allowedOrigins.includes("*")) {
+        return cb(null, true);
+      }
+
+      // Verifica se está na lista ou se é da Vercel / localhost
+      if (
+        allowedOrigins.includes(cleanOrigin) ||
+        cleanOrigin.endsWith(".vercel.app") ||
+        cleanOrigin.startsWith("http://localhost:")
+      ) {
+        return cb(null, true);
+      }
+
+      return cb(null, false);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+  });
   await app.register(jwt, {
     secret: jwtSecret ?? "dev-secret",
   });
