@@ -3,12 +3,12 @@
  */
 import { useAuth } from "./store";
 
-const BASE = import.meta.env.VITE_API_URL ?? "";
+export const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 
 async function refresh(): Promise<boolean> {
   const { refreshToken, setTokens, logout } = useAuth.getState();
   if (!refreshToken) return false;
-  const res = await fetch(`${BASE}/api/auth/refresh`, {
+  const res = await fetch(`${API_URL}/api/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
@@ -22,13 +22,15 @@ async function refresh(): Promise<boolean> {
   return true;
 }
 
+
 export async function api<T = any>(
   path: string,
   options: { method?: string; body?: unknown } = {},
   retried = false
 ): Promise<T> {
   const { accessToken } = useAuth.getState();
-  const res = await fetch(`${BASE}/api${path}`, {
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const res = await fetch(`${API_URL}/api${cleanPath}`, {
     method: options.method ?? "GET",
     headers: {
       "Content-Type": "application/json",
@@ -36,6 +38,7 @@ export async function api<T = any>(
     },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
+
 
   if (res.status === 401 && !retried && (await refresh())) {
     return api<T>(path, options, true);

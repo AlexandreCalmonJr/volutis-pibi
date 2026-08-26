@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../store";
+import { API_URL } from "../api";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -15,13 +16,21 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 404) {
+          setError(
+            !API_URL && window.location.hostname !== "localhost"
+              ? "Servidor API não encontrado (verifique a variável VITE_API_URL na Vercel)."
+              : "Rota de autenticação não encontrada no servidor."
+          );
+          return;
+        }
         setError(data.error ?? "Credenciais inválidas");
         return;
       }
@@ -37,11 +46,12 @@ export default function LoginPage() {
       );
       navigate("/");
     } catch {
-      setError("Erro de conexão com o servidor");
+      setError("Erro de conexão com o servidor. Verifique sua conexão ou se a API está online.");
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#f5f3ff" }}>
