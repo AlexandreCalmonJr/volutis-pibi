@@ -26,7 +26,7 @@ RUN chmod +x /app/docker-entrypoint.sh
 ENV NODE_ENV=production
 ENV PORT=8080
 
-EXPOSE 8080
+WORKDIR /app/server
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["npx", "tsx", "server/src/server.ts"]
+CMD ["npx", "tsx", "src/server.ts"]
