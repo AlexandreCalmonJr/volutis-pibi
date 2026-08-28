@@ -90,6 +90,24 @@ export async function runEventsSchedulesSuite(): Promise<{ passed: number; faile
   });
   t.check("GET /api/my/schedule retorna escalas e convites do voluntário", myScheduleRes.statusCode === 200 && Array.isArray(myScheduleRes.json().items));
 
+  // 9. Geração automática do mês
+  const now = new Date();
+  const autoGenRes = await app.inject({
+    method: "POST",
+    url: "/api/schedules/auto-generate",
+    headers: adminAuth,
+    payload: {
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      ministryId: louvor.id,
+      overwrite: false,
+    },
+  });
+  t.check(
+    "POST /api/schedules/auto-generate gera escalas do mês com sucesso",
+    autoGenRes.statusCode === 200 && typeof autoGenRes.json().eventsProcessed === "number"
+  );
+
   return t.summary();
 }
 

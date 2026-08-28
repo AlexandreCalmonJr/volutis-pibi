@@ -261,6 +261,26 @@ async function main() {
     applyRes.data
   );
 
+  // 13. Teste de Geração Automática de Escala do Mês no Banco
+  if (token) {
+    const now = new Date();
+    const autoGenRes = await request("/api/schedules/auto-generate", {
+      method: "POST",
+      token,
+      origin: VERCEL_ORIGIN,
+      body: {
+        year: now.getFullYear(),
+        month: now.getMonth() + 1,
+        overwrite: false,
+      },
+    });
+    check(
+      "13. POST /api/schedules/auto-generate processa escala do mês com algoritmo inteligente",
+      autoGenRes.status === 200 && typeof autoGenRes.data?.eventsProcessed === "number",
+      autoGenRes.data
+    );
+  }
+
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
   console.log("\x1b[1m\x1b[35m");

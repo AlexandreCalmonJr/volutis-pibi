@@ -2,7 +2,12 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma, belongsToChurch, itemEventChurch } from "../lib/db.js";
 import { requireAuth, requireRole, type AuthUser } from "../middleware/auth.js";
-import { findConflict, isUnavailable, suggestVolunteers } from "../services/schedule.service.js";
+import {
+  findConflict,
+  isUnavailable,
+  suggestVolunteers,
+  autoGenerateMonthlySchedule,
+} from "../services/schedule.service.js";
 import { notifyMember } from "../services/notification.service.js";
 import {
   buildScheduleWhatsAppLink,
@@ -10,6 +15,13 @@ import {
   sendDeclineAlertToLeader,
 } from "../services/whatsapp.service.js";
 import { checkAndAwardBadges, POINTS } from "../services/gamification.service.js";
+
+const autoGenerateSchema = z.object({
+  year: z.number().int().min(2020).max(2050),
+  month: z.number().int().min(1).max(12),
+  ministryId: z.string().optional(),
+  overwrite: z.boolean().optional().default(false),
+});
 
 const assignSchema = z.object({
   memberId: z.string(),
@@ -41,6 +53,32 @@ function getAppUrl(req: any): string {
 }
 
 export async function scheduleRoutes(app: FastifyInstance) {
+  // ── Gerar Escala Automática do Mês ───────────────────────────────────
+  app.post(
+    "/schedules/auto-generate",
+    { preHandler: [requireRole("MINISTRY_LEADER")] },
+    async (req, reply) => {
+      const auth = req.user as AuthUser;
+      if (!auth.churchId) {
+        return reply.code(400).send({ error: "Igreja não identificada no usuário autenticado" });
+      }
+      const body = autoGenerateSchema.parse(req.body);
+      if (body.ministryId && !(await belongsToChurch("ministry", body.ministryId, auth.churchId))) {
+        return reply.code(404).send({ error: "Ministério não encontrado" });
+      }
+
+      const result = await autoGenerateMonthlySchedule({
+        churchId: auth.churchId,
+        year: body.year,
+        month: body.month,
+        ministryId: body.ministryId,
+        overwrite: body.overwrite,
+      });
+
+      return result;
+    }
+  );
+
   // ── Sugestões inteligentes ───────────────────────────────────────────
   app.get(
     "/events/:eventId/suggestions",

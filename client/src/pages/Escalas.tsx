@@ -36,6 +36,30 @@ export default function Escalas() {
   const [diaSelecionado, setDiaSelecionado] = useState<number | null>(null);
   const [filtroMinisterio, setFiltroMinisterio] = useState("Todos");
 
+  // Auto Gerar Escala
+  const [modalAutoOpen, setModalAutoOpen] = useState(false);
+  const [gerando, setGerando] = useState(false);
+  const [overwrite, setOverwrite] = useState(false);
+  const [selectedMinistryId, setSelectedMinistryId] = useState("ALL");
+  const [ministriesList, setMinistriesList] = useState<Array<{ id: string; name: string }>>([]);
+  const [autoResult, setAutoResult] = useState<{
+    eventsProcessed: number;
+    rolesAssigned: number;
+    skippedRoles: number;
+    assignments: Array<{
+      eventTitle: string;
+      roleName: string;
+      memberName: string;
+      ministryName: string;
+    }>;
+  } | null>(null);
+
+  useEffect(() => {
+    api<Array<{ id: string; name: string }>>("/ministries")
+      .then((data) => setMinistriesList(data))
+      .catch(() => setMinistriesList([]));
+  }, []);
+
   useEffect(() => {
     fetchEvents();
   }, [mesAtual]);
@@ -55,6 +79,28 @@ export default function Escalas() {
       setEvents([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleAutoGenerate() {
+    setGerando(true);
+    setAutoResult(null);
+    try {
+      const result = await api<any>("/schedules/auto-generate", {
+        method: "POST",
+        body: {
+          year: mesAtual.year,
+          month: mesAtual.month + 1,
+          ministryId: selectedMinistryId === "ALL" ? undefined : selectedMinistryId,
+          overwrite,
+        },
+      });
+      setAutoResult(result);
+      await fetchEvents();
+    } catch (err: any) {
+      alert(err.message || "Erro ao gerar escala automática.");
+    } finally {
+      setGerando(false);
     }
   }
 
@@ -104,10 +150,12 @@ export default function Escalas() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-70"
+            onClick={() => {
+              setAutoResult(null);
+              setModalAutoOpen(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 shadow-sm cursor-pointer"
             style={{ backgroundColor: "#7c3aed" }}
-            disabled
-            title="Em breve"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -341,6 +389,158 @@ export default function Escalas() {
           )}
         </div>
       </div>
+
+      {/* Modal de Geração Automática */}
+      {modalAutoOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-[#ede9fe] flex items-center justify-center text-xl">
+                  ⚡
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-[#1e1b4b]">Gerar Escala Automática</h3>
+                  <p className="text-xs text-[#7c6ea8]">
+                    {mesNomes[mesAtual.month]} de {mesAtual.year}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalAutoOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {autoResult ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-sm text-emerald-800">
+                    <span>🎉</span> Escala gerada com sucesso!
+                  </div>
+                  <p className="text-xs text-emerald-700">
+                    <strong>{autoResult.rolesAssigned}</strong> voluntários foram escalados em{" "}
+                    <strong>{autoResult.eventsProcessed}</strong> eventos com balanceamento inteligente.
+                  </p>
+                </div>
+
+                {autoResult.assignments.length > 0 && (
+                  <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                    <p className="text-xs font-semibold text-[#5b5077] uppercase tracking-wider">
+                      Atribuições Realizadas:
+                    </p>
+                    {autoResult.assignments.map((a, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 bg-[#f8f7ff] border border-[#ede9fe] rounded-xl flex items-center justify-between text-xs"
+                      >
+                        <div>
+                          <p className="font-semibold text-[#1e1b4b]">{a.memberName}</p>
+                          <p className="text-[11px] text-[#7c6ea8]">
+                            {a.eventTitle} · {a.ministryName}
+                          </p>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full font-medium bg-[#ede9fe] text-[#7c3aed]">
+                          {a.roleName}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={() => setModalAutoOpen(false)}
+                    className="px-5 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 transition-all cursor-pointer"
+                    style={{ backgroundColor: "#7c3aed" }}
+                  >
+                    Concluir
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">
+                    Ministério Alvo
+                  </label>
+                  <select
+                    value={selectedMinistryId}
+                    onChange={(e) => setSelectedMinistryId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]"
+                  >
+                    <option value="ALL">🏛️ Todos os Ministérios</option>
+                    {ministriesList.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="overwriteCheck"
+                    checked={overwrite}
+                    onChange={(e) => setOverwrite(e.target.checked)}
+                    className="w-4 h-4 rounded text-[#7c3aed] border-gray-300 focus:ring-[#7c3aed]"
+                  />
+                  <label htmlFor="overwriteCheck" className="text-xs text-[#5b5077] cursor-pointer">
+                    Substituir escalas pendentes já existentes no mês
+                  </label>
+                </div>
+
+                <div className="p-3.5 bg-[#f8f7ff] border border-[#ede9fe] rounded-xl text-xs text-[#5b5077] space-y-1 leading-relaxed">
+                  <div className="flex items-center gap-1.5 font-semibold text-[#7c3aed]">
+                    <span>🧠</span> Algoritmo Inteligente Volutis:
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-[#7c6ea8]">
+                    <li>Verifica indisponibilidades e bloqueios de data informados pelos voluntários.</li>
+                    <li>Evita sobreposição de horários entre diferentes ministérios no mesmo culto.</li>
+                    <li>Prioriza voluntários com menor número de escalas nos últimos 90 dias (revezamento justo).</li>
+                  </ul>
+                </div>
+
+                <div className="pt-3 flex items-center justify-end gap-2 border-t border-[#f0eefe]">
+                  <button
+                    type="button"
+                    onClick={() => setModalAutoOpen(false)}
+                    disabled={gerando}
+                    className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAutoGenerate}
+                    disabled={gerando}
+                    className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+                    style={{ backgroundColor: "#7c3aed" }}
+                  >
+                    {gerando ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        Calculando e Escalando...
+                      </>
+                    ) : (
+                      <>
+                        <span>⚡</span>
+                        Confirmar e Gerar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

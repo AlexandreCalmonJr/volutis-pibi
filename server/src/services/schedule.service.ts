@@ -112,3 +112,140 @@ export async function suggestVolunteers(
 
   return suggestions.sort((a, b) => b.score - a.score);
 }
+
+export interface AutoGenerateOptions {
+  churchId: string;
+  year: number;
+  month: number; // 1 to 12
+  ministryId?: string;
+  overwrite?: boolean;
+}
+
+export interface AutoGenerateResult {
+  month: number;
+  year: number;
+  eventsProcessed: number;
+  rolesAssigned: number;
+  skippedRoles: number;
+  assignments: Array<{
+    scheduleItemId: string;
+    eventId: string;
+    eventTitle: string;
+    date: Date;
+    ministryName: string;
+    roleName: string;
+    memberName: string;
+    memberPhone: string | null;
+  }>;
+}
+
+/**
+ * Gera automaticamente as escalas do mês para os eventos da igreja.
+ * Utiliza o motor inteligente de rotação justa, respeitando indisponibilidades e evitando conflitos de horários.
+ */
+export async function autoGenerateMonthlySchedule(
+  options: AutoGenerateOptions
+): Promise<AutoGenerateResult> {
+  const { churchId, year, month, ministryId, overwrite = false } = options;
+
+  const startOfMonth = new Date(year, month - 1, 1, 0, 0, 0);
+  const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+
+  const events = await prisma.event.findMany({
+    where: {
+      churchId,
+      date: { gte: startOfMonth, lte: endOfMonth },
+    },
+    orderBy: { date: "asc" },
+    include: {
+      scheduleItems: {
+        include: { member: true },
+      },
+    },
+  });
+
+  const ministries = await prisma.ministry.findMany({
+    where: {
+      churchId,
+      ...(ministryId ? { id: ministryId } : {}),
+    },
+    include: {
+      roles: true,
+      members: {
+        include: { member: true },
+      },
+    },
+  });
+
+  let rolesAssigned = 0;
+  let skippedRoles = 0;
+  const assignments: AutoGenerateResult["assignments"] = [];
+
+  for (const event of events) {
+    for (const ministry of ministries) {
+      for (const role of ministry.roles) {
+        // Verifica se a função já está preenchida
+        const alreadyScheduled = event.scheduleItems.find(
+          (s) => s.roleName === role.name && s.status !== "DECLINED"
+        );
+
+        if (alreadyScheduled && !overwrite) {
+          continue;
+        }
+
+        if (alreadyScheduled && overwrite && alreadyScheduled.status === "PENDING") {
+          await prisma.scheduleItem.delete({
+            where: { id: alreadyScheduled.id },
+          });
+        }
+
+        // Busca sugestão com melhor score (revezamento justo)
+        const suggestions = await suggestVolunteers(ministry.id, role.name, event.id);
+
+        if (suggestions.length > 0) {
+          const chosen = suggestions[0];
+
+          const item = await prisma.scheduleItem.create({
+            data: {
+              eventId: event.id,
+              memberId: chosen.memberId,
+              roleName: role.name,
+              status: "PENDING",
+            },
+            include: {
+              member: true,
+              event: true,
+            },
+          });
+
+          // Atualiza o estado em memória para as próximas funções do mesmo evento
+          event.scheduleItems.push(item as any);
+
+          rolesAssigned++;
+          assignments.push({
+            scheduleItemId: item.id,
+            eventId: event.id,
+            eventTitle: event.title,
+            date: event.date,
+            ministryName: ministry.name,
+            roleName: role.name,
+            memberName: chosen.name,
+            memberPhone: chosen.phone,
+          });
+        } else {
+          skippedRoles++;
+        }
+      }
+    }
+  }
+
+  return {
+    month,
+    year,
+    eventsProcessed: events.length,
+    rolesAssigned,
+    skippedRoles,
+    assignments,
+  };
+}
+
