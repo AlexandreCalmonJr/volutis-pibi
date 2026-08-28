@@ -5,6 +5,8 @@ import {
   parseWhatsAppResponse,
   sendWhatsAppMessage,
   getWhatsAppStatus,
+  initNativeWhatsApp,
+  disconnectNativeWhatsApp,
 } from "../services/whatsapp.service.js";
 import { notifyMember } from "../services/notification.service.js";
 import { requireAuth, requireRole, type AuthUser } from "../middleware/auth.js";
@@ -31,9 +33,21 @@ const broadcastSchema = z.object({
  * Rotas de Integração WhatsApp (Status, Webhook e Disparo de Comunicados).
  */
 export async function whatsappWebhookRoutes(app: FastifyInstance) {
-  /** GET /whatsapp/status — consulta status da conexão com WAHA */
+  /** GET /whatsapp/status — consulta status da conexão */
   app.get("/whatsapp/status", { preHandler: [requireAuth] }, async () => {
     return await getWhatsAppStatus();
+  });
+
+  /** POST /whatsapp/connect — inicia conexão e gera QR Code */
+  app.post("/whatsapp/connect", { preHandler: [requireRole("MINISTRY_LEADER")] }, async () => {
+    initNativeWhatsApp().catch(() => {});
+    return await getWhatsAppStatus();
+  });
+
+  /** POST /whatsapp/disconnect — desconecta e limpa sessão */
+  app.post("/whatsapp/disconnect", { preHandler: [requireRole("MINISTRY_LEADER")] }, async () => {
+    await disconnectNativeWhatsApp();
+    return { ok: true, status: "DISCONNECTED" };
   });
 
   /** POST /whatsapp/test — envia mensagem de teste */

@@ -32,6 +32,7 @@ interface WhatsAppStatus {
   configured: boolean;
   connected: boolean;
   status: string;
+  qrCode?: string | null;
   phone?: string;
   name?: string;
   session?: string;
@@ -64,6 +65,9 @@ export default function Comunicacao() {
   const [testingWa, setTestingWa] = useState(false);
   const [testFeedback, setTestFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
   const user = useAuth((s) => s.user);
 
   useEffect(() => {
@@ -86,13 +90,13 @@ export default function Comunicacao() {
   const fetchWhatsAppStatus = useCallback(async () => {
     setLoadingStatus(true);
     try {
-      const data = await api<WhatsAppStatus>("/whatsapp/status");
+      const data = await api<WhatsAppStatus & { qrCode?: string | null }>("/whatsapp/status");
       setWaStatus(data);
     } catch {
       setWaStatus({
         configured: false,
         connected: false,
-        status: "OFFLINE",
+        status: "DISCONNECTED",
         error: "Não foi possível conectar ao servidor",
       });
     } finally {
@@ -105,6 +109,55 @@ export default function Comunicacao() {
       fetchWhatsAppStatus();
     }
   }, [aba, fetchWhatsAppStatus]);
+
+  // Polling quando estiver aguardando leitura do QR Code
+  useEffect(() => {
+    let interval: any = null;
+    if (aba === "whatsapp" && (waStatus?.status === "SCAN_QR_CODE" || waStatus?.status === "CONNECTING")) {
+      interval = setInterval(() => {
+        api<WhatsAppStatus & { qrCode?: string | null }>("/whatsapp/status")
+          .then((res) => {
+            setWaStatus(res);
+            if (res.connected) clearInterval(interval);
+          })
+          .catch(() => {});
+      }, 2500);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [aba, waStatus?.status]);
+
+  async function handleConnectWhatsApp() {
+    setConnecting(true);
+    try {
+      const res = await api<WhatsAppStatus & { qrCode?: string | null }>("/whatsapp/connect", {
+        method: "POST",
+      });
+      setWaStatus(res);
+    } catch {
+      fetchWhatsAppStatus();
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  async function handleDisconnectWhatsApp() {
+    if (!window.confirm("Deseja realmente desconectar o WhatsApp da Igreja?")) return;
+    setDisconnecting(true);
+    try {
+      await api("/whatsapp/disconnect", { method: "POST" });
+      setWaStatus({
+        configured: true,
+        connected: false,
+        status: "DISCONNECTED",
+      });
+    } catch {
+      fetchWhatsAppStatus();
+    } finally {
+      setDisconnecting(false);
+    }
+  }
 
   useEffect(() => {
     if (!eventId) return;
@@ -445,7 +498,7 @@ export default function Comunicacao() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-[#1e1b4b]">Serviço de WhatsApp (WAHA)</h2>
+                    <h2 className="text-lg font-bold text-[#1e1b4b]">WhatsApp PIBI</h2>
                     {loadingStatus ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                         Verificando...
@@ -455,29 +508,65 @@ export default function Comunicacao() {
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         Conectado
                       </span>
-                    ) : waStatus?.status === "SCAN_QR_CODE" || waStatus?.status === "QR_CODE_PENDING" ? (
+                    ) : waStatus?.status === "SCAN_QR_CODE" ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
-                        <span className="w-2 h-2 rounded-full bg-amber-500" />
-                        Aguardando QR Code
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                        Aguardando leitura do QR Code
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">
-                        <span className="w-2 h-2 rounded-full bg-rose-500" />
-                        {waStatus?.configured ? "Desconectado" : "Não Configurado"}
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                        <span className="w-2 h-2 rounded-full bg-gray-400" />
+                        Desconectado
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-[#7c6ea8] mt-0.5">
                     {waStatus?.connected
-                      ? `Sessão "${waStatus.session || "default"}" ativa · Número: +${waStatus.phone || "Pareado"}`
-                      : waStatus?.configured
-                      ? "O servidor WAHA está configurado mas precisa ser autenticado ou iniciado."
-                      : "Defina WHATSAPP_API_URL no ambiente para ativar disparos automáticos."}
+                      ? `Conectado ao número +${waStatus.phone || "Pareado"} · Disparos automáticos e respostas 1/2 ativas`
+                      : waStatus?.status === "SCAN_QR_CODE"
+                      ? "Escaneie o QR Code abaixo com o WhatsApp da Igreja para ativar."
+                      : "Clique no botão Conectar WhatsApp para gerar o QR Code."}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {waStatus?.connected ? (
+                  <button
+                    type="button"
+                    onClick={handleDisconnectWhatsApp}
+                    disabled={disconnecting}
+                    className="px-3.5 py-2 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    {disconnecting ? "Desconectando..." : "Desconectar Sessão"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleConnectWhatsApp}
+                    disabled={connecting}
+                    className="px-4 py-2 text-xs font-semibold text-white bg-[#16a34a] hover:bg-[#15803d] rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {connecting ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        Gerando QR Code...
+                      </>
+                    ) : (
+                      <>
+                        <span>📱</span>
+                        Conectar WhatsApp (Gerar QR Code)
+                      </>
+                    )}
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={fetchWhatsAppStatus}
@@ -487,10 +576,38 @@ export default function Comunicacao() {
                   <svg className={`w-4 h-4 ${loadingStatus ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  Atualizar Conexão
+                  Atualizar
                 </button>
               </div>
             </div>
+
+            {/* QR Code Banner se estiver aguardando leitura */}
+            {waStatus?.status === "SCAN_QR_CODE" && waStatus?.qrCode && (
+              <div className="mt-6 pt-6 border-t border-[#f0eefe] flex flex-col md:flex-row items-center justify-center gap-8 bg-[#fcfbfe] p-6 rounded-xl">
+                <div className="bg-white p-3 rounded-2xl shadow-sm border border-[#e5e0f8]">
+                  <img
+                    src={waStatus.qrCode}
+                    alt="WhatsApp QR Code"
+                    className="w-56 h-56 object-contain rounded-xl"
+                  />
+                </div>
+                <div className="space-y-3 text-center md:text-left max-w-md">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                    Aguardando leitura do celular...
+                  </div>
+                  <h3 className="text-base font-bold text-[#1e1b4b]">Como conectar seu WhatsApp:</h3>
+                  <ol className="text-xs text-[#5b5077] space-y-2 list-decimal list-inside leading-relaxed">
+                    <li>Abra o <strong>WhatsApp</strong> no celular oficial da Igreja.</li>
+                    <li>Toque em <strong>Mais opções</strong> (⋮) ou <strong>Configurações</strong> e selecione <strong>Aparelhos conectados</strong>.</li>
+                    <li>Toque em <strong>Conectar um aparelho</strong> e aponte a câmera para o QR Code ao lado.</li>
+                  </ol>
+                  <p className="text-[11px] text-[#7c6ea8]">
+                    Assim que você escanear, esta tela atualizará automaticamente para <strong>🟢 Conectado</strong>!
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

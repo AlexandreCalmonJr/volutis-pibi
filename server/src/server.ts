@@ -24,6 +24,7 @@ import { dashboardRoutes } from "./routes/dashboard.js";
 import { whatsappWebhookRoutes } from "./routes/whatsapp-webhook.js";
 import { websocketHandler } from "./websocket/handler.js";
 import { startReminderScheduler } from "./services/scheduler.service.js";
+import { initNativeWhatsApp } from "./services/whatsapp.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -122,6 +123,7 @@ if (!isTest) {
   console.log(`🚀 Volutis PIBI API rodando em http://localhost:${port}`);
 
   const schedulerInterval = startReminderScheduler();
+  initNativeWhatsApp().catch(() => {});
 
   const shutdown = async () => {
     console.log("\n🛑 Encerrando servidor...");
