@@ -110,7 +110,10 @@ export async function buildServer() {
   return app;
 }
 
-const isTest = process.env.NODE_ENV === "test" || process.argv[1]?.includes("smoke");
+const isTest =
+  process.env.NODE_ENV === "test" ||
+  process.argv[1]?.includes("smoke") ||
+  process.argv[1]?.includes("test");
 
 if (!isTest) {
   const app = await buildServer();

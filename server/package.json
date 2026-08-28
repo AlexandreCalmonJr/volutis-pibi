@@ -10,7 +10,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts",
-    "test": "tsx src/tests/smoke.ts"
+    "test": "tsx src/tests/smoke.ts",
+    "test:all": "tsx src/tests/run-all.ts",
+    "test:suites": "tsx src/tests/run-all.ts --suites",
+    "test:flows": "tsx src/tests/run-all.ts --flows",
+    "test:live": "tsx src/tests/live/test-live-api.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
