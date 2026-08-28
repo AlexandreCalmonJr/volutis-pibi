@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "../api";
 import { useAuth } from "../store";
 
@@ -21,6 +21,23 @@ interface ChatMessage {
   sender: ChatSender;
 }
 
+interface Ministry {
+  id: string;
+  name: string;
+  color?: string | null;
+  icon?: string | null;
+}
+
+interface WhatsAppStatus {
+  configured: boolean;
+  connected: boolean;
+  status: string;
+  phone?: string;
+  name?: string;
+  session?: string;
+  error?: string;
+}
+
 export default function Comunicacao() {
   const [aba, setAba] = useState<"chat" | "notificacoes" | "whatsapp">("chat");
   const [events, setEvents] = useState<Event[]>([]);
@@ -30,6 +47,22 @@ export default function Comunicacao() {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // WhatsApp state
+  const [waStatus, setWaStatus] = useState<WhatsAppStatus | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [ministries, setMinistries] = useState<Ministry[]>([]);
+  const [targetType, setTargetType] = useState<"ALL" | "MINISTRY" | "LEADERS">("ALL");
+  const [selectedMinistryId, setSelectedMinistryId] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [broadcastSuccess, setBroadcastSuccess] = useState<{ total: number; sentWhatsapp: number } | null>(null);
+  const [broadcastError, setBroadcastError] = useState<string | null>(null);
+
+  // Test WhatsApp
+  const [testPhone, setTestPhone] = useState("");
+  const [testingWa, setTestingWa] = useState(false);
+  const [testFeedback, setTestFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
   const user = useAuth((s) => s.user);
 
@@ -41,7 +74,37 @@ export default function Comunicacao() {
       })
       .catch(() => setEvents([]))
       .finally(() => setLoadingEvents(false));
+
+    api<Ministry[]>("/ministries")
+      .then((data) => {
+        setMinistries(data);
+        if (data.length > 0) setSelectedMinistryId(data[0].id);
+      })
+      .catch(() => setMinistries([]));
   }, []);
+
+  const fetchWhatsAppStatus = useCallback(async () => {
+    setLoadingStatus(true);
+    try {
+      const data = await api<WhatsAppStatus>("/whatsapp/status");
+      setWaStatus(data);
+    } catch {
+      setWaStatus({
+        configured: false,
+        connected: false,
+        status: "OFFLINE",
+        error: "Não foi possível conectar ao servidor",
+      });
+    } finally {
+      setLoadingStatus(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (aba === "whatsapp") {
+      fetchWhatsAppStatus();
+    }
+  }, [aba, fetchWhatsAppStatus]);
 
   useEffect(() => {
     if (!eventId) return;
@@ -72,6 +135,63 @@ export default function Comunicacao() {
     }
   }
 
+  async function handleBroadcastSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!broadcastMessage.trim() || broadcasting) return;
+
+    setBroadcasting(true);
+    setBroadcastSuccess(null);
+    setBroadcastError(null);
+
+    try {
+      const res = await api<{ ok: boolean; totalRecipients: number; sentViaWhatsapp: number }>(
+        "/whatsapp/broadcast",
+        {
+          method: "POST",
+          body: {
+            message: broadcastMessage.trim(),
+            ministryId: targetType === "MINISTRY" ? selectedMinistryId : undefined,
+            target: targetType === "LEADERS" ? "LEADERS" : "ALL",
+          },
+        }
+      );
+
+      setBroadcastSuccess({
+        total: res.totalRecipients,
+        sentWhatsapp: res.sentViaWhatsapp,
+      });
+      setBroadcastMessage("");
+    } catch (err: any) {
+      setBroadcastError(err?.message || "Erro ao disparar comunicado.");
+    } finally {
+      setBroadcasting(false);
+    }
+  }
+
+  async function handleTestWhatsApp(e: React.FormEvent) {
+    e.preventDefault();
+    if (!testPhone.trim() || testingWa) return;
+
+    setTestingWa(true);
+    setTestFeedback(null);
+
+    try {
+      const res = await api<{ ok: boolean; message: string }>("/whatsapp/test", {
+        method: "POST",
+        body: { phone: testPhone.trim() },
+      });
+      setTestFeedback({ success: true, message: res.message || "Mensagem enviada com sucesso!" });
+      setTestPhone("");
+    } catch (err: any) {
+      setTestFeedback({
+        success: false,
+        message: err?.message || "Falha no envio de teste. Verifique a conexão do WAHA.",
+      });
+    } finally {
+      setTestingWa(false);
+    }
+  }
+
   function isMyMessage(msg: ChatMessage) {
     return user?.memberId ? msg.sender.id === user.memberId : msg.sender.id === user?.id;
   }
@@ -95,7 +215,7 @@ export default function Comunicacao() {
             Comunicação
           </h1>
           <p className="text-[#5b5077] text-sm mt-1">
-            Chat por evento · Notificações · WhatsApp
+            Chat por evento · Notificações · WhatsApp & Comunicados
           </p>
         </div>
       </div>
@@ -106,10 +226,10 @@ export default function Comunicacao() {
           <button
             key={a}
             onClick={() => setAba(a)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${aba === a ? "text-white" : "text-[#7c6ea8] hover:bg-gray-50"}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${aba === a ? "text-white shadow-sm" : "text-[#7c6ea8] hover:bg-gray-50"}`}
             style={aba === a ? { backgroundColor: "#7c3aed" } : {}}
           >
-            {a === "chat" ? "Chats" : a === "notificacoes" ? "Notificações" : "WhatsApp"}
+            {a === "chat" ? "Chats de Evento" : a === "notificacoes" ? "Notificações" : "WhatsApp & Disparos"}
           </button>
         ))}
       </div>
@@ -250,7 +370,7 @@ export default function Comunicacao() {
                 <button
                   onClick={handleSend}
                   disabled={!eventId || !novaMensagem.trim() || sending}
-                  className="px-4 py-2.5 rounded-xl text-white transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-4 py-2.5 rounded-xl text-white transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   style={{ backgroundColor: "#7c3aed" }}
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -265,79 +385,324 @@ export default function Comunicacao() {
 
       {/* Notificações */}
       {aba === "notificacoes" && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-[#e5e0f8] p-12 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "#ede9fe" }}>
-              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="#7c3aed" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#ede9fe]">
+                <svg className="w-5 h-5 text-[#7c3aed]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[#1e1b4b]">Central de Notificações em Tempo Real</h3>
+                <p className="text-xs text-[#7c6ea8]">Alertas instantâneos via WebSocket para todos os membros</p>
+              </div>
             </div>
-            <h3 className="text-lg font-semibold text-[#1e1b4b] mb-2">Notificações</h3>
-            <p className="text-sm text-[#7c6ea8] max-w-sm">
-              Gerenciamento de notificações estará disponível em breve.
-            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-[#f8f7ff] border border-[#ede9fe] rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2 text-[#7c3aed] font-semibold text-sm">
+                  <span>📅</span> Novas Escalas & Lembretes
+                </div>
+                <p className="text-xs text-[#5b5077] leading-relaxed">
+                  Voluntários recebem avisos imediatos ao serem adicionados em escalas e 24h antes do culto.
+                </p>
+              </div>
+
+              <div className="bg-[#f8f7ff] border border-[#ede9fe] rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2 text-[#7c3aed] font-semibold text-sm">
+                  <span>🔄</span> Solicitações de Troca
+                </div>
+                <p className="text-xs text-[#5b5077] leading-relaxed">
+                  Líderes e voluntários são notificados instantaneamente quando alguém solicita ou aceita trocas de escala.
+                </p>
+              </div>
+
+              <div className="bg-[#f8f7ff] border border-[#ede9fe] rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2 text-[#7c3aed] font-semibold text-sm">
+                  <span>🏆</span> Gamificação & Check-in
+                </div>
+                <p className="text-xs text-[#5b5077] leading-relaxed">
+                  Confirmação visual de pontos e badges conquistados ao realizar check-in no culto.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* WhatsApp */}
+      {/* WhatsApp & Disparos */}
       {aba === "whatsapp" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "#dcfce7" }}>
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#16a34a">
+        <div className="space-y-6">
+          {/* Status Bar */}
+          <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[#dcfce7] flex-shrink-0">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="#16a34a">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-[#1e1b4b]">Integração WhatsApp</h3>
-                  <p className="text-xs text-[#7c6ea8]">Informacional</p>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-[#1e1b4b]">Serviço de WhatsApp (WAHA)</h2>
+                    {loadingStatus ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                        Verificando...
+                      </span>
+                    ) : waStatus?.connected ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        Conectado
+                      </span>
+                    ) : waStatus?.status === "SCAN_QR_CODE" || waStatus?.status === "QR_CODE_PENDING" ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        Aguardando QR Code
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">
+                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                        {waStatus?.configured ? "Desconectado" : "Não Configurado"}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[#7c6ea8] mt-0.5">
+                    {waStatus?.connected
+                      ? `Sessão "${waStatus.session || "default"}" ativa · Número: +${waStatus.phone || "Pareado"}`
+                      : waStatus?.configured
+                      ? "O servidor WAHA está configurado mas precisa ser autenticado ou iniciado."
+                      : "Defina WHATSAPP_API_URL no ambiente para ativar disparos automáticos."}
+                  </p>
                 </div>
               </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between bg-[#f5f3ff] rounded-xl px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-[#1e1b4b]">Lembretes automáticos</p>
-                    <p className="text-xs text-[#7c6ea8]">1 dia antes do serviço</p>
-                  </div>
-                  <div className="w-10 h-6 rounded-full relative" style={{ backgroundColor: "#7c3aed" }}>
-                    <span className="absolute top-0.5 right-0.5 w-5 h-5 bg-white rounded-full shadow" />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between bg-[#f5f3ff] rounded-xl px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-[#1e1b4b]">Consulta de disponibilidade</p>
-                    <p className="text-xs text-[#7c6ea8]">Mensal, no dia 25</p>
-                  </div>
-                  <div className="w-10 h-6 rounded-full relative" style={{ backgroundColor: "#7c3aed" }}>
-                    <span className="absolute top-0.5 right-0.5 w-5 h-5 bg-white rounded-full shadow" />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between bg-[#f5f3ff] rounded-xl px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-[#1e1b4b]">Confirmação de escala</p>
-                    <p className="text-xs text-[#7c6ea8]">Ao gerar nova escala</p>
-                  </div>
-                  <div className="w-10 h-6 rounded-full relative" style={{ backgroundColor: "#7c3aed" }}>
-                    <span className="absolute top-0.5 right-0.5 w-5 h-5 bg-white rounded-full shadow" />
-                  </div>
-                </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchWhatsAppStatus}
+                  disabled={loadingStatus}
+                  className="px-3.5 py-2 text-xs font-medium text-[#7c3aed] bg-[#f5f3ff] hover:bg-[#ede9fe] rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <svg className={`w-4 h-4 ${loadingStatus ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Atualizar Conexão
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-[#e5e0f8] p-12 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "#dcfce7" }}>
-              <svg className="w-8 h-8" viewBox="0 0 24 24" fill="#16a34a">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-              </svg>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Broadcast Form (7 cols) */}
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-5">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📢</span>
+                <div>
+                  <h3 className="font-bold text-[#1e1b4b]">Disparo de Comunicado em Massa</h3>
+                  <p className="text-xs text-[#7c6ea8]">Envie avisos oficiais para voluntários via WhatsApp e Notificação no App</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleBroadcastSubmit} className="space-y-4">
+                {/* Target selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-2">
+                    Destinatários
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTargetType("ALL")}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-medium border text-center transition-all cursor-pointer ${
+                        targetType === "ALL"
+                          ? "bg-[#7c3aed] text-white border-[#7c3aed] shadow-sm"
+                          : "bg-[#f8f7ff] text-[#5b5077] border-[#e5e0f8] hover:bg-[#ede9fe]"
+                      }`}
+                    >
+                      🏛️ Toda a Igreja
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTargetType("MINISTRY")}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-medium border text-center transition-all cursor-pointer ${
+                        targetType === "MINISTRY"
+                          ? "bg-[#7c3aed] text-white border-[#7c3aed] shadow-sm"
+                          : "bg-[#f8f7ff] text-[#5b5077] border-[#e5e0f8] hover:bg-[#ede9fe]"
+                      }`}
+                    >
+                      🎵 Por Ministério
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTargetType("LEADERS")}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-medium border text-center transition-all cursor-pointer ${
+                        targetType === "LEADERS"
+                          ? "bg-[#7c3aed] text-white border-[#7c3aed] shadow-sm"
+                          : "bg-[#f8f7ff] text-[#5b5077] border-[#e5e0f8] hover:bg-[#ede9fe]"
+                      }`}
+                    >
+                      👑 Somente Líderes
+                    </button>
+                  </div>
+                </div>
+
+                {/* Ministry selector */}
+                {targetType === "MINISTRY" && (
+                  <div>
+                    <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">
+                      Selecione o Ministério
+                    </label>
+                    <select
+                      value={selectedMinistryId}
+                      onChange={(e) => setSelectedMinistryId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]"
+                    >
+                      {ministries.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Message input */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-[#5b5077] uppercase tracking-wider">
+                      Mensagem do Comunicado
+                    </label>
+                    <span className="text-[11px] text-[#7c6ea8]">
+                      {broadcastMessage.length} caracteres
+                    </span>
+                  </div>
+                  <textarea
+                    rows={4}
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    placeholder="Ex: Paz a todos! Teremos ensaio geral no sábado às 15h. Contamos com a presença de todos."
+                    className="w-full px-4 py-3 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] placeholder:text-[#c4b5fd] focus:outline-none focus:border-[#7c3aed] transition-colors resize-none"
+                  />
+                  <p className="text-[11px] text-[#7c6ea8] mt-1">
+                    Dica: No WhatsApp, use <span className="font-mono text-purple-700">*negrito*</span> ou <span className="font-mono text-purple-700">_itálico_</span> para destacar palavras.
+                  </p>
+                </div>
+
+                {broadcastSuccess && (
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
+                    <span className="text-base">✅</span>
+                    <div>
+                      <strong>Comunicado enviado!</strong> {broadcastSuccess.total} voluntário(s) notificados no App ({broadcastSuccess.sentWhatsapp} via WhatsApp direto).
+                    </div>
+                  </div>
+                )}
+
+                {broadcastError && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
+                    <span className="text-base">❌</span>
+                    <div>{broadcastError}</div>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={!broadcastMessage.trim() || broadcasting}
+                  className="w-full py-3 px-4 rounded-xl text-white font-medium text-sm transition-all shadow-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                  style={{ backgroundColor: "#7c3aed" }}
+                >
+                  {broadcasting ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Disparando comunicados...
+                    </>
+                  ) : (
+                    <>
+                      <span>🚀</span>
+                      Disparar Comunicado via WhatsApp & App
+                    </>
+                  )}
+                </button>
+              </form>
             </div>
-            <h3 className="text-lg font-semibold text-[#1e1b4b] mb-2">Histórico de Envios</h3>
-            <p className="text-sm text-[#7c6ea8] max-w-sm">
-              Integração com WhatsApp para envio de mensagens estará disponível em breve.
-            </p>
+
+            {/* Side Column: Test + Active Automations (5 cols) */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Test form */}
+              <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🧪</span>
+                  <div>
+                    <h3 className="font-bold text-[#1e1b4b] text-sm">Teste Rápido de Disparo</h3>
+                    <p className="text-xs text-[#7c6ea8]">Envie uma mensagem de teste para seu celular</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleTestWhatsApp} className="space-y-3">
+                  <input
+                    type="tel"
+                    value={testPhone}
+                    onChange={(e) => setTestPhone(e.target.value)}
+                    placeholder="Ex: 71999998888 (com DDD)"
+                    className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] placeholder:text-[#c4b5fd] focus:outline-none focus:border-[#7c3aed]"
+                  />
+
+                  {testFeedback && (
+                    <div
+                      className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
+                        testFeedback.success
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : "bg-rose-50 text-rose-800 border border-rose-200"
+                      }`}
+                    >
+                      <span>{testFeedback.success ? "✅" : "⚠️"}</span>
+                      <span>{testFeedback.message}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={!testPhone.trim() || testingWa}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-[#16a34a] bg-[#dcfce7] hover:bg-[#bbf7d0] transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {testingWa ? "Enviando teste..." : "Enviar Mensagem de Teste WhatsApp"}
+                  </button>
+                </form>
+              </div>
+
+              {/* Automations Info */}
+              <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-3">
+                <h3 className="font-bold text-[#1e1b4b] text-sm">Automações Ativas 24/7</h3>
+                <div className="space-y-2.5">
+                  <div className="flex items-start gap-2.5 bg-[#f8f7ff] p-3 rounded-xl">
+                    <span className="text-sm mt-0.5">⏰</span>
+                    <div>
+                      <p className="text-xs font-semibold text-[#1e1b4b]">Lembrete 24h antes do Culto</p>
+                      <p className="text-[11px] text-[#7c6ea8]">Disparado a cada 15 min pelo agendador automático.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 bg-[#f8f7ff] p-3 rounded-xl">
+                    <span className="text-sm mt-0.5">📱</span>
+                    <div>
+                      <p className="text-xs font-semibold text-[#1e1b4b]">Confirmação Interativa (1 ou 2)</p>
+                      <p className="text-[11px] text-[#7c6ea8]">O voluntário responde "1" e a escala confirma no banco de dados.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 bg-[#f8f7ff] p-3 rounded-xl">
+                    <span className="text-sm mt-0.5">🎉</span>
+                    <div>
+                      <p className="text-xs font-semibold text-[#1e1b4b]">Aprovação de Voluntários</p>
+                      <p className="text-[11px] text-[#7c6ea8]">Ao aprovar na triagem, envia link para definir senha (48h).</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -16,7 +16,8 @@ export type NotificationType =
   | "SWAP_DECLINED"
   | "CHECKIN_DONE"
   | "CHAT_MESSAGE"
-  | "BADGE_EARNED";
+  | "BADGE_EARNED"
+  | "ANNOUNCEMENT";
 
 export interface Notification {
   type: NotificationType;

@@ -1,8 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/db.js";
-import { parseWhatsAppResponse, sendWhatsAppMessage } from "../services/whatsapp.service.js";
+import {
+  parseWhatsAppResponse,
+  sendWhatsAppMessage,
+  getWhatsAppStatus,
+} from "../services/whatsapp.service.js";
 import { notifyMember } from "../services/notification.service.js";
+import { requireAuth, requireRole, type AuthUser } from "../middleware/auth.js";
 
 const WEBHOOK_SECRET = process.env.WAHA_WEBHOOK_SECRET;
 
@@ -16,13 +21,130 @@ const webhookEventSchema = z.object({
     .optional(),
 });
 
+const broadcastSchema = z.object({
+  ministryId: z.string().optional(),
+  target: z.enum(["ALL", "VOLUNTEERS", "LEADERS"]).default("ALL"),
+  message: z.string().min(3, "Mensagem deve ter pelo menos 3 caracteres"),
+});
+
 /**
- * Webhook para receber mensagens do WAHA (WhatsApp HTTP API).
- * Processa respostas interativas de confirmação de escala.
- *
- * Segurança: verifica header X-Webhook-Secret quando configurado.
+ * Rotas de Integração WhatsApp (Status, Webhook e Disparo de Comunicados).
  */
 export async function whatsappWebhookRoutes(app: FastifyInstance) {
+  /** GET /whatsapp/status — consulta status da conexão com WAHA */
+  app.get("/whatsapp/status", { preHandler: [requireAuth] }, async () => {
+    return await getWhatsAppStatus();
+  });
+
+  /** POST /whatsapp/test — envia mensagem de teste */
+  app.post(
+    "/whatsapp/test",
+    { preHandler: [requireRole("MINISTRY_LEADER")] },
+    async (req, reply) => {
+      const body = z
+        .object({
+          phone: z.string().min(8, "Telefone inválido"),
+          message: z.string().optional(),
+        })
+        .parse(req.body);
+
+      const text =
+        body.message ||
+        "🔔 *Teste de Conexão WhatsApp — Volutis PIBI*\n\nA integração com o WAHA está funcionando perfeitamente! ✅";
+
+      const sent = await sendWhatsAppMessage({
+        to: body.phone,
+        text,
+      });
+
+      if (!sent) {
+        return reply.code(400).send({
+          ok: false,
+          error:
+            "Não foi possível enviar a mensagem. Verifique se o servidor WAHA está conectado e com o QR Code autenticado.",
+        });
+      }
+
+      return { ok: true, message: "Mensagem de teste enviada com sucesso!" };
+    }
+  );
+
+  /** POST /whatsapp/broadcast — disparo de comunicado em massa */
+  app.post("/whatsapp/broadcast", { preHandler: [requireAuth] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    if (!auth.churchId) {
+      return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+    }
+
+    if (auth.role !== "ADMIN" && auth.role !== "MINISTRY_LEADER") {
+      return reply.code(403).send({ error: "Permissão insuficiente para envio de comunicados" });
+    }
+
+    const body = broadcastSchema.parse(req.body);
+
+    let targetMinistryId = body.ministryId;
+    if (auth.role === "MINISTRY_LEADER" && !targetMinistryId) {
+      const leaderMinistry = await prisma.ministryMember.findFirst({
+        where: { member: { userId: auth.sub }, isLeader: true },
+      });
+      if (!leaderMinistry) {
+        return reply.code(403).send({ error: "Você não lidera nenhum ministério" });
+      }
+      targetMinistryId = leaderMinistry.ministryId;
+    }
+
+    let members: any[] = [];
+    if (targetMinistryId) {
+      const ministryMembers = await prisma.ministryMember.findMany({
+        where: {
+          ministryId: targetMinistryId,
+          ministry: { churchId: auth.churchId },
+          ...(body.target === "LEADERS" ? { isLeader: true } : {}),
+        },
+        include: { member: true },
+      });
+      members = ministryMembers.map((mm) => mm.member);
+    } else {
+      members = await prisma.member.findMany({
+        where: {
+          churchId: auth.churchId,
+          approvalStatus: "ACTIVE",
+          ...(body.target === "LEADERS"
+            ? { ministryMembers: { some: { isLeader: true } } }
+            : {}),
+        },
+      });
+    }
+
+    const uniqueMembers = Array.from(new Map(members.map((m) => [m.id, m])).values());
+
+    let sentWhatsappCount = 0;
+    for (const m of uniqueMembers) {
+      // 1. Notificação interna em tempo real (WebSocket)
+      notifyMember(m.id, {
+        type: "ANNOUNCEMENT",
+        title: "📢 Comunicado da Igreja",
+        body: body.message,
+      });
+
+      // 2. WhatsApp
+      if (m.phone) {
+        const formattedMessage = `📢 *Comunicado Volutis PIBI*\n\nOlá, ${m.name}! 🙌\n\n${body.message}\n\n🙏 Deus abençoe!`;
+        const sent = await sendWhatsAppMessage({
+          to: m.phone,
+          text: formattedMessage,
+        });
+        if (sent) sentWhatsappCount++;
+      }
+    }
+
+    return {
+      ok: true,
+      totalRecipients: uniqueMembers.length,
+      sentViaWhatsapp: sentWhatsappCount,
+    };
+  });
+
   /** POST /whatsapp/webhook — recebe mensagens do WAHA */
   app.post("/whatsapp/webhook", async (req, reply) => {
     // Verificação de autenticação via header compartilhado

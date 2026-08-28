@@ -101,6 +101,95 @@ export async function sendWhatsAppMessage({
 }
 
 /**
+ * Consulta o status da conexão do WhatsApp (WAHA).
+ */
+export async function getWhatsAppStatus(): Promise<{
+  configured: boolean;
+  connected: boolean;
+  status: string;
+  phone?: string;
+  name?: string;
+  session?: string;
+  error?: string;
+}> {
+  const apiUrl = process.env.WHATSAPP_API_URL;
+  const session = process.env.WHATSAPP_SESSION || "default";
+  const apiKey = process.env.WHATSAPP_API_KEY;
+
+  if (!apiUrl) {
+    return {
+      configured: false,
+      connected: false,
+      status: "NOT_CONFIGURED",
+      session,
+    };
+  }
+
+  try {
+    const headers: Record<string, string> = {};
+    if (apiKey) {
+      headers["X-Api-Key"] = apiKey;
+      headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+
+    const res = await fetch(`${apiUrl.replace(/\/$/, "")}/api/sessions/${session}`, {
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      const resAll = await fetch(`${apiUrl.replace(/\/$/, "")}/api/sessions`, {
+        headers,
+      }).catch(() => null);
+
+      if (resAll && resAll.ok) {
+        const sessions: any = await resAll.json();
+        const found = Array.isArray(sessions) ? sessions.find((s: any) => s.name === session) : null;
+        if (found) {
+          return {
+            configured: true,
+            connected: found.status === "WORKING",
+            status: found.status || "UNKNOWN",
+            phone: found.me?.id ? String(found.me.id).replace("@c.us", "") : undefined,
+            name: found.me?.pushName,
+            session,
+          };
+        }
+      }
+
+      return {
+        configured: true,
+        connected: false,
+        status: `HTTP_${res.status}`,
+        session,
+      };
+    }
+
+    const data: any = await res.json();
+    return {
+      configured: true,
+      connected: data.status === "WORKING",
+      status: data.status || "UNKNOWN",
+      phone: data.me?.id ? String(data.me.id).replace("@c.us", "") : undefined,
+      name: data.me?.pushName,
+      session,
+    };
+  } catch (err: any) {
+    return {
+      configured: true,
+      connected: false,
+      status: "OFFLINE",
+      session,
+      error: err?.message || "Inacessível",
+    };
+  }
+}
+
+/**
  * Gera link direto wa.me com mensagem pré-formatada.
  */
 export function buildScheduleWhatsAppLink(n: ScheduleNotification): string | null {
