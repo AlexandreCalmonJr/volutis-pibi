@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { API_URL } from "../api";
 import { useAuth } from "../store";
@@ -29,6 +29,11 @@ export default function DefinirSenhaPage() {
   const [phone, setPhone] = useState("");
   const [instruments, setInstruments] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const navigateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (navigateTimer.current) clearTimeout(navigateTimer.current); };
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -95,13 +100,14 @@ export default function DefinirSenhaPage() {
           email: data.user.email,
           role: data.user.role,
           memberId: data.user.memberId,
+          memberName: name.trim(),
         },
         data.accessToken,
         data.refreshToken
       );
 
       setSuccess(true);
-      setTimeout(() => navigate("/"), 2000);
+      navigateTimer.current = setTimeout(() => navigate("/"), 2000);
     } catch (e: any) {
       setError(e.message || "Erro ao criar conta");
     } finally {

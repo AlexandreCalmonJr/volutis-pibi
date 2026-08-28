@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../store";
 import { API_URL } from "../api";
@@ -27,6 +27,11 @@ export default function RegisterPage() {
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const navigateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (navigateTimer.current) clearTimeout(navigateTimer.current); };
+  }, []);
 
   useEffect(() => {
     if (!inviteCode) {
@@ -98,13 +103,14 @@ export default function RegisterPage() {
           email: data.user.email,
           role: data.user.role,
           memberId: data.user.memberId,
+          memberName: name.trim(),
         },
         data.accessToken,
         data.refreshToken
       );
 
       setSuccess(true);
-      setTimeout(() => navigate("/"), 2000);
+      navigateTimer.current = setTimeout(() => navigate("/"), 2000);
     } catch {
       setError("Erro de conexão com o servidor");
     } finally {

@@ -1,25 +1,38 @@
 /**
  * Cliente HTTP com injeção de JWT e refresh automático em 401.
+ * Inclui mutex para evitar race condition em refresh concorrente.
  */
 import { useAuth } from "./store";
 
 export const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 
+let refreshPromise: Promise<boolean> | null = null;
+
 async function refresh(): Promise<boolean> {
-  const { refreshToken, setTokens, logout } = useAuth.getState();
-  if (!refreshToken) return false;
-  const res = await fetch(`${API_URL}/api/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
-  });
-  if (!res.ok) {
-    logout();
-    return false;
-  }
-  const data = await res.json();
-  setTokens(data.accessToken, data.refreshToken);
-  return true;
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const { refreshToken, setTokens, logout } = useAuth.getState();
+      if (!refreshToken) return false;
+      const res = await fetch(`${API_URL}/api/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) {
+        logout();
+        return false;
+      }
+      const data = await res.json();
+      setTokens(data.accessToken, data.refreshToken);
+      return true;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 
@@ -43,7 +56,7 @@ export async function api<T = any>(
   if (res.status === 401 && !retried && (await refresh())) {
     return api<T>(path, options, true);
   }
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) return null as T;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(data.error ?? `Erro ${res.status}`, res.status, data);
   return data as T;

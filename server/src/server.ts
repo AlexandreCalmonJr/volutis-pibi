@@ -20,6 +20,7 @@ import { chatRoutes } from "./routes/chat.js";
 import { holyricsRoutes } from "./routes/holyrics.js";
 import { inviteRoutes } from "./routes/invites.js";
 import { applicationRoutes } from "./routes/applications.js";
+import { dashboardRoutes } from "./routes/dashboard.js";
 import { whatsappWebhookRoutes } from "./routes/whatsapp-webhook.js";
 import { websocketHandler } from "./websocket/handler.js";
 import { startReminderScheduler } from "./services/scheduler.service.js";
@@ -84,6 +85,7 @@ export async function buildServer() {
   await app.register(holyricsRoutes, { prefix: "/api" });
   await app.register(inviteRoutes, { prefix: "/api" });
   await app.register(applicationRoutes, { prefix: "/api" });
+  await app.register(dashboardRoutes, { prefix: "/api" });
   await app.register(whatsappWebhookRoutes, { prefix: "/api" });
   await app.register(websocketHandler);
 

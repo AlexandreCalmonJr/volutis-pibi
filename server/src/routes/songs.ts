@@ -28,12 +28,13 @@ const reorderSchema = z.object({
 
 export async function songRoutes(app: FastifyInstance) {
   // ── Catálogo ─────────────────────────────────────────────
-  app.get("/songs", { preHandler: [requireAuth] }, async (req) => {
+  app.get("/songs", { preHandler: [requireAuth] }, async (req, reply) => {
     const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(403).send({ error: "Acesso negado" });
     const { q } = req.query as { q?: string };
     return prisma.song.findMany({
       where: {
-        churchId: auth.churchId ?? undefined,
+        churchId: auth.churchId,
         ...(q ? { OR: [{ title: { contains: q } }, { artist: { contains: q } }] } : {}),
       },
       orderBy: { title: "asc" },

@@ -73,7 +73,6 @@ export default function Sidebar({ currentPage, onNavigate, mobileOpen, onMobileC
           </div>
           <div>
             <p className="text-white font-semibold text-sm leading-tight">Volutis</p>
-            <p className="text-indigo-300 text-xs">Igreja Batista Central</p>
           </div>
         </div>
 

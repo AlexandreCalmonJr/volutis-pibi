@@ -1,24 +1,46 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { prisma } from "../lib/db.js";
 import { parseWhatsAppResponse, sendWhatsAppMessage } from "../services/whatsapp.service.js";
 import { notifyMember } from "../services/notification.service.js";
 
+const WEBHOOK_SECRET = process.env.WAHA_WEBHOOK_SECRET;
+
+const webhookEventSchema = z.object({
+  event: z.string(),
+  payload: z
+    .object({
+      from: z.string().optional(),
+      body: z.string().optional(),
+    })
+    .optional(),
+});
+
 /**
  * Webhook para receber mensagens do WAHA (WhatsApp HTTP API).
  * Processa respostas interativas de confirmação de escala.
+ *
+ * Segurança: verifica header X-Webhook-Secret quando configurado.
  */
 export async function whatsappWebhookRoutes(app: FastifyInstance) {
   /** POST /whatsapp/webhook — recebe mensagens do WAHA */
   app.post("/whatsapp/webhook", async (req, reply) => {
-    const body = req.body as any;
+    // Verificação de autenticação via header compartilhado
+    if (WEBHOOK_SECRET) {
+      const token = (req.headers["x-webhook-secret"] as string) || "";
+      if (token !== WEBHOOK_SECRET) {
+        return reply.code(401).send({ error: "Unauthorized" });
+      }
+    }
 
-    // WAHA envia diferentes formatos dependendo da configuração
-    // Formato esperado: { event: "message", payload: { from: "...", body: "...", ... } }
-    const event = body?.event;
-    const payload = body?.payload;
+    const parsed = webhookEventSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Payload inválido" });
+    }
+
+    const { event, payload } = parsed.data;
 
     if (event !== "message" || !payload) {
-      // Acknowledge non-message events
       return { ok: true };
     }
 
@@ -31,16 +53,16 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
 
     console.log(`[WhatsApp Webhook] Mensagem de ${from}: ${text}`);
 
-    // Processar resposta interativa
     const response = parseWhatsAppResponse(text);
 
     if (response.action === "unknown") {
-      // Mensagem não reconhecida — ignorar
       return { ok: true };
     }
 
-    // Buscar o último agendamento pendente deste número
-    const phone = from.startsWith("55") ? from : `55${from}`;
+    // Normalizar telefone para E.164 brasileiro
+    const digits = from.replace(/\D/g, "");
+    const phone = digits.startsWith("55") ? digits : `55${digits}`;
+
     const member = await prisma.member.findFirst({
       where: { phone },
       include: {
@@ -54,7 +76,6 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
     });
 
     if (!member || member.scheduleItems.length === 0) {
-      // Nenhum agendamento pendente para este número
       return { ok: true };
     }
 
@@ -71,7 +92,6 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
         text: `✅ Presença confirmada para *${scheduleItem.event.title}*!\n\nObrigado e Deus abençoe! — Volutis PIBI`,
       });
 
-      // Notificar o líder via WebSocket
       notifyMember(member.id, {
         type: "SCHEDULE_CONFIRMED",
         title: "Escala confirmada",
@@ -88,7 +108,6 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
         text: `❌ Presença recusada para *${scheduleItem.event.title}*.\n\nSe precisar de ajuda, entre em contato com o líder do ministério.\n\nDeus abençoe! — Volutis PIBI`,
       });
 
-      // Notificar o líder via WebSocket
       notifyMember(member.id, {
         type: "SCHEDULE_DECLINED",
         title: "Escala recusada",

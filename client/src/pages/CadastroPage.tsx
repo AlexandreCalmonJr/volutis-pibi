@@ -413,6 +413,10 @@ export default function CadastroPage() {
                     setError("Preencha o nome completo");
                     return;
                   }
+                  if (step === 1 && !form.email && !form.phone) {
+                    setError("Informe pelo menos um e-mail ou telefone");
+                    return;
+                  }
                   if (step === 2 && form.ministryIds.length === 0) {
                     setError("Selecione pelo menos um ministério");
                     return;

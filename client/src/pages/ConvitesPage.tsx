@@ -25,7 +25,7 @@ export default function ConvitesPage() {
   const [selectedMinistryId, setSelectedMinistryId] = useState("");
   const [inviteeName, setInviteeName] = useState("");
   const [createdInvite, setCreatedInvite] = useState<InviteAPI | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const [ministries, setMinistries] = useState<MinistryOption[]>([]);
 
@@ -76,10 +76,10 @@ export default function ConvitesPage() {
     }
   };
 
-  const copyLink = (url: string) => {
+  const copyLink = (url: string, id: string) => {
     navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const getRoleConfig = (role: string) => {
@@ -202,11 +202,11 @@ export default function ConvitesPage() {
                     {active && invite.registerUrl && (
                       <>
                         <button
-                          onClick={() => copyLink(invite.registerUrl!)}
+                          onClick={() => copyLink(invite.registerUrl!, invite.id)}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#e5e0f8] text-[#7c3aed] hover:bg-[#f5f3ff] transition-colors"
                           title="Copiar link"
                         >
-                          {copied ? "✓ Copiado" : "Copiar Link"}
+                          {copiedId === invite.id ? "✓ Copiado" : "Copiar Link"}
                         </button>
                         <a
                           href={invite.whatsappShare}
@@ -287,10 +287,10 @@ export default function ConvitesPage() {
 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => copyLink(createdInvite.registerUrl || "")}
+                    onClick={() => copyLink(createdInvite.registerUrl || "", "modal")}
                     className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c3aed] hover:bg-[#f5f3ff] transition-colors"
                   >
-                    {copied ? "✓ Copiado!" : "Copiar Link"}
+                    {copiedId === "modal" ? "✓ Copiado!" : "Copiar Link"}
                   </button>
                   <a
                     href={createdInvite.whatsappShare}

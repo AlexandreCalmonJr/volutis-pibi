@@ -112,6 +112,15 @@ export async function authRoutes(app: FastifyInstance) {
 
   /** GET /auth/validate-invite/:code — valida código e retorna dados do convite */
   app.get("/auth/validate-invite/:code", async (req, reply) => {
+    // Rate limit: 20 tentativas por IP a cada 15 min
+    const rl = rateLimitHit(`validate-invite:${req.ip}`, 20, 15 * 60_000);
+    if (!rl.allowed) {
+      return reply
+        .code(429)
+        .header("Retry-After", String(rl.retryAfterSec))
+        .send({ error: "Muitas tentativas. Tente novamente em alguns minutos." });
+    }
+
     const { code } = req.params as { code: string };
     const invite = await prisma.invite.findUnique({
       where: { code: code.trim().toUpperCase() },
@@ -183,6 +192,13 @@ export async function authRoutes(app: FastifyInstance) {
     await prisma.refreshToken.delete({ where: { id: stored.id } });
     const tokens = await issueTokens(app, toPayload(stored.user));
     return tokens;
+  });
+
+  /** POST /auth/logout — invalida todos os refresh tokens do usuário */
+  app.post("/auth/logout", { preHandler: [async (req, r) => { try { await req.jwtVerify(); } catch { return r.code(401).send({ error: "Não autenticado" }); } }] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    await prisma.refreshToken.deleteMany({ where: { userId: auth.sub } });
+    return { ok: true };
   });
 
   app.get("/auth/me", { preHandler: [async (req, r) => { try { await req.jwtVerify(); } catch { return r.code(401).send({ error: "Não autenticado" }); } }] }, async (req, reply) => {

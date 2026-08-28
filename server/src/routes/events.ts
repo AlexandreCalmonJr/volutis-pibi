@@ -22,12 +22,13 @@ const eventSchema = z.object({
 });
 
 export async function eventRoutes(app: FastifyInstance) {
-  app.get("/events", { preHandler: [requireAuth] }, async (req) => {
+  app.get("/events", { preHandler: [requireAuth] }, async (req, reply) => {
     const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(403).send({ error: "Acesso negado" });
     const { from, to } = req.query as { from?: string; to?: string };
     return prisma.event.findMany({
       where: {
-        churchId: auth.churchId ?? undefined,
+        churchId: auth.churchId,
         date: {
           gte: from ? new Date(from) : undefined,
           lte: to ? new Date(to) : undefined,

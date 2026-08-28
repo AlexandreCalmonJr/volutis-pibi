@@ -70,7 +70,6 @@ function AppLayout() {
               <h1 className="text-sm font-semibold text-[var(--color-text)]">
                 {pageTitles[location.pathname] ?? "Volutis"}
               </h1>
-              <p className="text-xs text-[var(--color-muted)] hidden sm:block">Igreja Batista Central</p>
             </div>
           </div>
 
@@ -112,6 +111,7 @@ function AppLayout() {
             <Route path="/relatorios" element={<Relatorios />} />
             <Route path="/triagem" element={<Triagem />} />
             <Route path="/convites" element={<Convites />} />
+            <Route path="*" element={<div className="text-center py-20"><p className="text-lg font-semibold text-[var(--color-text)]">Página não encontrada</p><p className="text-sm text-[var(--color-muted)] mt-2">O endpoint que você procura não existe.</p></div>} />
           </Routes>
         </main>
       </div>

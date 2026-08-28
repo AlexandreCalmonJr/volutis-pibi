@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { api, ApiError } from "../api";
-import { useAuth } from "../store";
 
 interface Ministry {
   id: string;
@@ -44,13 +43,14 @@ interface ApplicationStats {
 }
 
 export default function TriagemPage() {
-  const user = useAuth((s) => s.user);
   const [applications, setApplications] = useState<Application[]>([]);
   const [stats, setStats] = useState<ApplicationStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<string>("PENDING");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedApp, setSelectedApp] = useState<ApplicationDetail | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionResult, setActionResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -65,13 +65,18 @@ export default function TriagemPage() {
     roles: string[];
     isLeader: boolean;
   }>>([]);
+  const actionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (actionTimer.current) clearTimeout(actionTimer.current); };
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
     setError("");
     try {
       const [apps, st] = await Promise.all([
-        api<Application[]>(`/applications?status=${filter}${search ? `&search=${encodeURIComponent(search)}` : ""}`),
+        api<Application[]>(`/applications?status=${filter}${debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : ""}`),
         api<ApplicationStats>("/applications/stats"),
       ]);
       setApplications(apps);
@@ -85,7 +90,17 @@ export default function TriagemPage() {
 
   useEffect(() => {
     fetchData();
-  }, [filter, search]);
+  }, [filter, debouncedSearch]);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setDebouncedSearch(value), 300);
+  }, []);
+
+  useEffect(() => {
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, []);
 
   const fetchDetail = async (id: string) => {
     try {
@@ -120,7 +135,7 @@ export default function TriagemPage() {
         },
       });
       setActionResult({ type: "success", message: "Candidato aprovado com sucesso!" });
-      setTimeout(() => {
+      actionTimer.current = setTimeout(() => {
         setShowModal(false);
         setSelectedApp(null);
         setActionResult(null);
@@ -143,7 +158,7 @@ export default function TriagemPage() {
         body: { notes },
       });
       setActionResult({ type: "success", message: "Candidato rejeitado" });
-      setTimeout(() => {
+      actionTimer.current = setTimeout(() => {
         setShowModal(false);
         setSelectedApp(null);
         setActionResult(null);
@@ -164,7 +179,7 @@ export default function TriagemPage() {
         body: { notes },
       });
       setActionResult({ type: "success", message: "Notas salvas!" });
-      setTimeout(() => setActionResult(null), 2000);
+      actionTimer.current = setTimeout(() => setActionResult(null), 2000);
     } catch (e: any) {
       setActionResult({ type: "error", message: e.message });
     }
@@ -264,7 +279,7 @@ export default function TriagemPage() {
           </svg>
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Buscar candidato..."
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl bg-white text-[#1e1b4b] placeholder:text-[#7c6ea8] focus:outline-none focus:border-[#a78bfa] transition-colors"
           />

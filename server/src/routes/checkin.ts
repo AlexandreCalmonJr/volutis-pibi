@@ -63,10 +63,11 @@ export async function checkinRoutes(app: FastifyInstance) {
   });
 
   // Ranking simples (gamificação básica — completa na Fase 6)
-  app.get("/gamification/ranking", { preHandler: [requireAuth] }, async (req) => {
+  app.get("/gamification/ranking", { preHandler: [requireAuth] }, async (req, reply) => {
     const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(403).send({ error: "Acesso negado" });
     return prisma.member.findMany({
-      where: { churchId: auth.churchId ?? undefined },
+      where: { churchId: auth.churchId },
       select: { id: true, name: true, photoUrl: true, points: true },
       orderBy: { points: "desc" },
       take: 20,

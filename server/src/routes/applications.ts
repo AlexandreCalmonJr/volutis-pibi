@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma, fromJson, belongsToChurch } from "../lib/db.js";
 import { requireAuth, requireRole, type AuthUser } from "../middleware/auth.js";
+import { rateLimitHit } from "../lib/ratelimit.js";
 import { sendWhatsAppMessage, sendApplicationConfirmation, sendApprovalNotification, sendRejectionNotification } from "../services/whatsapp.service.js";
 import { notifyMember } from "../services/notification.service.js";
 
@@ -90,6 +91,15 @@ export async function applicationRoutes(app: FastifyInstance) {
 
   /** POST /applications — formulário público de cadastro */
   app.post("/applications", async (req, reply) => {
+    // Rate limit: 5 submissões por IP a cada 15 min
+    const rl = rateLimitHit(`app:${req.ip}`, 5, 15 * 60_000);
+    if (!rl.allowed) {
+      return reply
+        .code(429)
+        .header("Retry-After", String(rl.retryAfterSec))
+        .send({ error: "Muitas tentativas. Tente novamente em alguns minutos." });
+    }
+
     const body = publicApplicationSchema.parse(req.body);
 
     // Precisa do slug da igreja via query param ou header

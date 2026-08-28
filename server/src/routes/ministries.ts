@@ -18,10 +18,11 @@ const memberLinkSchema = z.object({
 });
 
 export async function ministryRoutes(app: FastifyInstance) {
-  app.get("/ministries", { preHandler: [requireAuth] }, async (req) => {
+  app.get("/ministries", { preHandler: [requireAuth] }, async (req, reply) => {
     const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(403).send({ error: "Acesso negado" });
     const list = await prisma.ministry.findMany({
-      where: auth.churchId ? { churchId: auth.churchId } : undefined,
+      where: { churchId: auth.churchId },
       include: {
         roles: true,
         members: { include: { member: true } },

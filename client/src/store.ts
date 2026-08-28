@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { API_URL } from "./api";
 
 export interface AuthUser {
   id: string;
@@ -26,7 +27,17 @@ export const useAuth = create<AuthState>()(
       refreshToken: null,
       setSession: (user, accessToken, refreshToken) => set({ user, accessToken, refreshToken }),
       setTokens: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
-      logout: () => set({ user: null, accessToken: null, refreshToken: null }),
+      logout: () => {
+        // Invalidar refresh token no servidor (fire-and-forget)
+        const token = useAuth.getState().accessToken;
+        if (token) {
+          fetch(`${API_URL}/api/auth/logout`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch(() => {});
+        }
+        set({ user: null, accessToken: null, refreshToken: null });
+      },
     }),
     { name: "volutis-auth" }
   )
