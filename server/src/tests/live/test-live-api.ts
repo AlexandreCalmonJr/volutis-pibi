@@ -239,14 +239,16 @@ async function main() {
   }
 
   // 12. Submissão de Candidatura Pública (Triagem)
-  const candidateEmail = `teste.live.${Date.now()}@volutis.local`;
+  const ts = Date.now().toString();
+  const candidateEmail = `teste.live.${ts}@volutis.local`;
+  const candidatePhone = `719${ts.slice(-8)}`;
   const applyRes = await request("/api/applications?church=pibi", {
     method: "POST",
     origin: VERCEL_ORIGIN,
     body: {
       name: "Voluntário Teste Nuvem",
       email: candidateEmail,
-      phone: "71999998888",
+      phone: candidatePhone,
       instruments: ["Vocal"],
       ministryIds: churchRes.data?.ministries?.[0]?.id
         ? [churchRes.data.ministries[0].id]
