@@ -1,5 +1,6 @@
 import { useAuth } from "../store";
 import { useNavigate } from "react-router-dom";
+import { Avatar } from "./Avatar";
 
 export type Page = string;
 
@@ -37,10 +38,6 @@ export default function Sidebar({ currentPage, onNavigate, mobileOpen, onMobileC
     : user?.role === "MINISTRY_LEADER" ? "Líder de Ministério"
     : user?.role === "VOLUNTEER" ? "Voluntário"
     : "Membro";
-  const initials = user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : "US";
-
   const filteredNav = navItems.filter((item) => {
     if (!item.roles) return true;
     return user?.role && item.roles.includes(user.role);
@@ -105,12 +102,7 @@ export default function Sidebar({ currentPage, onNavigate, mobileOpen, onMobileC
 
         <div className="px-4 py-4 border-t border-white/10">
           <div className="flex items-center gap-3">
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-              style={{ backgroundColor: "var(--color-primary)" }}
-            >
-              {initials}
-            </div>
+            <Avatar name={displayName} photoUrl={user?.photoUrl} avatarKey={user?.avatarKey} size={36} className="flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-medium truncate">{displayName}</p>
               <p className="text-indigo-400 text-xs truncate">{roleLabel}</p>

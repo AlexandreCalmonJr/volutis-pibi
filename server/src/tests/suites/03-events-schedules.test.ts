@@ -46,6 +46,19 @@ export async function runEventsSchedulesSuite(): Promise<{ passed: number; faile
   });
   t.check("GET /api/events/:id/suggestions retorna lista de sugestões", sugRes.statusCode === 200 && Array.isArray(sugRes.json()));
 
+  const mariaRes = await app.inject({
+    method: "POST",
+    url: "/api/auth/login",
+    payload: { email: "maria@pibi.org.br", password: "volutis123" },
+  });
+  const mariaToken = mariaRes.json().accessToken;
+  const mariaMeRes = await app.inject({
+    method: "GET",
+    url: "/api/auth/me",
+    headers: { authorization: `Bearer ${mariaToken}` },
+  });
+  const mariaMemberId = mariaMeRes.json().user.member.id;
+
   // 5. Escalar voluntário para o evento
   const assignRes = await app.inject({
     method: "POST",
@@ -60,6 +73,21 @@ export async function runEventsSchedulesSuite(): Promise<{ passed: number; faile
   t.check("POST /api/events/:id/schedule atribui voluntário com status 201", assignRes.statusCode === 201);
   const scheduleItem = assignRes.json();
   t.check("Item de escala inicia com status PENDING", scheduleItem.status === "PENDING");
+
+  const invalidRoleRes = await app.inject({
+    method: "POST",
+    url: `/api/events/${createdEvent.id}/schedule`,
+    headers: adminAuth,
+    payload: {
+      memberId: mariaMemberId,
+      roleName: "Bateria",
+      force: true,
+    },
+  });
+  t.check(
+    "POST /api/events/:id/schedule bloqueia membro sem vínculo compatível com a função",
+    invalidRoleRes.statusCode === 409 && invalidRoleRes.json().code === "ROLE_NOT_ALLOWED"
+  );
 
   // 6. Consultar escala do evento
   const scheduleListRes = await app.inject({

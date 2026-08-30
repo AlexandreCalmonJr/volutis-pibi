@@ -9,6 +9,7 @@ import {
   disconnectNativeWhatsApp,
 } from "../services/whatsapp.service.js";
 import { notifyMember } from "../services/notification.service.js";
+import { respondToScheduleByPhone } from "../services/schedule-response.service.js";
 import { requireAuth, requireRole, type AuthUser } from "../middleware/auth.js";
 
 const WEBHOOK_SECRET = process.env.WAHA_WEBHOOK_SECRET;
@@ -135,7 +136,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
     let sentWhatsappCount = 0;
     for (const m of uniqueMembers) {
       // 1. Notificação interna em tempo real (WebSocket)
-      notifyMember(m.id, {
+      await notifyMember(m.id, {
         type: "ANNOUNCEMENT",
         title: "📢 Comunicado da Igreja",
         body: body.message,
@@ -161,6 +162,10 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
 
   /** POST /whatsapp/webhook — recebe mensagens do WAHA */
   app.post("/whatsapp/webhook", async (req, reply) => {
+    if (process.env.NODE_ENV === "production" && !WEBHOOK_SECRET) {
+      return reply.code(503).send({ error: "WAHA_WEBHOOK_SECRET não configurado em produção" });
+    }
+
     // Verificação de autenticação via header compartilhado
     if (WEBHOOK_SECRET) {
       const token = (req.headers["x-webhook-secret"] as string) || "";
@@ -199,55 +204,20 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
     const digits = from.replace(/\D/g, "");
     const phone = digits.startsWith("55") ? digits : `55${digits}`;
 
-    const member = await prisma.member.findFirst({
-      where: { phone },
-      include: {
-        scheduleItems: {
-          where: { status: "PENDING" },
-          orderBy: { event: { date: "asc" } },
-          take: 1,
-          include: { event: true, member: true },
-        },
-      },
+    const result = await respondToScheduleByPhone({
+      phone,
+      action: response.action === "confirm" ? "CONFIRM" : "DECLINE",
+      scheduleIdentifier: response.scheduleIdentifier,
+      reason: response.action === "decline" ? "Recusada via WhatsApp" : undefined,
     });
 
-    if (!member || member.scheduleItems.length === 0) {
-      return { ok: true };
-    }
-
-    const scheduleItem = member.scheduleItems[0];
-
-    if (response.action === "confirm") {
-      await prisma.scheduleItem.update({
-        where: { id: scheduleItem.id },
-        data: { status: "CONFIRMED" },
-      });
-
+    if (result.ok) {
       await sendWhatsAppMessage({
         to: phone,
-        text: `✅ Presença confirmada para *${scheduleItem.event.title}*!\n\nObrigado e Deus abençoe! — Volutis PIBI`,
-      });
-
-      notifyMember(member.id, {
-        type: "SCHEDULE_CONFIRMED",
-        title: "Escala confirmada",
-        body: `Sua presença em "${scheduleItem.event.title}" foi confirmada.`,
-      });
-    } else if (response.action === "decline") {
-      await prisma.scheduleItem.update({
-        where: { id: scheduleItem.id },
-        data: { status: "DECLINED" },
-      });
-
-      await sendWhatsAppMessage({
-        to: phone,
-        text: `❌ Presença recusada para *${scheduleItem.event.title}*.\n\nSe precisar de ajuda, entre em contato com o líder do ministério.\n\nDeus abençoe! — Volutis PIBI`,
-      });
-
-      notifyMember(member.id, {
-        type: "SCHEDULE_DECLINED",
-        title: "Escala recusada",
-        body: `Sua presença em "${scheduleItem.event.title}" foi recusada.`,
+        text:
+          response.action === "confirm"
+            ? `✅ Presença confirmada para *${result.scheduleItem.event.title}*!\n\nObrigado e Deus abençoe! — Volutis PIBI`
+            : `❌ Presença recusada para *${result.scheduleItem.event.title}*.\n\nSe precisar de ajuda, entre em contato com o líder do ministério.\n\nDeus abençoe! — Volutis PIBI`,
       });
     }
 

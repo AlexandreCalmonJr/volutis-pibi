@@ -67,6 +67,26 @@ export async function runOnboardingFlow(): Promise<{ passed: number; failed: num
   t.check("5. Líder aprova candidato e sistema gera token de primeiro acesso", approveRes.statusCode === 200 && approveRes.json().status === "APPROVED");
   const approvedMemberId = approveRes.json().memberId;
   t.check("Membro criado no banco de dados", !!approvedMemberId);
+  const setPasswordUrl = approveRes.json().setPasswordUrl as string;
+  const token = new URL(setPasswordUrl).searchParams.get("token");
+  t.check("Link de primeiro acesso contém token", !!token, setPasswordUrl);
+
+  const setPasswordRes = await app.inject({
+    method: "POST",
+    url: "/api/applications/set-password",
+    payload: {
+      token,
+      password: "senha123",
+      name: "Novo Voluntário Onboarding",
+      phone: candidatePhone,
+      instruments: ["Vocal"],
+    },
+  });
+  t.check(
+    "5.1 Candidato define senha e reutiliza o mesmo membro aprovado",
+    setPasswordRes.statusCode === 200 && setPasswordRes.json().user.memberId === approvedMemberId,
+    setPasswordRes.body
+  );
 
   // Passo 6: Verificar se o novo membro já aparece na lista ativa de membros
   const membersRes = await app.inject({
@@ -78,6 +98,11 @@ export async function runOnboardingFlow(): Promise<{ passed: number; failed: num
     "6. Novo membro listado na base de membros da igreja",
     membersRes.statusCode === 200 && membersRes.json().some((m: any) => m.id === approvedMemberId)
   );
+
+  const occurrences = membersRes.statusCode === 200
+    ? membersRes.json().filter((m: any) => m.phone === `55${candidatePhone}`).length
+    : 0;
+  t.check("6.1 Não duplica membro após definir senha", occurrences === 1, membersRes.body);
 
   return t.summary();
 }

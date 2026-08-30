@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { MINISTERIO_COLORS, MINISTERIOS } from "../lib/constants";
+import { Avatar } from "../components/Avatar";
 
 const dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -13,7 +15,7 @@ interface ScheduleItem {
   id: string;
   status: string;
   roleName: string;
-  member: { id: string; name: string; photoUrl?: string };
+  member: { id: string; name: string; photoUrl?: string; avatarKey?: string | null };
   checkin?: { id: string; arrived: boolean };
 }
 
@@ -27,6 +29,7 @@ interface Event {
 }
 
 export default function Escalas() {
+  const [searchParams] = useSearchParams();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [mesAtual, setMesAtual] = useState(() => {
@@ -53,6 +56,8 @@ export default function Escalas() {
       ministryName: string;
     }>;
   } | null>(null);
+  const focusedEventId = searchParams.get("eventId");
+  const focusedScheduleItemId = searchParams.get("scheduleItemId");
 
   useEffect(() => {
     api<Array<{ id: string; name: string }>>("/ministries")
@@ -63,6 +68,21 @@ export default function Escalas() {
   useEffect(() => {
     fetchEvents();
   }, [mesAtual]);
+
+  useEffect(() => {
+    if (events.length === 0) return;
+    const targetEvent = events.find((event) => event.id === focusedEventId)
+      ?? events.find((event) => event.scheduleItems.some((item) => item.id === focusedScheduleItemId));
+    if (!targetEvent) return;
+
+    const eventDate = new Date(targetEvent.date);
+    if (eventDate.getFullYear() !== mesAtual.year || eventDate.getMonth() !== mesAtual.month) {
+      setMesAtual({ year: eventDate.getFullYear(), month: eventDate.getMonth() });
+      return;
+    }
+
+    setDiaSelecionado(eventDate.getDate());
+  }, [events, focusedEventId, focusedScheduleItemId, mesAtual.month, mesAtual.year]);
 
   async function fetchEvents() {
     setLoading(true);
@@ -332,23 +352,9 @@ export default function Escalas() {
                 {itemsFiltrados.map((item) => {
                   const roleName = item.roleName;
                   const colors = MINISTERIO_COLORS[roleName] || { bg: "#f5f3ff", text: "#7c3aed" };
-                  const initials = item.member.name.split(" ").slice(0, 2).map((n) => n[0]).join("");
                   return (
-                    <div key={item.id} className="px-6 py-3 flex items-center gap-3 hover:bg-[#fafafe] transition-colors group">
-                      {item.member.photoUrl ? (
-                        <img
-                          src={item.member.photoUrl}
-                          alt={item.member.name}
-                          className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div
-                          className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                          style={{ backgroundColor: colors.bg, color: colors.text }}
-                        >
-                          {initials}
-                        </div>
-                      )}
+                    <div key={item.id} className={`px-6 py-3 flex items-center gap-3 hover:bg-[#fafafe] transition-colors group ${focusedScheduleItemId === item.id ? "bg-[#faf5ff] ring-2 ring-inset ring-[#7c3aed]" : ""}`}>
+                      <Avatar name={item.member.name} avatarKey={item.member.avatarKey} size={36} className="flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-[#1e1b4b] truncate">{item.member.name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">

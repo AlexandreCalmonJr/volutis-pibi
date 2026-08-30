@@ -1,4 +1,17 @@
 services:
+  postgres:
+    image: postgres:16
+    container_name: volutis_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-volutis}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   waha:
     image: devlikeapro/waha:latest
     container_name: volutis_waha
@@ -25,7 +38,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8080
-      - DATABASE_URL=${DATABASE_URL:-file:./dev.db}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/volutis?schema=public}
       - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET no .env}
       - WHATSAPP_API_URL=http://waha:3000
       - WHATSAPP_SESSION=${WHATSAPP_SESSION:-default}
@@ -33,10 +46,12 @@ services:
       - APP_URL=${APP_URL:-http://localhost:8080}
       - CORS_ORIGINS=${CORS_ORIGINS:-}
     depends_on:
+      - postgres
       - waha
     volumes:
       - app_data:/app/server/data
 
 volumes:
+  postgres_data:
   waha_sessions:
   app_data:

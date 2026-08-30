@@ -1,4 +1,5 @@
 import { setupTestContext, TestReporter } from "../helpers/test-client.js";
+import { getScheduleReplyCode } from "../../services/schedule-response.service.js";
 
 export async function runDashboardCommsSuite(): Promise<{ passed: number; failed: number }> {
   const t = new TestReporter("07. Dashboard Stats, Chat & Webhooks WhatsApp");
@@ -36,6 +37,19 @@ export async function runDashboardCommsSuite(): Promise<{ passed: number; failed
   });
   const event = eventRes.json();
 
+  const scheduleRes = await app.inject({
+    method: "POST",
+    url: `/api/events/${event.id}/schedule`,
+    headers: adminAuth,
+    payload: {
+      memberId: volunteerMemberId,
+      roleName: "Vocal",
+      force: true,
+    },
+  });
+  t.check("POST /api/events/:id/schedule cria item pendente para notificações", scheduleRes.statusCode === 201);
+  const scheduleItem = scheduleRes.json();
+
   // 3. Postar mensagem no chat do evento
   const postMsgRes = await app.inject({
     method: "POST",
@@ -70,11 +84,22 @@ export async function runDashboardCommsSuite(): Promise<{ passed: number; failed
       event: "message",
       payload: {
         from: "5571999990001@c.us",
-        body: "1", // Confirmar presença
+        body: `1 ${getScheduleReplyCode(scheduleItem.id)}`,
       },
     },
   });
   t.check("POST /api/whatsapp/webhook processa mensagem interativa com { ok: true }", webhookPostRes.statusCode === 200 && webhookPostRes.json().ok === true);
+
+  const notificationsRes = await app.inject({
+    method: "GET",
+    url: "/api/my/notifications?limit=10",
+    headers: volunteerAuth,
+  });
+  t.check(
+    "GET /api/my/notifications retorna notificações persistidas do voluntário",
+    notificationsRes.statusCode === 200 &&
+      notificationsRes.json().items.some((item: any) => ["SCHEDULE_ASSIGNED", "SCHEDULE_CONFIRMED"].includes(item.type))
+  );
 
   return t.summary();
 }

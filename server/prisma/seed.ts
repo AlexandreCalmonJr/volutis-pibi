@@ -60,12 +60,13 @@ async function main() {
 
   // Voluntários de exemplo
   const volunteers = [
-    { name: "João Silva", email: "joao@pibi.org.br", phone: "71999990001", instruments: ["Violão", "Vocal"] },
-    { name: "Maria Santos", email: "maria@pibi.org.br", phone: "71999990002", instruments: ["Teclado"] },
-    { name: "Pedro Oliveira", email: "pedro@pibi.org.br", phone: "71999990003", instruments: ["Bateria"] },
+    { name: "João Silva", email: "joao@pibi.org.br", phone: "71999990001", instruments: ["Violão", "Vocal"], ministryRoles: ["Violão", "Vocal"] },
+    { name: "Maria Santos", email: "maria@pibi.org.br", phone: "71999990002", instruments: ["Teclado", "Vocal"], ministryRoles: ["Teclado", "Vocal"] },
+    { name: "Pedro Oliveira", email: "pedro@pibi.org.br", phone: "71999990003", instruments: ["Bateria"], ministryRoles: ["Bateria"] },
   ];
+  const volunteerMembers: Array<{ email: string; memberId: string; ministryRoles: string[] }> = [];
   for (const v of volunteers) {
-    await prisma.user.upsert({
+    const user = await prisma.user.upsert({
       where: { email: v.email },
       update: {},
       create: {
@@ -81,7 +82,39 @@ async function main() {
           },
         },
       },
+      include: { member: true },
     });
+
+    if (user.member) {
+      volunteerMembers.push({
+        email: v.email,
+        memberId: user.member.id,
+        ministryRoles: v.ministryRoles,
+      });
+    }
+  }
+
+  const louvor = await prisma.ministry.findFirst({
+    where: { name: "Louvor", churchId: church.id },
+  });
+
+  if (louvor) {
+    for (const volunteer of volunteerMembers) {
+      await prisma.ministryMember.upsert({
+        where: {
+          memberId_ministryId: {
+            memberId: volunteer.memberId,
+            ministryId: louvor.id,
+          },
+        },
+        update: { roles: j(volunteer.ministryRoles) },
+        create: {
+          memberId: volunteer.memberId,
+          ministryId: louvor.id,
+          roles: j(volunteer.ministryRoles),
+        },
+      });
+    }
   }
 
   // Eventos recorrentes das próximas 4 semanas

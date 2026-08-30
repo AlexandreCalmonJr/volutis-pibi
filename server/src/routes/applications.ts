@@ -22,12 +22,24 @@ function newCode() {
   return crypto.randomBytes(4).toString("hex").toUpperCase();
 }
 
+function normalizePhone(phone?: string | null): string | undefined {
+  if (!phone) return undefined;
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 10) return undefined;
+  if (digits.length === 10) return `55${digits.slice(0, 2)}9${digits.slice(2)}`;
+  if (digits.length === 11) return `55${digits}`;
+  if (digits.length === 12 && digits.startsWith("55")) return `55${digits.slice(2, 4)}9${digits.slice(4)}`;
+  if (digits.length === 13 && digits.startsWith("55")) return digits;
+  return digits;
+}
+
 /** Formulário público — sem autenticação */
 const publicApplicationSchema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   email: z.string().email("E-mail inválido").optional(),
   phone: z.string().optional(),
   photoUrl: z.string().url("URL inválida").optional(),
+  avatarKey: z.enum(["violet", "blue", "emerald", "amber", "rose", "slate"]).optional(),
   instruments: z.array(z.string()).default([]),
   availability: z.record(z.array(z.string())).optional(),
   ministryIds: z.array(z.string()).min(1, "Selecione pelo menos um ministério"),
@@ -39,6 +51,7 @@ const adminApplicationSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().optional(),
   photoUrl: z.string().url().optional(),
+  avatarKey: z.enum(["violet", "blue", "emerald", "amber", "rose", "slate"]).optional(),
   instruments: z.array(z.string()).default([]),
   availability: z.record(z.array(z.string())).optional(),
   notes: z.string().optional(),
@@ -101,6 +114,7 @@ export async function applicationRoutes(app: FastifyInstance) {
     }
 
     const body = publicApplicationSchema.parse(req.body);
+    const normalizedPhone = normalizePhone(body.phone);
 
     // Precisa do slug da igreja via query param ou header
     const churchSlug = (req.query as any)?.church || req.headers["x-church-slug"];
@@ -122,7 +136,7 @@ export async function applicationRoutes(app: FastifyInstance) {
     }
     if (body.phone) {
       const existing = await prisma.application.findFirst({
-        where: { churchId: church.id, phone: body.phone, status: { not: "REJECTED" } },
+        where: { churchId: church.id, phone: normalizedPhone, status: { not: "REJECTED" } },
       });
       if (existing) {
         return reply.code(409).send({ error: "Já existe um cadastro ativo com este telefone" });
@@ -134,8 +148,9 @@ export async function applicationRoutes(app: FastifyInstance) {
         data: {
           name: body.name,
           email: body.email,
-          phone: body.phone,
+          phone: normalizedPhone,
           photoUrl: body.photoUrl,
+          avatarKey: body.avatarKey,
           instruments: JSON.stringify(body.instruments),
           availability: body.availability ? JSON.stringify(body.availability) : undefined,
           source: "PUBLIC",
@@ -339,6 +354,7 @@ export async function applicationRoutes(app: FastifyInstance) {
             name: application.name,
             phone: application.phone,
             photoUrl: application.photoUrl,
+            avatarKey: application.avatarKey,
             instruments: application.instruments,
             churchId: auth.churchId!,
             approvalStatus: "PENDING",
@@ -380,7 +396,7 @@ export async function applicationRoutes(app: FastifyInstance) {
 
     // Notificar via WebSocket se o líder estiver online
     if (auth.memberId) {
-      notifyMember(auth.memberId, {
+      await notifyMember(auth.memberId, {
         type: "SCHEDULE_ASSIGNED",
         title: "Candidato aprovado",
         body: `${application.name} foi aprovado(a) e recebeu link de cadastro.`,
@@ -517,6 +533,31 @@ export async function applicationRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Token expirado" });
     }
 
+    const normalizedPhone = normalizePhone(body.phone ?? pendingToken.phone);
+    const applicationLookupOr = [
+      ...(pendingToken.email && !pendingToken.email.startsWith("pending-") ? [{ email: pendingToken.email }] : []),
+      ...(pendingToken.phone ? [{ phone: pendingToken.phone }] : []),
+    ];
+
+    const relatedApplication = applicationLookupOr.length > 0
+      ? await prisma.application.findFirst({
+          where: {
+            churchId: pendingToken.churchId,
+            status: { in: ["PENDING", "APPROVED"] },
+            OR: applicationLookupOr,
+          },
+          include: {
+            preferences: true,
+            member: {
+              include: {
+                ministryMembers: true,
+              },
+            },
+          },
+          orderBy: { appliedAt: "desc" },
+        })
+      : null;
+
     // Verificar se já existe usuário com esse email
     const existingUser = await prisma.user.findUnique({ where: { email: pendingToken.email } });
     if (existingUser) {
@@ -526,27 +567,52 @@ export async function applicationRoutes(app: FastifyInstance) {
     const bcrypt = await import("bcryptjs");
 
     const result = await prisma.$transaction(async (tx) => {
-      // Criar usuário
+      const passwordHash = await bcrypt.hash(body.password, 10);
+
+      // Criar usuário sem duplicar Member provisório já criado na aprovação
       const user = await tx.user.create({
         data: {
           email: pendingToken.email,
-          passwordHash: await bcrypt.hash(body.password, 10),
+          passwordHash,
           role: pendingToken.role,
-          phone: pendingToken.phone,
+          phone: normalizedPhone,
           firstLogin: false,
-          member: {
-            create: {
-              name: body.name || pendingToken.name,
-              phone: body.phone || pendingToken.phone,
-              instruments: JSON.stringify(body.instruments ?? []),
-              churchId: pendingToken.churchId,
-              approvalStatus: "ACTIVE",
-              approvedAt: new Date(),
-            },
-          },
         },
-        include: { member: true },
       });
+
+      let memberId = relatedApplication?.memberId ?? null;
+
+      if (memberId) {
+        await tx.member.update({
+          where: { id: memberId },
+          data: {
+            userId: user.id,
+            name: body.name || pendingToken.name,
+            phone: normalizedPhone,
+            photoUrl: relatedApplication?.photoUrl,
+            avatarKey: relatedApplication?.avatarKey ?? "violet",
+            instruments: JSON.stringify(body.instruments ?? fromJson(relatedApplication?.instruments ?? "[]")),
+            churchId: pendingToken.churchId,
+            approvalStatus: "ACTIVE",
+            approvedAt: new Date(),
+          },
+        });
+      } else {
+        const createdMember = await tx.member.create({
+          data: {
+            userId: user.id,
+            name: body.name || pendingToken.name,
+            phone: normalizedPhone,
+            photoUrl: relatedApplication?.photoUrl,
+            avatarKey: relatedApplication?.avatarKey ?? "violet",
+            instruments: JSON.stringify(body.instruments ?? fromJson(relatedApplication?.instruments ?? "[]")),
+            churchId: pendingToken.churchId,
+            approvalStatus: "ACTIVE",
+            approvedAt: new Date(),
+          },
+        });
+        memberId = createdMember.id;
+      }
 
       // Marcar token como usado
       await tx.pendingToken.update({
@@ -555,40 +621,46 @@ export async function applicationRoutes(app: FastifyInstance) {
       });
 
       // Se havia aplicação pendente, vincular ao membro
-      const application = await tx.application.findFirst({
-        where: {
-          churchId: pendingToken.churchId,
-          email: pendingToken.email,
-          status: "PENDING",
-        },
-      });
-      if (application) {
+      if (relatedApplication) {
         await tx.application.update({
-          where: { id: application.id },
+          where: { id: relatedApplication.id },
           data: {
             status: "APPROVED",
-            memberId: user.member!.id,
+            memberId,
             reviewedAt: new Date(),
           },
         });
 
-        // Vincular a ministérios de interesse
-        const prefs = await tx.applicationPreference.findMany({
-          where: { applicationId: application.id },
-        });
-        for (const pref of prefs) {
-          await tx.ministryMember.create({
-            data: {
-              memberId: user.member!.id,
-              ministryId: pref.ministryId,
-              roles: "[]",
-            },
-          });
+        // Se o membro ainda não existia na aprovação, preserva vínculos mínimos com os ministérios de interesse
+        if (!relatedApplication.memberId) {
+          for (const pref of relatedApplication.preferences) {
+            await tx.ministryMember.upsert({
+              where: {
+                memberId_ministryId: {
+                  memberId,
+                  ministryId: pref.ministryId,
+                },
+              },
+              update: {},
+              create: {
+                memberId,
+                ministryId: pref.ministryId,
+                roles: "[]",
+              },
+            });
+          }
         }
       }
 
-      return user;
+      return tx.user.findUnique({
+        where: { id: user.id },
+        include: { member: true },
+      });
     });
+
+    if (!result) {
+      return reply.code(500).send({ error: "Não foi possível concluir o primeiro acesso" });
+    }
 
     // Gerar tokens de acesso
     const accessToken = app.jwt.sign({
@@ -616,6 +688,9 @@ export async function applicationRoutes(app: FastifyInstance) {
         email: result.email,
         role: result.role,
         memberId: result.member?.id,
+        memberName: result.member?.name,
+        avatarKey: result.member?.avatarKey,
+        photoUrl: result.member?.photoUrl,
       },
       accessToken,
       refreshToken: raw,

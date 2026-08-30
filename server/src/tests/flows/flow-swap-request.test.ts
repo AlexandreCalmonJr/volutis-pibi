@@ -58,7 +58,13 @@ export async function runSwapRequestFlow(): Promise<{ passed: number; failed: nu
   });
   t.check("2. Pedido de troca registrado com sucesso (201)", swapReqRes.statusCode === 201, swapReqRes.body);
   const swapRequest = swapReqRes.json();
-  t.check("Status da escala muda para SWAP_REQUESTED", swapRequest.status === "PENDING");
+  const pendingScheduleRes = await app.inject({
+    method: "GET",
+    url: `/api/events/${event.id}/schedule`,
+    headers: adminAuth,
+  });
+  const pendingItem = pendingScheduleRes.json().find((item: any) => item.id === scheduleItem.id);
+  t.check("Status da escala muda para SWAP_REQUESTED", pendingItem?.status === "SWAP_REQUESTED");
 
   // Passo 4: Voluntário B (Maria) consulta seu feed de convites de troca
   const myScheduleRes = await app.inject({

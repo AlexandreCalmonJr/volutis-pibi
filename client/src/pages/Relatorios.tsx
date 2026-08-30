@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
 import { MINISTERIO_COLORS } from "../lib/constants";
+import { Avatar } from "../components/Avatar";
 
 interface Ministry {
   id: string;
@@ -21,6 +22,7 @@ interface Member {
   name: string;
   phone?: string;
   photoUrl?: string;
+  avatarKey?: string | null;
   instruments: string[];
   points: number;
   ministryMembers: MinistryMember[];
@@ -30,6 +32,7 @@ interface RankingMember {
   id: string;
   name: string;
   photoUrl?: string;
+  avatarKey?: string | null;
   points: number;
 }
 
@@ -143,10 +146,6 @@ function getMinistryName(m: Member): string {
 
 function getMinistryColor(ministryName: string): string {
   return MINISTERIO_COLORS[ministryName]?.text || "#7c3aed";
-}
-
-function getInitials(name: string): string {
-  return name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
 }
 
 export default function Relatorios() {
@@ -300,16 +299,10 @@ export default function Relatorios() {
                   {topRanking.map((m, i) => {
                     const maxPts = topRanking[0]?.points || 1;
                     const pct = Math.round((m.points / maxPts) * 100);
-                    const initials = getInitials(m.name);
                     return (
                       <div key={m.id} className="flex items-center gap-3">
                         <span className="text-sm font-bold text-[#d4c7f7] w-4">{i + 1}</span>
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                          style={{ backgroundColor: "#7c3aed" }}
-                        >
-                          {initials}
-                        </div>
+                        <Avatar name={m.name} avatarKey={m.avatarKey} size={32} className="flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[#1e1b4b] truncate">{m.name}</p>
                           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1">
@@ -425,16 +418,10 @@ export default function Relatorios() {
               {members.map((m) => {
                 const ministryName = getMinistryName(m);
                 const color = getMinistryColor(ministryName);
-                const initials = getInitials(m.name);
                 return (
                   <div key={m.id} className="bg-white rounded-2xl border border-[#e5e0f8] p-5 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3 mb-4">
-                      <div
-                        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
-                        style={{ backgroundColor: color }}
-                      >
-                        {initials}
-                      </div>
+                      <Avatar name={m.name} avatarKey={m.avatarKey} size={44} className="flex-shrink-0" />
                       <div>
                         <p className="font-semibold text-[#1e1b4b]">{m.name}</p>
                         <p className="text-xs text-[#7c6ea8]">{ministryName}</p>

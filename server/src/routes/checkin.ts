@@ -51,11 +51,11 @@ export async function checkinRoutes(app: FastifyInstance) {
       }),
     ]);
 
-    notifyMember(item.memberId, {
+    await notifyMember(item.memberId, {
       type: "CHECKIN_DONE",
       title: "Check-in realizado ✅",
       body: `${item.event.title} — +${CHECKIN_POINTS} pontos!`,
-      data: { checkinId: checkin.id },
+      data: { checkinId: checkin.id, scheduleItemId: id, eventId: item.eventId },
     });
 
     const newBadges = await checkAndAwardBadges(item.memberId);

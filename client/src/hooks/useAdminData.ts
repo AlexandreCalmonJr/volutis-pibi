@@ -22,6 +22,7 @@ export interface MemberAPI {
   name: string;
   phone?: string | null;
   photoUrl?: string | null;
+  avatarKey?: string | null;
   instruments: string[];
   birthDate?: string | null;
   points: number;
@@ -55,7 +56,7 @@ export interface ScheduleItemAPI {
   roleName: string;
   eventId: string;
   memberId: string;
-  member: { id: string; name: string; photoUrl?: string | null; phone?: string | null };
+  member: { id: string; name: string; photoUrl?: string | null; avatarKey?: string | null; phone?: string | null };
   checkin?: { id: string; checkedInAt: string } | null;
 }
 

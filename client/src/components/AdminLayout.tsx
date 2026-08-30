@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import Sidebar, { Page } from "./Sidebar";
 import { useTheme } from "../themeStore";
 import { useAuth } from "../store";
+import { Avatar } from "./Avatar";
 
 const pageTitles: Record<string, string> = {
   "/admin": "Dashboard",
@@ -101,12 +102,7 @@ export default function AdminLayout() {
             </button>
 
             {/* User avatar */}
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm cursor-pointer"
-              style={{ backgroundColor: "#7c3aed" }}
-            >
-              {user?.memberName ? user.memberName.split(" ").slice(0, 2).map((n) => n[0]).join("") : "US"}
-            </div>
+            <Avatar name={user?.memberName || user?.email} photoUrl={user?.photoUrl} avatarKey={user?.avatarKey} size={36} />
           </div>
         </header>
 

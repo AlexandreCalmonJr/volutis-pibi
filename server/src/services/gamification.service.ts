@@ -49,7 +49,7 @@ export async function checkAndAwardBadges(memberId: string): Promise<string[]> {
       data: { memberId, name: rule.name, icon: rule.icon },
     });
     earned.push(rule.name);
-    notifyMember(memberId, {
+    await notifyMember(memberId, {
       type: "BADGE_EARNED",
       title: `Nova conquista ${rule.icon}`,
       body: `Você ganhou o badge "${rule.name}"!`,

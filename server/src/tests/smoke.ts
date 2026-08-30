@@ -3,6 +3,7 @@
  */
 import { buildServer } from "../server.js";
 import { buildScheduleWhatsAppLink } from "../services/whatsapp.service.js";
+import { getScheduleReplyCode } from "../services/schedule-response.service.js";
 
 let passed = 0;
 let failed = 0;
@@ -95,9 +96,10 @@ check("Refresh token antigo invalidado (rotação)", reuse.statusCode === 401);
 const waLink = buildScheduleWhatsAppLink({
   memberName: "Ana", phone: "71988887777",
   eventTitle: "Culto Domingo Manhã", eventDate: new Date("2026-08-30T12:00:00Z"),
-  roleName: "Vocal", confirmUrl: "https://volutis-pibi.vercel.app/escala/abc",
+  roleName: "Vocal", scheduleItemId: "abc123456789", confirmUrl: "https://volutis-pibi.vercel.app/escala/abc",
 });
 check("Link wa.me gerado com telefone normalizado (+55)", !!waLink && waLink.startsWith("https://wa.me/5571988887777?text="));
+check("Código de resposta curta da escala é gerado", getScheduleReplyCode("abc123456789") === "ABC1234567");
 
 console.log(`\n${passed} passaram, ${failed} falharam`);
 await app.close();

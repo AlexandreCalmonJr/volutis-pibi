@@ -79,6 +79,7 @@ model Member {
   name           String
   phone          String? // formato E.164 p/ links wa.me (ex: 5571999999999)
   photoUrl       String?
+  avatarKey      String?   @default("violet")
   instruments    String    @default("[]") // JSON array
   birthDate      DateTime?
   approvalStatus String    @default("ACTIVE") // PENDING | ACTIVE | INACTIVE
@@ -98,6 +99,7 @@ model Member {
   badges           Badge[]
   swapRequests     SwapRequest[]
   applications     Application[]
+  notifications    UserNotification[]
   points           Int              @default(0)
 
   @@index([churchId])
@@ -295,6 +297,7 @@ model Application {
   email        String?
   phone        String?
   photoUrl     String?
+  avatarKey    String?  @default("violet")
   instruments  String   @default("[]") // JSON array
   availability String?  // JSON: { "monday": ["morning"], ... }
   notes        String?  // notas internas do líder
@@ -344,4 +347,21 @@ model PendingToken {
 
   @@index([token])
   @@index([churchId])
+}
+
+model UserNotification {
+  id           String   @id @default(cuid())
+  type         String
+  title        String
+  body         String
+  data         String?
+  whatsappLink String?
+  readAt       DateTime?
+  createdAt    DateTime @default(now())
+
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId String
+
+  @@index([memberId, createdAt])
+  @@index([memberId, readAt])
 }

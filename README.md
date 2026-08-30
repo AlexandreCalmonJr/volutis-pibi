@@ -16,37 +16,52 @@ Sistema de gestão de escalas, ministérios, repertório e integração com Holy
 ## Rodando localmente
 
 ```bash
-# Backend
-cd server
-cp .env.example .env
+# Na raiz do monorepo
+cp server/.env.example server/.env
 npm install
-npx prisma migrate dev
-npm run seed
-npm run dev        # http://localhost:3333
+npm run prisma:generate -w server
 
-# Frontend (outro terminal)
-cd client
-npm install
-npm run dev        # http://localhost:5173 (proxy /api e /ws p/ :3333)
+# Suba um PostgreSQL local antes (ex.: docker compose up -d postgres)
+npx prisma migrate deploy --schema server/prisma/schema.prisma
+npm run seed -w server
+npm run dev:server      # http://localhost:3333
+
+# Frontend (outro terminal, ainda na raiz)
+npm run dev:client      # http://localhost:5173
 ```
+
+Se preferir subir os serviços auxiliares por contêiner:
+
+```bash
+docker compose up -d postgres waha
+```
+
+> O backend atual usa **PostgreSQL** tanto localmente quanto em produção.
 
 Login do seed: `admin@pibi.org.br` / `pibi2026` · voluntários: `joao|maria|pedro@pibi.org.br` / `volutis123`
 
 ## Testes
 
 ```bash
-cd server
-npm test                              # Fase 1 — fundação
-npx tsx src/tests/smoke-phase2.ts     # Fase 2 — escalas
-npx tsx src/tests/smoke-phase4.ts     # Fase 4 — repertório/liturgia/chat
-npx tsx src/tests/smoke-phase5.ts     # Fase 5 — Holyrics (mock)
-npx tsx src/tests/smoke-phase6.ts     # Fase 6 — badges/painel do líder
+# Na raiz do monorepo, com PostgreSQL rodando e `server/.env` configurado
+npm run test -w server
+npm run test:flows -w server
+npm run test:all -w server
+```
+
+Testes avulsos úteis:
+
+```bash
+npx tsx server/src/tests/smoke-phase2.ts     # Fase 2 — escalas
+npx tsx server/src/tests/smoke-phase4.ts     # Fase 4 — repertório/liturgia/chat
+npx tsx server/src/tests/smoke-phase5.ts     # Fase 5 — Holyrics (mock)
+npx tsx server/src/tests/smoke-phase6.ts     # Fase 6 — badges/painel do líder
 ```
 
 ## Deploy
 
-Ver [DEPLOY.md](./DEPLOY.md) — Vercel (frontend) + Railway (backend) + PostgreSQL.
+Ver [DEPLOY.md](./DEPLOY.md) — Vercel (frontend) + Northflank/Railway/Render (backend) + PostgreSQL.
 
 ## Stack
 
-React 19 · Vite 6 · Tailwind 4 · Zustand | Node 22 · Fastify 5 · Prisma 6 · Zod | SQLite (dev) / PostgreSQL (prod) | JWT + refresh rotativo | WebSocket
+React 19 · Vite 6 · Tailwind 4 · Zustand | Node 22 · Fastify 5 · Prisma 6 · Zod | PostgreSQL | JWT + refresh rotativo | WebSocket

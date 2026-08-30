@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api, ApiError } from "../api";
+import { AVATAR_OPTIONS, Avatar } from "../components/Avatar";
 
 interface Ministry {
   id: string;
@@ -19,6 +20,7 @@ interface Application {
   email: string | null;
   phone: string | null;
   photoUrl: string | null;
+  avatarKey?: string | null;
   instruments: string[];
   availability: Record<string, string[]> | null;
   status: string;
@@ -54,6 +56,7 @@ export default function TriagemPage() {
   const [selectedApp, setSelectedApp] = useState<ApplicationDetail | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionResult, setActionResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [draftAvatarKey, setDraftAvatarKey] = useState<string>("violet");
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -107,6 +110,7 @@ export default function TriagemPage() {
       const detail = await api<ApplicationDetail>(`/applications/${id}`);
       setSelectedApp(detail);
       setNotes(detail.notes || "");
+      setDraftAvatarKey(detail.avatarKey || "violet");
       setMinistryAssignments(
         detail.preferences.map((p) => ({
           ministryId: p.ministry.id,
@@ -192,10 +196,6 @@ export default function TriagemPage() {
       case "REJECTED": return { bg: "#fee2e2", text: "#dc2626", label: "Rejeitado" };
       default: return { bg: "#f3f4f6", text: "#6b7280", label: status };
     }
-  };
-
-  const getInitials = (name: string) => {
-    return name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
   };
 
   return (
@@ -333,13 +333,7 @@ export default function TriagemPage() {
               >
                 <div className="flex items-start gap-4">
                   {/* Avatar */}
-                  {app.photoUrl ? (
-                    <img src={app.photoUrl} alt="" className="w-12 h-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold">
-                      {getInitials(app.name)}
-                    </div>
-                  )}
+                  <Avatar name={app.name} photoUrl={app.photoUrl} avatarKey={app.avatarKey} size={48} />
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
@@ -399,13 +393,7 @@ export default function TriagemPage() {
             <div className="px-6 pt-6 pb-4 border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  {selectedApp.photoUrl ? (
-                    <img src={selectedApp.photoUrl} alt="" className="w-12 h-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold">
-                      {getInitials(selectedApp.name)}
-                    </div>
-                  )}
+                  <Avatar name={selectedApp.name} photoUrl={selectedApp.photoUrl} avatarKey={selectedApp.avatarKey || draftAvatarKey} size={48} />
                   <div>
                     <h2 className="text-lg font-bold text-[#1e1b4b]">{selectedApp.name}</h2>
                     <p className="text-sm text-[#7c6ea8]">
@@ -493,6 +481,26 @@ export default function TriagemPage() {
                       </div>
                     </div>
                   )}
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Avatar escolhido</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {AVATAR_OPTIONS.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => {
+                            setDraftAvatarKey(option);
+                            setSelectedApp((current) => current ? { ...current, avatarKey: option } : current);
+                          }}
+                          className={`rounded-xl border p-2 flex items-center justify-center ${draftAvatarKey === option ? "border-purple-500 bg-purple-50" : "border-gray-200"}`}
+                        >
+                          <Avatar name={selectedApp.name} photoUrl={selectedApp.photoUrl} avatarKey={option} size={36} />
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-2">Se houver foto, ela continua aparecendo. O avatar entra como fallback visual.</p>
+                  </div>
 
                   <div>
                     <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Ministérios de interesse</p>

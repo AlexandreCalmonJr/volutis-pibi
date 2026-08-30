@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
-import { useAuth } from "../store";
+import { useAuth, useNotifications, type NotificationItem } from "../store";
+import { resolveNotificationTarget } from "../lib/notifications";
+import { Avatar } from "../components/Avatar";
 
 interface Event {
   id: string;
@@ -40,7 +43,14 @@ interface WhatsAppStatus {
 }
 
 export default function Comunicacao() {
-  const [aba, setAba] = useState<"chat" | "notificacoes" | "whatsapp">("chat");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const tabParam = searchParams.get("tab");
+  const requestedTab = tabParam === "notificacoes" || tabParam === "whatsapp" ? tabParam : "chat";
+  const requestedEventId = searchParams.get("eventId");
+  const highlightedNotificationId = searchParams.get("notificationId");
+  const highlightedMessageId = searchParams.get("messageId");
+  const [aba, setAba] = useState<"chat" | "notificacoes" | "whatsapp">(requestedTab);
   const [events, setEvents] = useState<Event[]>([]);
   const [eventId, setEventId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -59,6 +69,7 @@ export default function Comunicacao() {
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastSuccess, setBroadcastSuccess] = useState<{ total: number; sentWhatsapp: number } | null>(null);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
 
   // Test WhatsApp
   const [testPhone, setTestPhone] = useState("");
@@ -69,12 +80,24 @@ export default function Comunicacao() {
   const [disconnecting, setDisconnecting] = useState(false);
 
   const user = useAuth((s) => s.user);
+  const notifications = useNotifications((s) => s.items);
+  const setNotifications = useNotifications((s) => s.setItems);
+  const markReadLocal = useNotifications((s) => s.markReadLocal);
+  const markAllReadLocal = useNotifications((s) => s.markAllReadLocal);
+
+  useEffect(() => {
+    setAba(requestedTab);
+  }, [requestedTab]);
 
   useEffect(() => {
     api<Event[]>("/events")
       .then((data) => {
         setEvents(data);
-        if (data.length > 0) setEventId(data[0].id);
+        if (requestedEventId && data.some((event) => event.id === requestedEventId)) {
+          setEventId(requestedEventId);
+        } else if (data.length > 0) {
+          setEventId(data[0].id);
+        }
       })
       .catch(() => setEvents([]))
       .finally(() => setLoadingEvents(false));
@@ -85,7 +108,7 @@ export default function Comunicacao() {
         if (data.length > 0) setSelectedMinistryId(data[0].id);
       })
       .catch(() => setMinistries([]));
-  }, []);
+  }, [requestedEventId]);
 
   const fetchWhatsAppStatus = useCallback(async () => {
     setLoadingStatus(true);
@@ -109,6 +132,31 @@ export default function Comunicacao() {
       fetchWhatsAppStatus();
     }
   }, [aba, fetchWhatsAppStatus]);
+
+  useEffect(() => {
+    if (aba !== "chat") return;
+    if (requestedEventId && events.some((event) => event.id === requestedEventId)) {
+      setEventId(requestedEventId);
+    }
+  }, [aba, requestedEventId, events]);
+
+  const fetchNotifications = useCallback(async () => {
+    setLoadingNotifications(true);
+    try {
+      const res = await api<{ items: NotificationItem[] }>("/my/notifications?limit=50");
+      setNotifications(res.items);
+    } catch {
+      setNotifications([]);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  }, [setNotifications]);
+
+  useEffect(() => {
+    if (aba === "notificacoes") {
+      fetchNotifications();
+    }
+  }, [aba, fetchNotifications]);
 
   // Polling quando estiver aguardando leitura do QR Code
   useEffect(() => {
@@ -259,6 +307,68 @@ export default function Comunicacao() {
     return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
   }
 
+  function formatNotificationDate(dateStr: string) {
+    const d = new Date(dateStr);
+    return d.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  async function handleReadNotification(id: string) {
+    markReadLocal(id);
+    try {
+      await api(`/notifications/${id}/read`, { method: "POST" });
+    } catch {
+      // best effort
+    }
+  }
+
+  async function handleReadAllNotifications() {
+    markAllReadLocal();
+    try {
+      await api("/notifications/read-all", { method: "POST" });
+    } catch {
+      // best effort
+    }
+  }
+
+  function handleChangeTab(nextTab: "chat" | "notificacoes" | "whatsapp") {
+    setAba(nextTab);
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", nextTab);
+    if (nextTab !== "chat") {
+      params.delete("eventId");
+      params.delete("messageId");
+    } else if (eventId) {
+      params.set("eventId", eventId);
+    }
+    if (nextTab !== "notificacoes") {
+      params.delete("notificationId");
+    }
+    setSearchParams(params, { replace: true });
+  }
+
+  function handleSelectEvent(nextEventId: string) {
+    setEventId(nextEventId);
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", "chat");
+    params.set("eventId", nextEventId);
+    params.delete("messageId");
+    setSearchParams(params, { replace: true });
+  }
+
+  function openNotificationContext(item: NotificationItem) {
+    const target = resolveNotificationTarget(item);
+    if (!item.readAt) {
+      void handleReadNotification(item.id);
+    }
+    navigate(target.path);
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -278,7 +388,7 @@ export default function Comunicacao() {
         {(["chat", "notificacoes", "whatsapp"] as const).map((a) => (
           <button
             key={a}
-            onClick={() => setAba(a)}
+            onClick={() => handleChangeTab(a)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${aba === a ? "text-white shadow-sm" : "text-[#7c6ea8] hover:bg-gray-50"}`}
             style={aba === a ? { backgroundColor: "#7c3aed" } : {}}
           >
@@ -306,7 +416,7 @@ export default function Comunicacao() {
                   return (
                     <button
                       key={ev.id}
-                      onClick={() => setEventId(ev.id)}
+                      onClick={() => handleSelectEvent(ev.id)}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${ativo ? "bg-[#f5f3ff]" : "hover:bg-gray-50"}`}
                     >
                       <div
@@ -363,24 +473,10 @@ export default function Comunicacao() {
               ) : (
                 messages.map((msg) => {
                   const mine = isMyMessage(msg);
-                  const initials = msg.sender.name
-                    .split(" ")
-                    .slice(0, 2)
-                    .map((n) => n[0])
-                    .join("");
                   return (
-                    <div key={msg.id} className={`flex gap-3 ${mine ? "flex-row-reverse" : ""}`}>
+                    <div key={msg.id} className={`flex gap-3 ${mine ? "flex-row-reverse" : ""} ${highlightedMessageId === msg.id ? "rounded-2xl ring-2 ring-[#7c3aed] p-2" : ""}`}>
                       {!mine && (
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5 overflow-hidden"
-                          style={{ backgroundColor: "#7c3aed" }}
-                        >
-                          {msg.sender.photoUrl ? (
-                            <img src={msg.sender.photoUrl} alt={msg.sender.name} className="w-full h-full object-cover" />
-                          ) : (
-                            initials
-                          )}
-                        </div>
+                        <Avatar name={msg.sender.name} size={32} className="flex-shrink-0 mt-0.5" />
                       )}
                       <div className={`max-w-sm ${mine ? "items-end" : "items-start"} flex flex-col`}>
                         {!mine && (
@@ -440,15 +536,36 @@ export default function Comunicacao() {
       {aba === "notificacoes" && (
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8">
-            <div className="flex items-center gap-3 mb-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+              <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#ede9fe]">
                 <svg className="w-5 h-5 text-[#7c3aed]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-[#1e1b4b]">Central de Notificações em Tempo Real</h3>
-                <p className="text-xs text-[#7c6ea8]">Alertas instantâneos via WebSocket para todos os membros</p>
+                <h3 className="text-lg font-bold text-[#1e1b4b]">Central de Notificações</h3>
+                <p className="text-xs text-[#7c6ea8]">Histórico persistido + alertas em tempo real</p>
+              </div>
+            </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={fetchNotifications}
+                  className="px-3 py-2 rounded-xl text-xs font-medium text-[#7c3aed] bg-[#f5f3ff]"
+                >
+                  Atualizar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReadAllNotifications}
+                  disabled={!notifications.some((item) => !item.readAt)}
+                  className="px-3 py-2 rounded-xl text-xs font-medium text-white disabled:opacity-40"
+                  style={{ backgroundColor: "#7c3aed" }}
+                >
+                  Marcar todas como lidas
+                </button>
               </div>
             </div>
 
@@ -479,6 +596,86 @@ export default function Comunicacao() {
                   Confirmação visual de pontos e badges conquistados ao realizar check-in no culto.
                 </p>
               </div>
+            </div>
+
+            <div className="mt-8 border-t border-[#f0eefe] pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-[#1e1b4b]">Notificações recentes</h4>
+                  <p className="text-xs text-[#7c6ea8]">
+                    {notifications.filter((item) => !item.readAt).length} não lida(s)
+                  </p>
+                </div>
+              </div>
+
+              {loadingNotifications ? (
+                <div className="rounded-xl border border-[#ede9fe] bg-[#faf8ff] p-6 text-sm text-[#7c6ea8]">
+                  Carregando notificações...
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="rounded-xl border border-[#ede9fe] bg-[#faf8ff] p-6 text-sm text-[#7c6ea8]">
+                  Nenhuma notificação encontrada para este usuário.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {notifications.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`rounded-xl border p-4 ${item.readAt ? "border-[#ede9fe] bg-white" : "border-[#c4b5fd] bg-[#faf5ff]"} ${highlightedNotificationId === item.id ? "ring-2 ring-[#7c3aed] ring-offset-2" : ""}`}
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h5 className="text-sm font-semibold text-[#1e1b4b]">{item.title}</h5>
+                            {!item.readAt && (
+                              <span className="inline-flex rounded-full bg-[#7c3aed] px-2 py-0.5 text-[10px] font-bold text-white">
+                                Nova
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-sm text-[#5b5077]">{item.body}</p>
+                          <p className="mt-2 text-[11px] text-[#7c6ea8]">
+                            Recebida em {formatNotificationDate(item.at)}
+                          </p>
+                          {highlightedMessageId && item.data?.messageId === highlightedMessageId && (
+                            <p className="mt-2 text-[11px] font-semibold text-[#7c3aed]">Mensagem destacada a partir da notificação</p>
+                          )}
+                          {item.whatsappLink && (
+                            <a
+                              href={item.whatsappLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-3 inline-flex rounded-lg bg-[#16a34a] px-3 py-1.5 text-xs font-semibold text-white"
+                            >
+                              Abrir no WhatsApp
+                            </a>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col gap-2 md:items-end">
+                          {!item.readAt && (
+                            <button
+                              type="button"
+                              onClick={() => handleReadNotification(item.id)}
+                              className="px-3 py-2 rounded-xl text-xs font-medium text-[#7c3aed] bg-[#f5f3ff] whitespace-nowrap"
+                            >
+                              Marcar como lida
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => openNotificationContext(item)}
+                            className="px-3 py-2 rounded-xl text-xs font-medium text-white whitespace-nowrap"
+                            style={{ backgroundColor: "#7c3aed" }}
+                          >
+                            {resolveNotificationTarget(item).label}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

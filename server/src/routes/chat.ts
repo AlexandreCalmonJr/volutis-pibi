@@ -46,7 +46,7 @@ export async function chatRoutes(app: FastifyInstance) {
     });
     for (const s of scheduled) {
       if (s.memberId === auth.memberId) continue;
-      notifyMember(s.memberId, {
+      await notifyMember(s.memberId, {
         type: "CHAT_MESSAGE",
         title: `💬 ${authorName} — ${event.title}`,
         body: body.content.slice(0, 120),

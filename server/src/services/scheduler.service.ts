@@ -5,10 +5,21 @@
 
 import { prisma } from "../lib/db.js";
 import { notifyMember } from "./notification.service.js";
-import { sendScheduleReminderWhatsApp } from "./whatsapp.service.js";
+import { sendInteractiveScheduleReminder } from "./whatsapp.service.js";
 
 const CHECK_INTERVAL_MS = 15 * 60 * 1000; // a cada 15 minutos
 const REMINDER_WINDOW_HOURS = 24;
+
+function formatReminderDateTime(date: Date) {
+  return date.toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export async function processScheduleReminders(): Promise<number> {
   const now = new Date();
@@ -37,30 +48,34 @@ export async function processScheduleReminders(): Promise<number> {
 
     let sentCount = 0;
     for (const item of items) {
-      // 1. Marca imediatamente como lembrado para evitar concorrência/duplicação
-      await prisma.scheduleItem.update({
-        where: { id: item.id },
-        data: { reminderSentAt: new Date() },
-      });
+      const appUrl = process.env.APP_URL ?? "https://volutis-pibi.vercel.app";
 
-      // 2. Dispara WhatsApp automático (via WAHA, se configurado)
-      await sendScheduleReminderWhatsApp({
+      // 1. Dispara WhatsApp automático com código rastreável
+      const whatsappSent = await sendInteractiveScheduleReminder({
         memberName: item.member.name,
         phone: item.member.phone,
         eventTitle: item.event.title,
         eventDate: item.event.startTime,
         roleName: item.roleName,
+        scheduleItemId: item.id,
+        confirmUrl: `${appUrl}/escala/${item.id}`,
       });
 
-      // 3. Notificação interna em tempo real (WebSocket / Push)
-      notifyMember(item.memberId, {
+      // 2. Notificação interna persistida + tempo real
+      await notifyMember(item.memberId, {
         type: "SCHEDULE_REMINDER",
         title: "⏰ Lembrete de Escala (Amanhã)",
-        body: `${item.event.title} — ${item.roleName}`,
+        body: `${item.event.title} em ${formatReminderDateTime(item.event.startTime)} — função: ${item.roleName}`,
         data: { scheduleItemId: item.id, eventId: item.eventId },
       });
 
-      sentCount++;
+      // 3. Marca como enviado somente após persistir a notificação interna
+      await prisma.scheduleItem.update({
+        where: { id: item.id },
+        data: { reminderSentAt: new Date() },
+      });
+
+      if (whatsappSent || item.memberId) sentCount++;
     }
 
     if (sentCount > 0) {

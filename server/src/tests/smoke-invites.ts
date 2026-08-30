@@ -49,6 +49,7 @@ const reg = await api("POST", "/api/auth/register", undefined, {
   phone: "71988880000", inviteCode: invite.code.toLowerCase(),
 });
 check("Registro com convite válido → 201 com papel do convite", reg.statusCode === 201 && reg.json().user.role === "VOLUNTEER", reg.body);
+check("Registro por convite retorna memberId e memberName", !!reg.json().user.memberId && reg.json().user.memberName === "Convidado Teste", reg.body);
 
 // 6. Reuso do convite → 400
 const reuse = await api("POST", "/api/auth/register", undefined, {
@@ -83,6 +84,8 @@ check("Revogar convite pendente → 204", revoke.statusCode === 204);
 // 10. Novo usuário consegue logar e aparece como membro da PIBI
 const loginNew = await api("POST", "/api/auth/login", undefined, { email: "convidado@pibi.org.br", password: "123456" });
 check("Convidado loga normalmente", loginNew.statusCode === 200);
+const loginByPhone = await api("POST", "/api/auth/login", undefined, { email: "71988880000", password: "123456" });
+check("Convidado também consegue logar por telefone", loginByPhone.statusCode === 200, loginByPhone.body);
 const meNew = (await api("GET", "/api/auth/me", loginNew.json().accessToken)).json();
 check("Convidado vinculado à igreja com membro criado", meNew.user.member?.name === "Convidado Teste");
 

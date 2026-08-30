@@ -8,8 +8,10 @@ import QRCode from "qrcode";
 import pino from "pino";
 import path from "node:path";
 import fs from "node:fs";
-import { prisma } from "../lib/db.js";
-import { notifyMember } from "./notification.service.js";
+import {
+  getScheduleReplyCode,
+  respondToScheduleByPhone,
+} from "./schedule-response.service.js";
 
 const logger = pino({ level: "silent" });
 const SESSION_DIR = path.join(process.cwd(), "data", "whatsapp_session");
@@ -34,6 +36,7 @@ export interface ScheduleNotification {
   eventTitle: string;
   eventDate: Date;
   roleName: string;
+  scheduleItemId?: string;
   confirmUrl?: string;
 }
 
@@ -51,14 +54,54 @@ function formatDate(date: Date): { dateStr: string; timeStr: string } {
     weekday: "long",
     day: "2-digit",
     month: "2-digit",
-    timeZone: "America/Bahia",
+    timeZone: "America/Sao_Paulo",
   });
   const timeStr = date.toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "America/Bahia",
+    timeZone: "America/Sao_Paulo",
   });
   return { dateStr, timeStr };
+}
+
+function formatScheduleCode(scheduleItemId?: string) {
+  return scheduleItemId ? getScheduleReplyCode(scheduleItemId) : null;
+}
+
+function buildAssignmentFooter(n: ScheduleNotification) {
+  const code = formatScheduleCode(n.scheduleItemId);
+  const codeBlock = code
+    ? `Código da escala: *${code}*\nResponda \`1 ${code}\` para confirmar ou \`2 ${code}\` para recusar.\n\n`
+    : "";
+  const linkBlock = n.confirmUrl ? `Confirme sua participação: ${n.confirmUrl}\n\n` : "";
+  return `${codeBlock}${linkBlock}Deus abençoe! — Volutis PIBI`;
+}
+
+function buildWhatsAppResolutionMessage(result: Awaited<ReturnType<typeof respondToScheduleByPhone>>) {
+  if (result.ok) return null;
+  if (result.code === "MEMBER_NOT_FOUND") {
+    return "Não encontrei um voluntário vinculado a este número no Volutis PIBI.";
+  }
+  if (result.code === "NO_PENDING") {
+    return "Você não possui escalas pendentes para confirmar por aqui no momento.";
+  }
+  if (result.code === "NOT_FOUND") {
+    return "Não encontrei uma escala pendente com esse código. Confira o código enviado e tente novamente.";
+  }
+  if (result.code === "AMBIGUOUS") {
+    const items = result.items ?? [];
+    const firstItem = items[0];
+    const options = items
+      .slice(0, 5)
+      .map((item) => {
+        const { dateStr, timeStr } = formatDate(item.event.startTime);
+        return `• ${item.event.title} — ${dateStr} às ${timeStr} · código *${getScheduleReplyCode(item.id)}*`;
+      })
+      .join("\n");
+    const example = firstItem ? getScheduleReplyCode(firstItem.id) : "CODIGO";
+    return `Você tem mais de uma escala pendente. Responda com o código informado na mensagem, por exemplo: \`1 ${example}\`.\n\n${options}`;
+  }
+  return "Não consegui processar sua resposta agora. Tente novamente pelo app ou envie o código da escala.";
 }
 
 /**
@@ -152,55 +195,26 @@ export async function initNativeWhatsApp(): Promise<void> {
 
         const response = parseWhatsAppResponse(text);
         if (response.action === "unknown") continue;
-
-        const member = await prisma.member.findFirst({
-          where: { phone: formattedPhone },
-          include: {
-            scheduleItems: {
-              where: { status: "PENDING" },
-              orderBy: { event: { date: "asc" } },
-              take: 1,
-              include: { event: true, member: true },
-            },
-          },
+        const result = await respondToScheduleByPhone({
+          phone: formattedPhone,
+          action: response.action === "confirm" ? "CONFIRM" : "DECLINE",
+          scheduleIdentifier: response.scheduleIdentifier,
+          reason: response.action === "decline" ? "Recusada via WhatsApp" : undefined,
         });
 
-        if (!member || member.scheduleItems.length === 0) continue;
-
-        const scheduleItem = member.scheduleItems[0];
-
-        if (response.action === "confirm") {
-          await prisma.scheduleItem.update({
-            where: { id: scheduleItem.id },
-            data: { status: "CONFIRMED" },
-          });
-
+        if (result.ok) {
           await sendWhatsAppMessage({
             to: formattedPhone,
-            text: `✅ Presença confirmada para *${scheduleItem.event.title}*!\n\nObrigado e Deus abençoe! — Volutis PIBI`,
+            text:
+              response.action === "confirm"
+                ? `✅ Presença confirmada para *${result.scheduleItem.event.title}*!\n\nObrigado e Deus abençoe! — Volutis PIBI`
+                : `❌ Presença recusada para *${result.scheduleItem.event.title}*.\n\nSe precisar de ajuda, entre em contato com o líder do ministério.\n\nDeus abençoe! — Volutis PIBI`,
           });
-
-          notifyMember(member.id, {
-            type: "SCHEDULE_CONFIRMED",
-            title: "Escala confirmada",
-            body: `Sua presença em "${scheduleItem.event.title}" foi confirmada.`,
-          });
-        } else if (response.action === "decline") {
-          await prisma.scheduleItem.update({
-            where: { id: scheduleItem.id },
-            data: { status: "DECLINED" },
-          });
-
-          await sendWhatsAppMessage({
-            to: formattedPhone,
-            text: `❌ Presença recusada para *${scheduleItem.event.title}*.\n\nSe precisar de ajuda, entre em contato com o líder do ministério.\n\nDeus abençoe! — Volutis PIBI`,
-          });
-
-          notifyMember(member.id, {
-            type: "SCHEDULE_DECLINED",
-            title: "Escala recusada",
-            body: `Sua presença em "${scheduleItem.event.title}" foi recusada.`,
-          });
+        } else {
+          const resolutionMessage = buildWhatsAppResolutionMessage(result);
+          if (resolutionMessage) {
+            await sendWhatsAppMessage({ to: formattedPhone, text: resolutionMessage });
+          }
         }
       }
     });
@@ -374,8 +388,7 @@ export function buildScheduleWhatsAppLink(n: ScheduleNotification): string | nul
     `Olá, ${n.memberName}! 🙌\n\n` +
     `Você foi escalado(a) para *${n.eventTitle}* — ${dateStr} às ${timeStr}.\n` +
     `Função: *${n.roleName}*\n\n` +
-    (n.confirmUrl ? `Confirme sua participação: ${n.confirmUrl}\n\n` : "") +
-    `Deus abençoe! — Volutis PIBI`;
+    buildAssignmentFooter(n);
 
   return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
 }
@@ -391,8 +404,7 @@ export async function sendScheduleAssignedWhatsApp(n: ScheduleNotification): Pro
     `Olá, ${n.memberName}! 🙌\n\n` +
     `Você foi escalado(a) para *${n.eventTitle}* — ${dateStr} às ${timeStr}.\n` +
     `Função: *${n.roleName}*\n\n` +
-    (n.confirmUrl ? `Confirme sua participação: ${n.confirmUrl}\n\n` : "") +
-    `Deus abençoe! — Volutis PIBI`;
+    buildAssignmentFooter(n);
 
   return sendWhatsAppMessage({ to: n.phone, text: message });
 }
@@ -408,8 +420,7 @@ export async function sendScheduleReminderWhatsApp(n: ScheduleNotification): Pro
     `Olá, ${n.memberName}! ⏰ *Lembrete de Escala*\n\n` +
     `Lembrando que você está escalado(a) para *${n.eventTitle}* — ${dateStr} às ${timeStr}.\n` +
     `Função: *${n.roleName}*\n\n` +
-    (n.confirmUrl ? `Confirme ou visualize a escala no app: ${n.confirmUrl}\n\n` : "") +
-    `Contamos com você! 🙏 — Volutis PIBI`;
+    buildAssignmentFooter(n).replace("Deus abençoe!", "Contamos com você! 🙏");
 
   return sendWhatsAppMessage({ to: n.phone, text: message });
 }
@@ -514,8 +525,9 @@ export async function sendInteractiveScheduleReminder(n: InteractiveScheduleNoti
     `Lembrando que você está escalado(a) para *${n.eventTitle}* — ${dateStr} às ${timeStr}.\n` +
     `Função: *${n.roleName}*\n\n` +
     `Para confirmar ou recusar, responda:\n` +
-    `*1* — Confirmar presença ✅\n` +
-    `*2* — Recusar ❌\n\n` +
+    `*1 ${getScheduleReplyCode(n.scheduleItemId)}* — Confirmar presença ✅\n` +
+    `*2 ${getScheduleReplyCode(n.scheduleItemId)}* — Recusar ❌\n\n` +
+    `Código da escala: *${getScheduleReplyCode(n.scheduleItemId)}*\n` +
     `Ou acesse o app: ${n.confirmUrl ?? ""}\n\n` +
     `Contamos com você! 🙏 — Volutis PIBI`;
 
@@ -525,12 +537,13 @@ export async function sendInteractiveScheduleReminder(n: InteractiveScheduleNoti
 /**
  * Processa resposta interativa do WhatsApp (1=confirmar, 2=recusar).
  */
-export function parseWhatsAppResponse(message: string): { action: "confirm" | "decline" | "unknown"; scheduleItemId?: string } {
+export function parseWhatsAppResponse(message: string): { action: "confirm" | "decline" | "unknown"; scheduleIdentifier?: string } {
   const trimmed = message.trim();
-  if (trimmed === "1") return { action: "confirm" };
-  if (trimmed === "2") return { action: "decline" };
-  if (/^(sim|ok|confirmo|confirmar|s)$/i.test(trimmed)) return { action: "confirm" };
-  if (/^(não|nao|recuso|recusar|n)$/i.test(trimmed)) return { action: "decline" };
+  const codeMatch = trimmed.match(/(?:^|\s)([A-Za-z0-9]{6,32})$/);
+  const scheduleIdentifier = codeMatch?.[1]?.toLowerCase();
+  if (/^1(?:\s+[A-Za-z0-9]{6,32})?$/i.test(trimmed)) return { action: "confirm", scheduleIdentifier };
+  if (/^2(?:\s+[A-Za-z0-9]{6,32})?$/i.test(trimmed)) return { action: "decline", scheduleIdentifier };
+  if (/^(sim|ok|confirmo|confirmar|s)(?:\s+[A-Za-z0-9]{6,32})?$/i.test(trimmed)) return { action: "confirm", scheduleIdentifier };
+  if (/^(não|nao|recuso|recusar|n)(?:\s+[A-Za-z0-9]{6,32})?$/i.test(trimmed)) return { action: "decline", scheduleIdentifier };
   return { action: "unknown" };
 }
-

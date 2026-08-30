@@ -48,6 +48,8 @@ export default function LoginPage() {
           role: data.user.role,
           memberId: data.user.memberId,
           memberName: data.user.memberName,
+          avatarKey: data.user.avatarKey,
+          photoUrl: data.user.photoUrl,
         },
         data.accessToken,
         data.refreshToken

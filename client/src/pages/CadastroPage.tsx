@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { API_URL } from "../api";
+import { AVATAR_OPTIONS, Avatar } from "../components/Avatar";
 
 interface Ministry {
   id: string;
@@ -22,6 +23,7 @@ interface FormData {
   email: string;
   phone: string;
   photoUrl: string;
+  avatarKey: string;
   instruments: string[];
   availability: Record<string, string[]>;
   ministryIds: string[];
@@ -57,6 +59,7 @@ export default function CadastroPage() {
     email: "",
     phone: "",
     photoUrl: "",
+    avatarKey: "violet",
     instruments: [],
     availability: {},
     ministryIds: [],
@@ -113,6 +116,7 @@ export default function CadastroPage() {
           email: form.email || undefined,
           phone: form.phone || undefined,
           photoUrl: form.photoUrl || undefined,
+          avatarKey: form.avatarKey,
           instruments: form.instruments,
           availability: Object.keys(form.availability).length > 0 ? form.availability : undefined,
           ministryIds: form.ministryIds,
@@ -279,6 +283,26 @@ export default function CadastroPage() {
                   placeholder="https://..."
                   className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 transition-colors"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Avatar
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {AVATAR_OPTIONS.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setForm({ ...form, avatarKey: option })}
+                      className={`rounded-xl border p-3 flex flex-col items-center gap-2 transition-colors ${form.avatarKey === option ? "border-purple-500 bg-purple-50" : "border-gray-200 hover:border-gray-300"}`}
+                    >
+                      <Avatar name={form.name || "Voluntário"} photoUrl={form.photoUrl || undefined} avatarKey={option} size={42} />
+                      <span className="text-[11px] font-semibold text-gray-600 capitalize">{option}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">Se você informar uma foto, ela terá prioridade; o avatar fica como identidade visual de apoio.</p>
               </div>
 
               <div>

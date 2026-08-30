@@ -8,6 +8,8 @@ export interface AuthUser {
   role: "ADMIN" | "MINISTRY_LEADER" | "VOLUNTEER" | "MEMBER";
   memberId?: string;
   memberName?: string;
+  avatarKey?: string | null;
+  photoUrl?: string | null;
 }
 
 interface AuthState {
@@ -67,4 +69,67 @@ export const useToasts = create<ToastState>((set) => ({
     setTimeout(() => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })), 6000);
   },
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })),
+}));
+
+/* ── Notificações ───────────────────────────────────────── */
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+  whatsappLink?: string | null;
+  at: string;
+  readAt?: string | null;
+}
+
+interface NotificationState {
+  items: NotificationItem[];
+  setItems: (items: NotificationItem[]) => void;
+  upsert: (item: NotificationItem) => void;
+  markReadLocal: (id: string) => void;
+  markAllReadLocal: () => void;
+  clear: () => void;
+}
+
+export const useNotifications = create<NotificationState>((set) => ({
+  items: [],
+  setItems: (items) =>
+    set({
+      items: [...items].sort(
+        (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
+      ),
+    }),
+  upsert: (item) =>
+    set((state) => {
+      const existing = state.items.find((n) => n.id === item.id);
+      if (existing) {
+        return {
+          items: state.items
+            .map((n) => (n.id === item.id ? { ...n, ...item } : n))
+            .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
+        };
+      }
+      return {
+        items: [item, ...state.items].sort(
+          (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
+        ),
+      };
+    }),
+  markReadLocal: (id) =>
+    set((state) => ({
+      items: state.items.map((item) =>
+        item.id === id
+          ? { ...item, readAt: item.readAt ?? new Date().toISOString() }
+          : item
+      ),
+    })),
+  markAllReadLocal: () =>
+    set((state) => ({
+      items: state.items.map((item) => ({
+        ...item,
+        readAt: item.readAt ?? new Date().toISOString(),
+      })),
+    })),
+  clear: () => set({ items: [] }),
 }));

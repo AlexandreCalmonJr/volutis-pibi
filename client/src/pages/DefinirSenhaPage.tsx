@@ -101,6 +101,8 @@ export default function DefinirSenhaPage() {
           role: data.user.role,
           memberId: data.user.memberId,
           memberName: name.trim(),
+          avatarKey: data.user.avatarKey,
+          photoUrl: data.user.photoUrl,
         },
         data.accessToken,
         data.refreshToken

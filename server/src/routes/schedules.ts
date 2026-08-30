@@ -7,14 +7,70 @@ import {
   isUnavailable,
   suggestVolunteers,
   autoGenerateMonthlySchedule,
+  getEligibleMinistryMembershipsForRole,
 } from "../services/schedule.service.js";
+import { respondToScheduleItem } from "../services/schedule-response.service.js";
 import { notifyMember } from "../services/notification.service.js";
 import {
   buildScheduleWhatsAppLink,
   sendScheduleAssignedWhatsApp,
-  sendDeclineAlertToLeader,
 } from "../services/whatsapp.service.js";
-import { checkAndAwardBadges, POINTS } from "../services/gamification.service.js";
+
+function formatNotificationDateTime(date: Date) {
+  return date.toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+async function dispatchScheduleAssignedNotification(params: {
+  memberId: string;
+  memberName: string;
+  memberPhone: string | null;
+  eventId: string;
+  eventTitle: string;
+  eventStartTime: Date;
+  roleName: string;
+  scheduleItemId: string;
+  appUrl: string;
+}) {
+  const { memberId, memberName, memberPhone, eventId, eventTitle, eventStartTime, roleName, scheduleItemId, appUrl } = params;
+  const confirmUrl = `${appUrl}/escala/${scheduleItemId}`;
+  const whenText = formatNotificationDateTime(eventStartTime);
+  const whatsappLink = buildScheduleWhatsAppLink({
+    memberName,
+    phone: memberPhone,
+    eventTitle,
+    eventDate: eventStartTime,
+    roleName,
+    scheduleItemId,
+    confirmUrl,
+  });
+
+  await notifyMember(memberId, {
+    type: "SCHEDULE_ASSIGNED",
+    title: "Você foi escalado! 🙌",
+    body: `${eventTitle} em ${whenText} — função: ${roleName}`,
+    data: { scheduleItemId, eventId },
+    whatsappLink,
+  });
+
+  const whatsappSent = await sendScheduleAssignedWhatsApp({
+    memberName,
+    phone: memberPhone,
+    eventTitle,
+    eventDate: eventStartTime,
+    roleName,
+    scheduleItemId,
+    confirmUrl,
+  }).catch(() => false);
+
+  return { whatsappLink, whatsappSent };
+}
 
 const autoGenerateSchema = z.object({
   year: z.number().int().min(2020).max(2050),
@@ -75,7 +131,32 @@ export async function scheduleRoutes(app: FastifyInstance) {
         overwrite: body.overwrite,
       });
 
-      return result;
+      const appUrl = getAppUrl(req);
+      const notificationResults = await Promise.allSettled(
+        result.assignments.map((assignment) =>
+          dispatchScheduleAssignedNotification({
+            memberId: assignment.memberId,
+            memberName: assignment.memberName,
+            memberPhone: assignment.memberPhone,
+            eventId: assignment.eventId,
+            eventTitle: assignment.eventTitle,
+            eventStartTime: assignment.eventStartTime,
+            roleName: assignment.roleName,
+            scheduleItemId: assignment.scheduleItemId,
+            appUrl,
+          })
+        )
+      );
+
+      const whatsappNotificationsSent = notificationResults.filter(
+        (entry) => entry.status === "fulfilled" && entry.value.whatsappSent
+      ).length;
+
+      return {
+        ...result,
+        notificationsSent: result.assignments.length,
+        whatsappNotificationsSent,
+      };
     }
   );
 
@@ -104,7 +185,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     const items = await prisma.scheduleItem.findMany({
       where: { eventId },
       include: {
-        member: { select: { id: true, name: true, photoUrl: true, phone: true } },
+        member: { select: { id: true, name: true, photoUrl: true, avatarKey: true, phone: true } },
         checkin: true,
         swapRequests: { where: { status: "PENDING" } },
       },
@@ -129,6 +210,18 @@ export async function scheduleRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "Evento não encontrado" });
       if (!(await belongsToChurch("member", body.memberId, auth.churchId)))
         return reply.code(404).send({ error: "Membro não encontrado" });
+
+      const eligibleMemberships = await getEligibleMinistryMembershipsForRole(
+        body.memberId,
+        auth.churchId,
+        body.roleName
+      );
+      if (eligibleMemberships.length === 0) {
+        return reply.code(409).send({
+          error: "Voluntário não está vinculado a um ministério compatível com esta função",
+          code: "ROLE_NOT_ALLOWED",
+        });
+      }
 
       // Indisponibilidade
       if (await isUnavailable(body.memberId, event.date)) {
@@ -155,32 +248,17 @@ export async function scheduleRoutes(app: FastifyInstance) {
       });
 
       const appUrl = getAppUrl(req);
-      const whatsappLink = buildScheduleWhatsAppLink({
+      const { whatsappLink } = await dispatchScheduleAssignedNotification({
+        memberId: body.memberId,
         memberName: item.member.name,
-        phone: item.member.phone,
+        memberPhone: item.member.phone,
+        eventId,
         eventTitle: item.event.title,
-        eventDate: item.event.startTime,
+        eventStartTime: item.event.startTime,
         roleName: item.roleName,
-        confirmUrl: `${appUrl}/escala/${item.id}`,
+        scheduleItemId: item.id,
+        appUrl,
       });
-
-      notifyMember(body.memberId, {
-        type: "SCHEDULE_ASSIGNED",
-        title: "Você foi escalado! 🙌",
-        body: `${item.event.title} — função: ${item.roleName}`,
-        data: { scheduleItemId: item.id, eventId },
-        whatsappLink,
-      });
-
-      // Dispara envio automático no WhatsApp se WAHA estiver ativo
-      sendScheduleAssignedWhatsApp({
-        memberName: item.member.name,
-        phone: item.member.phone,
-        eventTitle: item.event.title,
-        eventDate: item.event.startTime,
-        roleName: item.roleName,
-        confirmUrl: `${appUrl}/escala/${item.id}`,
-      }).catch(() => {});
 
       return reply.code(201).send({ ...item, whatsappLink });
     }
@@ -209,71 +287,16 @@ export async function scheduleRoutes(app: FastifyInstance) {
     const auth = req.user as AuthUser;
     const body = respondSchema.parse(req.body);
 
-    const item = await prisma.scheduleItem.findUnique({
-      where: { id },
-      include: { member: true, event: true },
-    });
-    if (!item) return reply.code(404).send({ error: "Item de escala não encontrado" });
-    const isSelf = auth.memberId === item.memberId;
-    const isAdminSameChurch = auth.role === "ADMIN" && item.event.churchId === auth.churchId;
-    if (!isSelf && !isAdminSameChurch)
-      return reply.code(403).send({ error: "Só o próprio voluntário pode responder" });
-    if (item.status !== "PENDING" && item.status !== "SWAP_REQUESTED")
-      return reply.code(409).send({ error: `Escala já respondida (${item.status})` });
-
-    if (body.action === "DECLINE" && !body.reason)
-      return reply.code(400).send({ error: "Informe o motivo da recusa" });
-
-    const updated = await prisma.scheduleItem.update({
-      where: { id },
-      data: {
-        status: body.action === "CONFIRM" ? "CONFIRMED" : "DECLINED",
-        refusalReason: body.action === "DECLINE" ? body.reason : null,
-      },
+    const result = await respondToScheduleItem({
+      scheduleItemId: id,
+      actorMemberId: auth.memberId,
+      actorRole: auth.role,
+      actorChurchId: auth.churchId,
+      action: body.action,
+      reason: body.reason,
     });
 
-    if (body.action === "CONFIRM") {
-      await prisma.member.update({
-        where: { id: item.memberId },
-        data: { points: { increment: POINTS.CONFIRM } },
-      });
-      await checkAndAwardBadges(item.memberId);
-    }
-
-    // Notifica o próprio membro (feedback)
-    notifyMember(item.memberId, {
-      type: body.action === "CONFIRM" ? "SCHEDULE_CONFIRMED" : "SCHEDULE_DECLINED",
-      title: body.action === "CONFIRM" ? "Presença confirmada ✅" : "Escala recusada",
-      body: `${item.event.title} — ${item.roleName}`,
-      data: { scheduleItemId: id },
-    });
-
-    // Se recusou, alerta os líderes do ministério via WhatsApp
-    if (body.action === "DECLINE") {
-      prisma.ministryMember
-        .findMany({
-          where: { isLeader: true, member: { churchId: item.event.churchId } },
-          include: { member: true },
-          take: 3,
-        })
-        .then((leaders) => {
-          for (const l of leaders) {
-            if (l.member.phone) {
-              sendDeclineAlertToLeader({
-                leaderName: l.member.name,
-                leaderPhone: l.member.phone,
-                memberName: item.member.name,
-                eventTitle: item.event.title,
-                roleName: item.roleName,
-                reason: body.reason,
-              }).catch(() => {});
-            }
-          }
-        })
-        .catch(() => {});
-    }
-
-    return updated;
+    return result.updated;
   });
 
   // ── Solicitar troca ──────────────────────────────────────────────────
@@ -281,6 +304,10 @@ export async function scheduleRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const auth = req.user as AuthUser;
     const body = swapSchema.parse(req.body);
+
+    if (!auth.churchId) {
+      return reply.code(400).send({ error: "Igreja não identificada no usuário autenticado" });
+    }
 
     const item = await prisma.scheduleItem.findUnique({
       where: { id },
@@ -291,6 +318,14 @@ export async function scheduleRoutes(app: FastifyInstance) {
       return reply.code(403).send({ error: "Só o voluntário escalado pode pedir troca" });
     if (!(await belongsToChurch("member", body.targetMemberId, auth.churchId)))
       return reply.code(404).send({ error: "Voluntário alvo não encontrado" });
+
+    const targetEligibleMemberships = await getEligibleMinistryMembershipsForRole(
+      body.targetMemberId,
+      auth.churchId,
+      item.roleName
+    );
+    if (targetEligibleMemberships.length === 0)
+      return reply.code(409).send({ error: "Voluntário alvo não pode assumir esta função", code: "ROLE_NOT_ALLOWED" });
 
     // O alvo está disponível?
     if (await isUnavailable(body.targetMemberId, item.event.date))
@@ -306,11 +341,11 @@ export async function scheduleRoutes(app: FastifyInstance) {
       prisma.scheduleItem.update({ where: { id }, data: { status: "SWAP_REQUESTED" } }),
     ]);
 
-    notifyMember(body.targetMemberId, {
+    await notifyMember(body.targetMemberId, {
       type: "SWAP_REQUESTED",
       title: "Pedido de troca de escala 🔄",
       body: `${item.member.name} pediu para você assumir ${item.roleName} em ${item.event.title}`,
-      data: { swapRequestId: swap.id, scheduleItemId: id },
+      data: { swapRequestId: swap.id, scheduleItemId: id, eventId: item.eventId },
     });
 
     return reply.code(201).send(swap);
@@ -346,11 +381,11 @@ export async function scheduleRoutes(app: FastifyInstance) {
           data: { memberId: swap.targetMemberId, status: "CONFIRMED", refusalReason: null },
         }),
       ]);
-      notifyMember(original.memberId, {
+      await notifyMember(original.memberId, {
         type: "SWAP_ACCEPTED",
         title: "Troca aceita ✅",
         body: `Sua vaga de ${original.roleName} em ${original.event.title} foi assumida`,
-        data: { swapRequestId: id },
+        data: { swapRequestId: id, scheduleItemId: original.id, eventId: original.eventId },
       });
     } else {
       await prisma.$transaction([
@@ -360,11 +395,11 @@ export async function scheduleRoutes(app: FastifyInstance) {
         }),
         prisma.scheduleItem.update({ where: { id: original.id }, data: { status: "PENDING" } }),
       ]);
-      notifyMember(original.memberId, {
+      await notifyMember(original.memberId, {
         type: "SWAP_DECLINED",
         title: "Troca recusada",
         body: `O pedido de troca em ${original.event.title} foi recusado — a escala voltou para você`,
-        data: { swapRequestId: id },
+        data: { swapRequestId: id, scheduleItemId: original.id, eventId: original.eventId },
       });
     }
 
@@ -375,11 +410,16 @@ export async function scheduleRoutes(app: FastifyInstance) {
   app.get("/my/schedule", { preHandler: [requireAuth] }, async (req, reply) => {
     const auth = req.user as AuthUser;
     if (!auth.memberId) return reply.code(400).send({ error: "Usuário sem membro vinculado" });
+    const { scope } = (req.query as { scope?: string }) ?? {};
+    const includeAllHistory = scope === "all";
     const [items, swapInvites] = await Promise.all([
       prisma.scheduleItem.findMany({
-        where: { memberId: auth.memberId, event: { date: { gte: new Date(Date.now() - 864e5) } } },
+        where: {
+          memberId: auth.memberId,
+          ...(includeAllHistory ? {} : { event: { date: { gte: new Date(Date.now() - 864e5) } } }),
+        },
         include: { event: true, checkin: true },
-        orderBy: { event: { date: "asc" } },
+        orderBy: { event: { date: includeAllHistory ? "desc" : "asc" } },
       }),
       prisma.swapRequest.findMany({
         where: { targetMemberId: auth.memberId, status: "PENDING" },

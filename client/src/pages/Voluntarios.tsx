@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { MINISTERIO_COLORS, MINISTERIOS } from "../lib/constants";
+import { Avatar } from "../components/Avatar";
 
 interface Ministry {
   id: number;
@@ -20,6 +22,7 @@ interface Member {
   name: string;
   phone: string;
   photoUrl: string;
+  avatarKey?: string | null;
   instruments: string[];
   birthDate: string;
   approvalStatus: "ACTIVE" | "PENDING" | "INACTIVE";
@@ -47,21 +50,20 @@ function getMinistryColorFor(name: string): string {
   return MINISTERIO_COLORS[name]?.text || "#7c3aed";
 }
 
-function getInitials(name: string): string {
-  return name.split(" ").slice(0, 2).map((n) => n[0]).join("");
-}
-
 interface ProfileModalProps {
   member: Member;
+  loading: boolean;
+  feedback: { type: "ok" | "error"; text: string } | null;
+  onApprove: (member: Member) => void;
+  onDeactivate: (member: Member) => void;
   onClose: () => void;
 }
 
-function ProfileModal({ member, onClose }: ProfileModalProps) {
+function ProfileModal({ member, loading, feedback, onApprove, onDeactivate, onClose }: ProfileModalProps) {
   const mapped = mapStatus(member.approvalStatus);
   const s = statusConfig[mapped];
   const ministryName = getMinistryName(member);
   const color = getMinistryColorFor(ministryName);
-  const initials = getInitials(member.name);
   const roles = member.ministryMembers[0]?.roles;
 
   return (
@@ -77,12 +79,7 @@ function ProfileModal({ member, onClose }: ProfileModalProps) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl mx-auto mb-3"
-            style={{ backgroundColor: color }}
-          >
-            {initials}
-          </div>
+          <Avatar name={member.name} photoUrl={member.photoUrl} avatarKey={member.avatarKey} size={64} className="mx-auto mb-3" />
           <h2 className="text-lg font-bold text-[#1e1b4b]">{member.name}</h2>
           <div className="flex items-center justify-center gap-2 mt-1">
             <span className="text-sm" style={{ color }}>{ministryName}</span>
@@ -97,6 +94,12 @@ function ProfileModal({ member, onClose }: ProfileModalProps) {
         </div>
 
         <div className="px-6 py-4 space-y-4">
+          {feedback && (
+            <div className={`rounded-xl border px-4 py-3 text-sm ${feedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+              {feedback.text}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="text-center bg-[#f5f3ff] rounded-xl p-3">
               <p className="text-xl font-bold text-[#1e1b4b]">{member.points ?? 0}</p>
@@ -159,11 +162,45 @@ function ProfileModal({ member, onClose }: ProfileModalProps) {
 
           {member.approvalStatus === "PENDING" && (
             <div className="flex gap-2 pt-2">
-              <button className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90" style={{ backgroundColor: "#10b981" }}>
-                Aprovar Voluntário
+              <button
+                onClick={() => onApprove(member)}
+                disabled={loading}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: "#10b981" }}
+              >
+                {loading ? "Processando..." : "Aprovar Voluntário"}
               </button>
-              <button className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
-                Recusar
+              <button
+                onClick={() => onDeactivate(member)}
+                disabled={loading}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-red-200 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                Marcar Inativo
+              </button>
+            </div>
+          )}
+
+          {member.approvalStatus === "ACTIVE" && (
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => onDeactivate(member)}
+                disabled={loading}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-red-200 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {loading ? "Processando..." : "Desativar voluntário"}
+              </button>
+            </div>
+          )}
+
+          {member.approvalStatus === "INACTIVE" && (
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => onApprove(member)}
+                disabled={loading}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: "#7c3aed" }}
+              >
+                {loading ? "Processando..." : "Reativar voluntário"}
               </button>
             </div>
           )}
@@ -174,6 +211,7 @@ function ProfileModal({ member, onClose }: ProfileModalProps) {
 }
 
 export default function Voluntarios() {
+  const navigate = useNavigate();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -182,13 +220,46 @@ export default function Voluntarios() {
   const [filtroMinisterio, setFiltroMinisterio] = useState("Todos");
   const [memberSelecionado, setMemberSelecionado] = useState<Member | null>(null);
   const [visualizacao, setVisualizacao] = useState<"grid" | "lista">("grid");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+
+  async function carregarMembros() {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api<Member[]>("/members");
+      setMembers(data);
+    } catch (e: any) {
+      setError(e.message ?? "Erro ao carregar voluntários");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    api<Member[]>("/members")
-      .then(setMembers)
-      .catch((e) => setError(e.message ?? "Erro ao carregar voluntários"))
-      .finally(() => setLoading(false));
+    carregarMembros();
   }, []);
+
+  async function updateMemberStatus(member: Member, approvalStatus: "ACTIVE" | "INACTIVE") {
+    setActionLoading(true);
+    setActionFeedback(null);
+    try {
+      const updated = await api<Member>(`/members/${member.id}/status`, {
+        method: "PATCH",
+        body: { approvalStatus },
+      });
+      setMembers((current) => current.map((item) => (item.id === member.id ? updated : item)));
+      setMemberSelecionado(updated);
+      setActionFeedback({
+        type: "ok",
+        text: approvalStatus === "ACTIVE" ? "Voluntário aprovado/reativado com sucesso." : "Voluntário marcado como inativo.",
+      });
+    } catch (e: any) {
+      setActionFeedback({ type: "error", text: e.message ?? "Não foi possível atualizar o voluntário." });
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   const filtrados = members.filter((m) => {
     const ministryName = getMinistryName(m);
@@ -234,11 +305,17 @@ export default function Voluntarios() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button disabled className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c6ea8] opacity-50 cursor-not-allowed">
-            Importar Excel (Em breve)
+          <button
+            onClick={() => carregarMembros()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c6ea8] hover:bg-[#f5f3ff]"
+          >
+            Atualizar lista
           </button>
-          <button disabled className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c6ea8] opacity-50 cursor-not-allowed">
-            Novo Voluntário (Em breve)
+          <button
+            onClick={() => navigate("/convites")}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c3aed] hover:bg-[#f5f3ff]"
+          >
+            Gerar convite
           </button>
         </div>
       </div>
@@ -320,7 +397,6 @@ export default function Voluntarios() {
             const s = statusConfig[mapStatus(m.approvalStatus)];
             const ministryName = getMinistryName(m);
             const color = getMinistryColorFor(ministryName);
-            const initials = getInitials(m.name);
             return (
               <button
                 key={m.id}
@@ -328,12 +404,7 @@ export default function Voluntarios() {
                 className="bg-white rounded-2xl border border-[#e5e0f8] p-5 text-left hover:shadow-md hover:border-[#c4b5fd] transition-all group"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div
-                    className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold"
-                    style={{ backgroundColor: color }}
-                  >
-                    {initials}
-                  </div>
+                  <Avatar name={m.name} photoUrl={m.photoUrl} avatarKey={m.avatarKey} size={44} />
                   <span
                     className="text-xs px-2 py-0.5 rounded-full font-semibold"
                     style={{ backgroundColor: s.bg, color: s.text }}
@@ -358,19 +429,13 @@ export default function Voluntarios() {
               const s = statusConfig[mapStatus(m.approvalStatus)];
               const ministryName = getMinistryName(m);
               const color = getMinistryColorFor(ministryName);
-              const initials = getInitials(m.name);
               return (
                 <button
                   key={m.id}
                   onClick={() => setMemberSelecionado(m)}
                   className="w-full flex items-center gap-4 px-6 py-3.5 hover:bg-[#fafafe] transition-colors text-left"
                 >
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-                    style={{ backgroundColor: color }}
-                  >
-                    {initials}
-                  </div>
+                  <Avatar name={m.name} photoUrl={m.photoUrl} avatarKey={m.avatarKey} size={36} className="flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-[#1e1b4b] text-sm">{m.name}</p>
                     <p className="text-xs text-[#7c6ea8]">{ministryName}{m.ministryMembers[0]?.isLeader ? " (Líder)" : ""}</p>
@@ -406,6 +471,10 @@ export default function Voluntarios() {
       {memberSelecionado && (
         <ProfileModal
           member={memberSelecionado}
+          loading={actionLoading}
+          feedback={actionFeedback}
+          onApprove={(member) => updateMemberStatus(member, "ACTIVE")}
+          onDeactivate={(member) => updateMemberStatus(member, "INACTIVE")}
           onClose={() => setMemberSelecionado(null)}
         />
       )}

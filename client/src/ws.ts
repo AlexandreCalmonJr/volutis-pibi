@@ -3,11 +3,12 @@
  * Reconecta automaticamente e empurra toasts.
  */
 import { useEffect, useRef } from "react";
-import { useAuth, useToasts } from "./store";
+import { useAuth, useNotifications, useToasts } from "./store";
 
 export function useRealtimeNotifications(onEvent?: (n: any) => void) {
   const accessToken = useAuth((s) => s.accessToken);
   const push = useToasts((s) => s.push);
+  const upsertNotification = useNotifications((s) => s.upsert);
   const cbRef = useRef(onEvent);
   cbRef.current = onEvent;
 
@@ -34,6 +35,7 @@ export function useRealtimeNotifications(onEvent?: (n: any) => void) {
               kind: n.type.includes("DECLINED") ? "warn" : "ok",
               whatsappLink: n.whatsappLink,
             });
+            if (n.id) upsertNotification(n);
           }
           cbRef.current?.(n);
         } catch { /* ignore */ }
@@ -44,5 +46,5 @@ export function useRealtimeNotifications(onEvent?: (n: any) => void) {
     };
     connect();
     return () => { closed = true; ws?.close(); };
-  }, [accessToken, push]);
+  }, [accessToken, push, upsertNotification]);
 }

@@ -16,6 +16,7 @@ const memberSchema = z.object({
   name: z.string().min(2),
   phone: z.string().optional(),
   photoUrl: z.string().url().optional(),
+  avatarKey: z.enum(["violet", "blue", "emerald", "amber", "rose", "slate"]).optional(),
   instruments: z.array(z.string()).default([]),
   birthDate: z.string().datetime().optional(),
 });
@@ -26,11 +27,81 @@ const unavailabilitySchema = z.object({
   recurring: z.boolean().default(false),
 });
 
+const memberStatusSchema = z.object({
+  approvalStatus: z.enum(["ACTIVE", "PENDING", "INACTIVE"]),
+});
+
 function serialize(m: any) {
   return { ...m, instruments: fromJson(m.instruments) };
 }
 
+function normalizeOptionalString(value?: string | null) {
+  if (typeof value !== "string") return value ?? undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export async function memberRoutes(app: FastifyInstance) {
+  app.get("/my/profile", { preHandler: [requireAuth] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    if (!auth.memberId) return reply.code(400).send({ error: "Usuário sem membro vinculado" });
+    const member = await prisma.member.findUnique({
+      where: { id: auth.memberId },
+      include: {
+        ministryMembers: { include: { ministry: true } },
+        unavailabilities: true,
+        badges: { orderBy: { earnedAt: "desc" } },
+      },
+    });
+    if (!member) return reply.code(404).send({ error: "Membro não encontrado" });
+    return serialize(member);
+  });
+
+  app.put("/my/profile", { preHandler: [requireAuth] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    if (!auth.memberId) return reply.code(400).send({ error: "Usuário sem membro vinculado" });
+
+    const body = memberSchema.partial().parse(req.body);
+    const member = await prisma.member.findUnique({ where: { id: auth.memberId } });
+    if (!member || member.churchId !== auth.churchId) {
+      return reply.code(404).send({ error: "Membro não encontrado" });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const nextPhone = normalizeOptionalString(body.phone);
+      const nextPhotoUrl = normalizeOptionalString(body.photoUrl);
+      const nextName = normalizeOptionalString(body.name);
+
+      const savedMember = await tx.member.update({
+        where: { id: auth.memberId },
+        data: {
+          name: nextName ?? undefined,
+          phone: nextPhone,
+          photoUrl: nextPhotoUrl,
+          avatarKey: body.avatarKey,
+          instruments: body.instruments ? toJson(body.instruments) : undefined,
+          birthDate: body.birthDate ? new Date(body.birthDate) : body.birthDate === null ? null : undefined,
+        },
+        include: {
+          ministryMembers: { include: { ministry: true } },
+          unavailabilities: true,
+          badges: { orderBy: { earnedAt: "desc" } },
+        },
+      });
+
+      if (member.userId) {
+        await tx.user.update({
+          where: { id: member.userId },
+          data: { phone: nextPhone },
+        });
+      }
+
+      return savedMember;
+    });
+
+    return serialize(updated);
+  });
+
   app.get("/members", { preHandler: [requireAuth] }, async (req, reply) => {
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
@@ -70,6 +141,7 @@ export async function memberRoutes(app: FastifyInstance) {
         name: body.name,
         phone: body.phone,
         photoUrl: body.photoUrl,
+        avatarKey: body.avatarKey,
         instruments: toJson(body.instruments),
         birthDate: body.birthDate ? new Date(body.birthDate) : undefined,
         churchId: auth.churchId,
@@ -110,6 +182,26 @@ export async function memberRoutes(app: FastifyInstance) {
     } catch {
       return reply.code(404).send({ error: "Membro não encontrado" });
     }
+  });
+
+  app.patch("/members/:id/status", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const auth = req.user as AuthUser;
+    if (!(await belongsToChurch("member", id, auth.churchId))) {
+      return reply.code(404).send({ error: "Membro não encontrado" });
+    }
+
+    const body = memberStatusSchema.parse(req.body);
+    const updated = await prisma.member.update({
+      where: { id },
+      data: {
+        approvalStatus: body.approvalStatus,
+        approvedAt: body.approvalStatus === "ACTIVE" ? new Date() : null,
+        approvedBy: body.approvalStatus === "ACTIVE" ? auth.memberId ?? undefined : null,
+      },
+    });
+
+    return serialize(updated);
   });
 
   // Indisponibilidades — apenas o próprio voluntário ou um líder da mesma igreja

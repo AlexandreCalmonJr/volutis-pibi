@@ -50,17 +50,33 @@ export async function inviteRoutes(app: FastifyInstance) {
     // Líder não-admin só pode criar convites para o próprio ministério
     let ministryId = body.ministryId || null;
     if (auth.role !== "ADMIN") {
-      // Buscar ministério do líder
-      const leaderMember = auth.memberId
-        ? await prisma.ministryMember.findFirst({
+      const leaderMemberships = auth.memberId
+        ? await prisma.ministryMember.findMany({
             where: { memberId: auth.memberId, isLeader: true },
             select: { ministryId: true },
           })
-        : null;
-      if (!leaderMember) {
+        : [];
+      const leaderMinistryIds = leaderMemberships.map((item) => item.ministryId);
+      if (leaderMinistryIds.length === 0) {
         return reply.code(403).send({ error: "Você não é líder de nenhum ministério" });
       }
-      ministryId = leaderMember.ministryId;
+
+      if (ministryId && !leaderMinistryIds.includes(ministryId)) {
+        return reply.code(403).send({ error: "Você só pode criar convites para os ministérios que lidera" });
+      }
+
+      if (!ministryId) {
+        if (leaderMinistryIds.length === 1) {
+          ministryId = leaderMinistryIds[0];
+        } else {
+          return reply.code(400).send({ error: "Selecione para qual ministério o convite deve ser criado" });
+        }
+      }
+    } else if (ministryId) {
+      const ministry = await prisma.ministry.findUnique({ where: { id: ministryId }, select: { churchId: true } });
+      if (!ministry || ministry.churchId !== auth.churchId) {
+        return reply.code(404).send({ error: "Ministério não encontrado" });
+      }
     }
 
     // Buscar nome do ministério para o código
@@ -110,14 +126,15 @@ export async function inviteRoutes(app: FastifyInstance) {
     // Líder não-admin só vê convites do próprio ministério
     const where: any = { churchId: auth.churchId };
     if (auth.role !== "ADMIN") {
-      const leaderMember = auth.memberId
-        ? await prisma.ministryMember.findFirst({
+      const leaderMemberships = auth.memberId
+        ? await prisma.ministryMember.findMany({
             where: { memberId: auth.memberId, isLeader: true },
             select: { ministryId: true },
           })
-        : null;
-      if (leaderMember) {
-        where.ministryId = leaderMember.ministryId;
+        : [];
+      const leaderMinistryIds = leaderMemberships.map((item) => item.ministryId);
+      if (leaderMinistryIds.length > 0) {
+        where.ministryId = { in: leaderMinistryIds };
       } else {
         return [];
       }
@@ -136,18 +153,24 @@ export async function inviteRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const auth = req.user as AuthUser;
     const invite = await prisma.invite.findUnique({ where: { id }, select: { churchId: true, ministryId: true } });
-    if (!invite || invite.churchId !== auth.churchId)
+    const fullInvite = await prisma.invite.findUnique({ where: { id } });
+    if (!invite || !fullInvite || invite.churchId !== auth.churchId)
       return reply.code(404).send({ error: "Convite não encontrado" });
+
+    if (fullInvite.usedAt) {
+      return reply.code(409).send({ error: "Convites já utilizados não podem ser revogados" });
+    }
 
     // Líder não-admin só pode deletar convites do próprio ministério
     if (auth.role !== "ADMIN") {
-      const leaderMember = auth.memberId
-        ? await prisma.ministryMember.findFirst({
+      const leaderMemberships = auth.memberId
+        ? await prisma.ministryMember.findMany({
             where: { memberId: auth.memberId, isLeader: true },
             select: { ministryId: true },
           })
-        : null;
-      if (!leaderMember || leaderMember.ministryId !== invite.ministryId) {
+        : [];
+      const leaderMinistryIds = leaderMemberships.map((item) => item.ministryId);
+      if (!leaderMinistryIds.includes(invite.ministryId ?? "")) {
         return reply.code(403).send({ error: "Sem permissão para excluir este convite" });
       }
     }

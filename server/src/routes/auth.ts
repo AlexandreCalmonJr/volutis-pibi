@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { z } from "zod";
-import { prisma } from "../lib/db.js";
+import { fromJson, prisma } from "../lib/db.js";
 import { rateLimitHit, rateLimitReset } from "../lib/ratelimit.js";
 import type { AuthUser } from "../middleware/auth.js";
 
@@ -17,6 +17,11 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string(),
   password: z.string(),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(6),
+  newPassword: z.string().min(6),
 });
 
 const REFRESH_DAYS = 30;
@@ -50,9 +55,33 @@ function toPayload(user: {
   };
 }
 
+function serializeAuthMember(member: any) {
+  if (!member) return null;
+  return {
+    ...member,
+    instruments: fromJson(member.instruments),
+    ministryMembers: member.ministryMembers?.map((mm: any) => ({
+      ...mm,
+      roles: fromJson(mm.roles),
+    })) ?? [],
+  };
+}
+
+function normalizePhone(phone?: string | null): string | undefined {
+  if (!phone) return undefined;
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 10) return undefined;
+  if (digits.length === 10) return `55${digits.slice(0, 2)}9${digits.slice(2)}`;
+  if (digits.length === 11) return `55${digits}`;
+  if (digits.length === 12 && digits.startsWith("55")) return `55${digits.slice(2, 4)}9${digits.slice(4)}`;
+  if (digits.length === 13 && digits.startsWith("55")) return digits;
+  return digits;
+}
+
 export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/register", async (req, reply) => {
     const body = registerSchema.parse(req.body);
+    const normalizedPhone = normalizePhone(body.phone);
 
     // Proteção contra força bruta de códigos de convite
     const rl = rateLimitHit(`register:${req.ip}`, 8, 15 * 60_000);
@@ -78,10 +107,11 @@ export async function authRoutes(app: FastifyInstance) {
       const created = await tx.user.create({
         data: {
           email: body.email,
+          phone: normalizedPhone,
           passwordHash: await bcrypt.hash(body.password, 10),
           role: invite.role,
           member: {
-            create: { name: body.name, phone: body.phone, churchId: invite.churchId },
+            create: { name: body.name, phone: normalizedPhone, churchId: invite.churchId },
           },
         },
         include: { member: true },
@@ -107,7 +137,19 @@ export async function authRoutes(app: FastifyInstance) {
     });
 
     const tokens = await issueTokens(app, toPayload(user));
-    return reply.code(201).send({ user: { id: user.id, email: user.email, role: user.role }, ...tokens });
+    return reply.code(201).send({
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        memberId: user.member?.id,
+        memberName: user.member?.name,
+        avatarKey: user.member?.avatarKey,
+        photoUrl: user.member?.photoUrl,
+        phone: user.phone,
+      },
+      ...tokens,
+    });
   });
 
   /** GET /auth/validate-invite/:code — valida código e retorna dados do convite */
@@ -171,7 +213,7 @@ export async function authRoutes(app: FastifyInstance) {
     rateLimitReset(rlKey);
     const tokens = await issueTokens(app, toPayload(user));
     return {
-      user: { id: user.id, email: user.email, role: user.role, memberId: user.member?.id, memberName: user.member?.name },
+      user: { id: user.id, email: user.email, role: user.role, memberId: user.member?.id, memberName: user.member?.name, avatarKey: user.member?.avatarKey, photoUrl: user.member?.photoUrl },
       ...tokens,
     };
   });
@@ -201,6 +243,45 @@ export async function authRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  app.post("/auth/change-password", { preHandler: [async (req, r) => { try { await req.jwtVerify(); } catch { return r.code(401).send({ error: "Não autenticado" }); } }] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    const body = changePasswordSchema.parse(req.body);
+
+    if (body.currentPassword === body.newPassword) {
+      return reply.code(400).send({ error: "A nova senha deve ser diferente da senha atual" });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: auth.sub } });
+    if (!user) return reply.code(404).send({ error: "Usuário não encontrado" });
+
+    const valid = await bcrypt.compare(body.currentPassword, user.passwordHash);
+    if (!valid) {
+      return reply.code(401).send({ error: "Senha atual incorreta" });
+    }
+
+    const nextHash = await bcrypt.hash(body.newPassword, 10);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: auth.sub },
+        data: {
+          passwordHash: nextHash,
+          firstLogin: false,
+          lastPasswordReset: new Date(),
+        },
+      }),
+      prisma.refreshToken.deleteMany({ where: { userId: auth.sub } }),
+    ]);
+
+    const refreshedUser = await prisma.user.findUnique({
+      where: { id: auth.sub },
+      include: { member: true },
+    });
+    if (!refreshedUser) return reply.code(404).send({ error: "Usuário não encontrado" });
+
+    const tokens = await issueTokens(app, toPayload(refreshedUser));
+    return { ok: true, ...tokens };
+  });
+
   app.get("/auth/me", { preHandler: [async (req, r) => { try { await req.jwtVerify(); } catch { return r.code(401).send({ error: "Não autenticado" }); } }] }, async (req, reply) => {
     const auth = req.user as AuthUser;
     const user = await prisma.user.findUnique({
@@ -217,6 +298,6 @@ export async function authRoutes(app: FastifyInstance) {
     if (!user) return reply.code(404).send({ error: "Usuário não encontrado" });
     // NUNCA expor o hash de senha
     const { passwordHash: _ph, ...safeUser } = user;
-    return { user: { ...safeUser, memberName: user.member?.name } };
+    return { user: { ...safeUser, member: serializeAuthMember(user.member), memberName: user.member?.name } };
   });
 }

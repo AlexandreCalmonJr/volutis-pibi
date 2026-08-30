@@ -13,12 +13,23 @@ function sameDay(a: Date, b: Date) {
   );
 }
 
-/** Janela de conflito: eventos que se sobrepõem em ±2h do início */
-const CONFLICT_WINDOW_MS = 2 * 60 * 60 * 1000;
+/** Duração presumida quando o evento não informa endTime */
+const DEFAULT_EVENT_DURATION_MS = 2 * 60 * 60 * 1000;
+
+function getEventWindow(event: { startTime: Date; endTime: Date | null }) {
+  const start = event.startTime.getTime();
+  const end = event.endTime?.getTime() ?? start + DEFAULT_EVENT_DURATION_MS;
+  return { start, end };
+}
+
+function intervalsOverlap(a: { start: number; end: number }, b: { start: number; end: number }) {
+  return a.start < b.end && b.start < a.end;
+}
 
 export async function findConflict(memberId: string, eventId: string) {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return null;
+  const targetWindow = getEventWindow(event);
 
   const existing = await prisma.scheduleItem.findMany({
     where: {
@@ -30,8 +41,8 @@ export async function findConflict(memberId: string, eventId: string) {
   });
 
   for (const item of existing) {
-    const diff = Math.abs(item.event.startTime.getTime() - event.startTime.getTime());
-    if (diff < CONFLICT_WINDOW_MS) return item;
+    const scheduledWindow = getEventWindow(item.event);
+    if (intervalsOverlap(targetWindow, scheduledWindow)) return item;
   }
   return null;
 }
@@ -49,10 +60,37 @@ export interface Suggestion {
   name: string;
   phone: string | null;
   photoUrl: string | null;
+  avatarKey: string | null;
   roles: string[];
   lastServedAt: Date | null;
   timesServedLast90d: number;
   score: number; // maior = melhor sugestão (menos sobrecarregado)
+}
+
+export async function getEligibleMinistryMembershipsForRole(
+  memberId: string,
+  churchId: string,
+  roleName: string
+) {
+  const memberships = await prisma.ministryMember.findMany({
+    where: {
+      memberId,
+      ministry: { churchId },
+    },
+    include: {
+      ministry: {
+        include: { roles: true },
+      },
+    },
+  });
+
+  return memberships.filter((membership) => {
+    const ministryRoles = membership.ministry.roles.map((role) => role.name);
+    if (!ministryRoles.includes(roleName)) return false;
+
+    const assignedRoles = fromJson(membership.roles);
+    return assignedRoles.length === 0 || assignedRoles.includes(roleName);
+  });
 }
 
 /**
@@ -103,6 +141,7 @@ export async function suggestVolunteers(
       name: mm.member.name,
       phone: mm.member.phone,
       photoUrl: mm.member.photoUrl,
+      avatarKey: mm.member.avatarKey,
       roles,
       lastServedAt: recent[0]?.event.date ?? null,
       timesServedLast90d: recent.length,
@@ -130,8 +169,9 @@ export interface AutoGenerateResult {
   assignments: Array<{
     scheduleItemId: string;
     eventId: string;
+    memberId: string;
     eventTitle: string;
-    date: Date;
+    eventStartTime: Date;
     ministryName: string;
     roleName: string;
     memberName: string;
@@ -225,8 +265,9 @@ export async function autoGenerateMonthlySchedule(
           assignments.push({
             scheduleItemId: item.id,
             eventId: event.id,
+            memberId: chosen.memberId,
             eventTitle: event.title,
-            date: event.date,
+            eventStartTime: item.event.startTime,
             ministryName: ministry.name,
             roleName: role.name,
             memberName: chosen.name,
@@ -248,4 +289,3 @@ export async function autoGenerateMonthlySchedule(
     assignments,
   };
 }
-

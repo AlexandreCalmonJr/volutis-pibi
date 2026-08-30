@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 
 interface Evento {
@@ -30,7 +31,10 @@ const tipoColors: Record<string, { bg: string; text: string }> = {
 };
 
 export default function Eventos() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [aba, setAba] = useState<"lista" | "templates" | "novo">("lista");
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -44,10 +48,15 @@ export default function Eventos() {
     recorrente: false,
     frequencia: "semanal",
   });
+  const focusedEventId = searchParams.get("eventId");
 
   useEffect(() => {
     carregarEventos();
   }, []);
+
+  useEffect(() => {
+    if (focusedEventId) setAba("lista");
+  }, [focusedEventId]);
 
   async function carregarEventos() {
     setCarregando(true);
@@ -62,27 +71,65 @@ export default function Eventos() {
     }
   }
 
-  async function criarEvento() {
+  function resetFormulario() {
+    setNovoEvento({ titulo: "", data: "", horario: "", tipo: "SUNDAY_MORNING", recorrente: false, frequencia: "semanal" });
+    setEditingEventId(null);
+  }
+
+  async function salvarEvento() {
     if (!novoEvento.titulo || !novoEvento.data || !novoEvento.horario) return;
     setEnviando(true);
     try {
+      const startTime = new Date(`${novoEvento.data}T${novoEvento.horario}:00`);
       const body = {
         title: novoEvento.titulo,
         type: novoEvento.tipo,
-        date: novoEvento.data,
-        startTime: `${novoEvento.data}T${novoEvento.horario}:00.000Z`,
+        date: new Date(`${novoEvento.data}T12:00:00`).toISOString(),
+        startTime: startTime.toISOString(),
         isRecurrent: novoEvento.recorrente,
         recurrence: novoEvento.recorrente ? novoEvento.frequencia : undefined,
       };
-      await api("/events", { method: "POST", body });
+      if (editingEventId) {
+        await api(`/events/${editingEventId}`, { method: "PUT", body });
+      } else {
+        await api("/events", { method: "POST", body });
+      }
       await carregarEventos();
-      setNovoEvento({ titulo: "", data: "", horario: "", tipo: "SUNDAY_MORNING", recorrente: false, frequencia: "semanal" });
+      resetFormulario();
       setAba("lista");
     } catch (e: any) {
-      setErro(e.message ?? "Erro ao criar evento");
+      setErro(e.message ?? (editingEventId ? "Erro ao atualizar evento" : "Erro ao criar evento"));
     } finally {
       setEnviando(false);
     }
+  }
+
+  async function excluirEvento(id: string) {
+    setEnviando(true);
+    try {
+      await api(`/events/${id}`, { method: "DELETE" });
+      await carregarEventos();
+      if (editingEventId === id) resetFormulario();
+      setAba("lista");
+    } catch (e: any) {
+      setErro(e.message ?? "Erro ao excluir evento");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  function editarEvento(evento: any) {
+    const date = new Date(evento.startTime);
+    setEditingEventId(String(evento.id));
+    setNovoEvento({
+      titulo: evento.title,
+      data: new Date(evento.date).toISOString().slice(0, 10),
+      horario: date.toISOString().slice(11, 16),
+      tipo: evento.type,
+      recorrente: Boolean(evento.isRecurrent),
+      frequencia: evento.recurrence || "semanal",
+    });
+    setAba("novo");
   }
 
   const eventosRecorrentes = eventos.filter((e) => e.isRecurrent).length;
@@ -100,7 +147,7 @@ export default function Eventos() {
           </p>
         </div>
         <button
-          onClick={() => setAba("novo")}
+          onClick={() => { resetFormulario(); setAba("novo"); }}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
           style={{ backgroundColor: "#7c3aed" }}
         >
@@ -116,7 +163,7 @@ export default function Eventos() {
         {(["lista", "templates", "novo"] as const).map((a) => (
           <button
             key={a}
-            onClick={() => setAba(a)}
+            onClick={() => { if (a === "novo" && !editingEventId) resetFormulario(); setAba(a); }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${aba === a ? "text-white" : "text-[#7c6ea8] hover:bg-gray-50"}`}
             style={aba === a ? { backgroundColor: "#7c3aed" } : {}}
           >
@@ -154,7 +201,7 @@ export default function Eventos() {
             return (
               <div
                 key={evento.id}
-                className="bg-white rounded-2xl border border-[#e5e0f8] p-5 hover:shadow-md transition-all hover:border-[#c4b5fd]"
+                className={`bg-white rounded-2xl border p-5 hover:shadow-md transition-all hover:border-[#c4b5fd] ${String(evento.id) === focusedEventId ? "border-[#7c3aed] ring-2 ring-[#ddd6fe]" : "border-[#e5e0f8]"}`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                   {/* Data */}
@@ -193,11 +240,23 @@ export default function Eventos() {
 
                   {/* Ações */}
                   <div className="flex gap-2 flex-shrink-0">
-                    <button className="text-xs px-3 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-gray-50 transition-colors">
+                    <button
+                      className="text-xs px-3 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-gray-50 transition-colors"
+                      onClick={() => navigate(`/escalas?eventId=${encodeURIComponent(String(evento.id))}`)}
+                    >
                       Escala
                     </button>
-                    <button className="text-xs px-3 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-gray-50 transition-colors">
+                    <button
+                      className="text-xs px-3 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-gray-50 transition-colors"
+                      onClick={() => editarEvento(evento)}
+                    >
                       Editar
+                    </button>
+                    <button
+                      className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                      onClick={() => excluirEvento(String(evento.id))}
+                    >
+                      Excluir
                     </button>
                   </div>
                 </div>
@@ -209,8 +268,26 @@ export default function Eventos() {
 
       {/* Templates */}
       {aba === "templates" && (
-        <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8 text-center">
-          <p className="text-[#7c6ea8] text-sm">Em breve</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            { title: "Culto Domingo Manhã", type: "SUNDAY_MORNING", recorrente: true, frequencia: "semanal", horario: "09:00" },
+            { title: "Culto Domingo Noite", type: "SUNDAY_EVENING", recorrente: true, frequencia: "semanal", horario: "18:00" },
+            { title: "Ensaio de Louvor", type: "REHEARSAL", recorrente: true, frequencia: "semanal", horario: "19:30" },
+          ].map((template) => (
+            <button
+              key={template.title}
+              onClick={() => {
+                resetFormulario();
+                setNovoEvento((prev) => ({ ...prev, ...template }));
+                setAba("novo");
+              }}
+              className="bg-white rounded-2xl border border-[#e5e0f8] p-5 text-left hover:shadow-md hover:border-[#c4b5fd] transition-all"
+            >
+              <p className="font-semibold text-[#1e1b4b]">{template.title}</p>
+              <p className="text-sm text-[#7c6ea8] mt-1">{template.recorrente ? `Recorrente · ${template.frequencia}` : "Evento único"}</p>
+              <p className="text-xs text-[#7c3aed] mt-3">Usar template</p>
+            </button>
+          ))}
         </div>
       )}
 
@@ -218,7 +295,7 @@ export default function Eventos() {
       {aba === "novo" && (
         <div className="max-w-xl">
           <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-4">
-            <h2 className="font-semibold text-[#1e1b4b] text-lg">Criar Novo Evento</h2>
+            <h2 className="font-semibold text-[#1e1b4b] text-lg">{editingEventId ? "Editar Evento" : "Criar Novo Evento"}</h2>
 
             <div>
               <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">Título</label>
@@ -304,18 +381,18 @@ export default function Eventos() {
 
             <div className="flex gap-3 pt-2">
               <button
-                onClick={() => setAba("lista")}
+                onClick={() => { resetFormulario(); setAba("lista"); }}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#5b5077] hover:bg-gray-50 transition-colors"
               >
                 Cancelar
               </button>
               <button
-                onClick={criarEvento}
+                onClick={salvarEvento}
                 disabled={enviando || !novoEvento.titulo || !novoEvento.data || !novoEvento.horario}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: "#7c3aed" }}
               >
-                {enviando ? "Criando..." : "Criar Evento"}
+                {enviando ? (editingEventId ? "Salvando..." : "Criando...") : (editingEventId ? "Salvar alterações" : "Criar Evento")}
               </button>
             </div>
           </div>
