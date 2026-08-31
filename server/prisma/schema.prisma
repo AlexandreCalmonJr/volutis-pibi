@@ -237,6 +237,9 @@ model Song {
   lyrics       String?
   chords       String?
   holyricsId   String?
+  holyricsSyncStatus String? // LINKED | SYNCED | ERROR | PENDING
+  holyricsSyncError  String?
+  holyricsLastSyncAt DateTime?
 
   church   Church @relation(fields: [churchId], references: [id])
   churchId String

@@ -7,7 +7,7 @@
  *
  * Respostas normalizadas para { status: "ok"|"error", data?, error? }.
  */
-import type { Church } from "@prisma/client";
+import type { Church, Song } from "@prisma/client";
 
 export interface HolyricsResult<T = any> {
   status: "ok" | "error";
@@ -95,4 +95,83 @@ export async function callHolyrics<T = any>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+function splitSlides(text?: string | null) {
+  return (text || "")
+    .split(/\n\s*\n/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part, idx) => ({
+      text: part,
+      slide_description: idx === 0 ? "Verso 1" : `Parte ${idx + 1}`,
+    }));
+}
+
+export async function findMatchingHolyricsSong(church: Church, song: Pick<Song, "title" | "artist">) {
+  const result = await callHolyrics<any[]>(church, "SearchLyrics", {
+    text: song.title,
+    title: true,
+    artist: true,
+    note: false,
+    lyrics: false,
+  });
+  if (result.status !== "ok") return null;
+
+  const normalizedTitle = song.title.trim().toLowerCase();
+  const normalizedArtist = (song.artist || "").trim().toLowerCase();
+  return (result.data || []).find((item) => {
+    const title = String(item.title || "").trim().toLowerCase();
+    const artist = String(item.artist || "").trim().toLowerCase();
+    return title === normalizedTitle && artist === normalizedArtist;
+  }) || null;
+}
+
+export async function syncSongToHolyrics(church: Church, song: Song) {
+  let holyricsId = song.holyricsId || undefined;
+  if (!holyricsId) {
+    const existing = await findMatchingHolyricsSong(church, song);
+    if (existing?.id) holyricsId = String(existing.id);
+  }
+
+  const slides = splitSlides(song.lyrics || song.chords || undefined);
+  const payload: Record<string, unknown> = {
+    title: song.title,
+    artist: song.artist || undefined,
+    key: song.originalKey || undefined,
+    bpm: song.bpm || undefined,
+  };
+  if (slides.length > 0) {
+    payload.slides = slides;
+    payload.order = slides.map((_, idx) => idx + 1).join(",");
+  }
+
+  if (holyricsId) {
+    const update = await callHolyrics<any>(church, "EditItem", {
+      action: "EditSong",
+      data: { id: holyricsId, ...payload },
+    });
+    return update.status === "ok"
+      ? { ok: true as const, holyricsId, mode: song.holyricsId ? "updated" as const : "linked" as const }
+      : { ok: false as const, error: update.error || "Não foi possível atualizar a música no Holyrics" };
+  }
+
+  const create = await callHolyrics<any>(church, "CreateItem", {
+    action: "CreateSong",
+    data: payload,
+  });
+  if (create.status !== "ok") {
+    return { ok: false as const, error: create.error || "Não foi possível criar a música no Holyrics" };
+  }
+
+  const createdId = String(create.data?.id || create.data?.item?.id || "");
+  if (!createdId) {
+    return { ok: false as const, error: "Holyrics respondeu sem ID da música criada" };
+  }
+
+  return { ok: true as const, holyricsId: createdId, mode: "created" as const };
+}
+
+export async function checkHolyricsPermissions(church: Church, actions: string[]) {
+  return callHolyrics<any>(church, "CheckPermissions", { actions: actions.join(",") });
 }
