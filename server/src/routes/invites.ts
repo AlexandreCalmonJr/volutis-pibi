@@ -12,7 +12,7 @@ function getAppUrl(req: any): string {
   if (origin) return origin;
   const proto = req.headers["x-forwarded-proto"] ?? "https";
   const host = req.headers["x-forwarded-host"] ?? req.headers.host;
-  return host ? `${proto}://${host}` : "https://volutis-pibi.vercel.app";
+  return host ? `${proto}://${host}` : "http://localhost:5173";
 }
 
 const createSchema = z.object({
@@ -107,7 +107,7 @@ export async function inviteRoutes(app: FastifyInstance) {
     const ministryInfo = invite.ministry ? ` — Ministério: *${invite.ministry.name}*` : "";
     const waText =
       `Olá${body.inviteeName ? `, ${body.inviteeName}` : ""}! 🙌\n\n` +
-      `Você foi convidado(a) para o app *Volutis PIBI* (escalas e ministérios da igreja).${ministryInfo}\n\n` +
+      `Você foi convidado(a) para o app *Volut PIBI* (escalas e ministérios da igreja).${ministryInfo}\n\n` +
       `Cadastre-se aqui: ${registerUrl}\n` +
       `Código do convite: *${invite.code}* (válido por ${INVITE_DAYS} dias)`;
 

@@ -25,7 +25,7 @@ export const useTheme = create<ThemeState>()(
       },
     }),
     {
-      name: "volutis-theme",
+      name: "volut-theme",
       onRehydrateStorage: () => (state) => {
         if (state) {
           document.documentElement.classList.toggle("dark", state.theme === "dark");

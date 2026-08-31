@@ -65,7 +65,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
 
       const text =
         body.message ||
-        "🔔 *Teste de Conexão WhatsApp — Volutis PIBI*\n\nA integração com o WAHA está funcionando perfeitamente! ✅";
+        "🔔 *Teste de Conexão WhatsApp — Volut PIBI*\n\nA integração com o WAHA está funcionando perfeitamente! ✅";
 
       const sent = await sendWhatsAppMessage({
         to: body.phone,
@@ -144,7 +144,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
 
       // 2. WhatsApp
       if (m.phone) {
-        const formattedMessage = `📢 *Comunicado Volutis PIBI*\n\nOlá, ${m.name}! 🙌\n\n${body.message}\n\n🙏 Deus abençoe!`;
+        const formattedMessage = `📢 *Comunicado Volut PIBI*\n\nOlá, ${m.name}! 🙌\n\n${body.message}\n\n🙏 Deus abençoe!`;
         const sent = await sendWhatsAppMessage({
           to: m.phone,
           text: formattedMessage,
@@ -216,8 +216,8 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
         to: phone,
         text:
           response.action === "confirm"
-            ? `✅ Presença confirmada para *${result.scheduleItem.event.title}*!\n\nObrigado e Deus abençoe! — Volutis PIBI`
-            : `❌ Presença recusada para *${result.scheduleItem.event.title}*.\n\nSe precisar de ajuda, entre em contato com o líder do ministério.\n\nDeus abençoe! — Volutis PIBI`,
+            ? `✅ Presença confirmada para *${result.scheduleItem.event.title}*!\n\nObrigado e Deus abençoe! — Volut PIBI`
+            : `❌ Presença recusada para *${result.scheduleItem.event.title}*.\n\nSe precisar de ajuda, entre em contato com o líder do ministério.\n\nDeus abençoe! — Volut PIBI`,
       });
     }
 

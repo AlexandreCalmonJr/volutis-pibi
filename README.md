@@ -1,4 +1,4 @@
-# Volutis PIBI
+# Volut PIBI
 
 Sistema de gestão de escalas, ministérios, repertório e integração com Holyrics para a Primeira Igreja Batista de Itapuã. Inspirado no app Voluts.
 

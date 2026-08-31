@@ -125,7 +125,7 @@ function getAppUrl(req: any): string {
   if (origin) return origin;
   const proto = req.headers["x-forwarded-proto"] ?? "https";
   const host = req.headers["x-forwarded-host"] ?? req.headers.host;
-  return host ? `${proto}://${host}` : "https://volutis-pibi.vercel.app";
+  return host ? `${proto}://${host}` : "http://localhost:5173";
 }
 
 function parseImportDate(input: string) {

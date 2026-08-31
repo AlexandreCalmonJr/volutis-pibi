@@ -74,13 +74,13 @@ function buildAssignmentFooter(n: ScheduleNotification) {
     ? `Código da escala: *${code}*\nResponda \`1 ${code}\` para confirmar ou \`2 ${code}\` para recusar.\n\n`
     : "";
   const linkBlock = n.confirmUrl ? `Confirme sua participação: ${n.confirmUrl}\n\n` : "";
-  return `${codeBlock}${linkBlock}Deus abençoe! — Volutis PIBI`;
+  return `${codeBlock}${linkBlock}Deus abençoe! — Volut PIBI`;
 }
 
 function buildWhatsAppResolutionMessage(result: Awaited<ReturnType<typeof respondToScheduleByPhone>>) {
   if (result.ok) return null;
   if (result.code === "MEMBER_NOT_FOUND") {
-    return "Não encontrei um voluntário vinculado a este número no Volutis PIBI.";
+    return "Não encontrei um voluntário vinculado a este número no Volut PIBI.";
   }
   if (result.code === "NO_PENDING") {
     return "Você não possui escalas pendentes para confirmar por aqui no momento.";
@@ -126,7 +126,7 @@ export async function initNativeWhatsApp(): Promise<void> {
       logger,
       printQRInTerminal: false,
       auth: state,
-      browser: ["Volutis PIBI", "Chrome", "1.0.0"],
+      browser: ["Volut PIBI", "Chrome", "1.0.0"],
       connectTimeoutMs: 30000,
     });
 
@@ -207,8 +207,8 @@ export async function initNativeWhatsApp(): Promise<void> {
             to: formattedPhone,
             text:
               response.action === "confirm"
-                ? `✅ Presença confirmada para *${result.scheduleItem.event.title}*!\n\nObrigado e Deus abençoe! — Volutis PIBI`
-                : `❌ Presença recusada para *${result.scheduleItem.event.title}*.\n\nSe precisar de ajuda, entre em contato com o líder do ministério.\n\nDeus abençoe! — Volutis PIBI`,
+                ? `✅ Presença confirmada para *${result.scheduleItem.event.title}*!\n\nObrigado e Deus abençoe! — Volut PIBI`
+                : `❌ Presença recusada para *${result.scheduleItem.event.title}*.\n\nSe precisar de ajuda, entre em contato com o líder do ministério.\n\nDeus abençoe! — Volut PIBI`,
           });
         } else {
           const resolutionMessage = buildWhatsAppResolutionMessage(result);
@@ -435,7 +435,7 @@ export async function sendDeclineAlertToLeader(n: DeclineAlertNotification): Pro
     `⚠️ *Alerta: Escala Recusada*\n\n` +
     `Olá, ${n.leaderName}! O voluntário *${n.memberName}* não poderá comparecer ao evento *${n.eventTitle}* na função *${n.roleName}*.\n` +
     (n.reason ? `Motivo: "${n.reason}"\n\n` : "\n") +
-    `Por favor, acerte a escala no aplicativo Volutis PIBI.`;
+    `Por favor, acerte a escala no aplicativo Volut PIBI.`;
 
   return sendWhatsAppMessage({ to: n.leaderPhone, text: message });
 }
@@ -469,7 +469,7 @@ export async function sendApplicationConfirmation(n: ApplicationConfirmation): P
     `Seu cadastro como voluntário(a) na *${n.churchName}* foi realizado com sucesso!\n\n` +
     `📋 Seu pedido está sendo analisado pelo líder do ministério.\n` +
     `Assim que for aprovado(a), você receberá um link para criar sua senha e acessar o app.\n\n` +
-    `Obrigado pelo seu interesse em servir! 🙏 — Volutis PIBI`;
+    `Obrigado pelo seu interesse em servir! 🙏 — Volut PIBI`;
 
   return sendWhatsAppMessage({ to: n.phone, text: message });
 }
@@ -484,7 +484,7 @@ export async function sendApprovalNotification(n: ApprovalNotification): Promise
     `Acesse o link abaixo para criar sua senha e acessar o app:\n` +
     `${n.setPasswordUrl}\n\n` +
     `⏰ O link expira em 48 horas.\n\n` +
-    `Bem-vindo(a) à equipe! 🙏 — Volutis PIBI`;
+    `Bem-vindo(a) à equipe! 🙏 — Volut PIBI`;
 
   return sendWhatsAppMessage({ to: n.phone, text: message });
 }
@@ -498,7 +498,7 @@ export async function sendRejectionNotification(n: RejectionNotification): Promi
     `Infelizmente seu cadastro como voluntário(a) na *${n.churchName}* não foi aprovado(a) neste momento.\n` +
     (n.reason ? `\n📝 Motivo: ${n.reason}\n` : "") +
     `\nCaso tenha dúvidas, entre em contato com o líder do ministério.\n\n` +
-    `Deus abençoe! — Volutis PIBI`;
+    `Deus abençoe! — Volut PIBI`;
 
   return sendWhatsAppMessage({ to: n.phone, text: message });
 }
@@ -529,7 +529,7 @@ export async function sendInteractiveScheduleReminder(n: InteractiveScheduleNoti
     `*2 ${getScheduleReplyCode(n.scheduleItemId)}* — Recusar ❌\n\n` +
     `Código da escala: *${getScheduleReplyCode(n.scheduleItemId)}*\n` +
     `Ou acesse o app: ${n.confirmUrl ?? ""}\n\n` +
-    `Contamos com você! 🙏 — Volutis PIBI`;
+    `Contamos com você! 🙏 — Volut PIBI`;
 
   return sendWhatsAppMessage({ to: n.phone, text: message });
 }

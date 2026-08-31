@@ -4,11 +4,14 @@
  */
 
 import { prisma } from "../lib/db.js";
+import { acquireSchedulerLease } from "../lib/scheduler-lock.js";
 import { notifyMember } from "./notification.service.js";
 import { sendInteractiveScheduleReminder } from "./whatsapp.service.js";
 
 const CHECK_INTERVAL_MS = 15 * 60 * 1000; // a cada 15 minutos
 const REMINDER_WINDOW_HOURS = 24;
+const LEASE_KEY = "schedule-reminders";
+const LEASE_TTL_MS = 10 * 60 * 1000;
 
 function formatReminderDateTime(date: Date) {
   return date.toLocaleString("pt-BR", {
@@ -24,6 +27,8 @@ function formatReminderDateTime(date: Date) {
 export async function processScheduleReminders(): Promise<number> {
   const now = new Date();
   const futureLimit = new Date(now.getTime() + REMINDER_WINDOW_HOURS * 60 * 60 * 1000);
+  const leaseAcquired = await acquireSchedulerLease(LEASE_KEY, LEASE_TTL_MS);
+  if (!leaseAcquired) return 0;
 
   try {
     // Busca itens de escala nos próximos 24h que ainda não receberam lembrete
@@ -48,7 +53,7 @@ export async function processScheduleReminders(): Promise<number> {
 
     let sentCount = 0;
     for (const item of items) {
-      const appUrl = process.env.APP_URL ?? "https://volutis-pibi.vercel.app";
+      const appUrl = process.env.APP_URL ?? "http://localhost:5173";
 
       // 1. Dispara WhatsApp automático com código rastreável
       const whatsappSent = await sendInteractiveScheduleReminder({
@@ -93,7 +98,7 @@ export async function processScheduleReminders(): Promise<number> {
  * Inicia o ciclo de verificação do agendador.
  */
 export function startReminderScheduler(): ReturnType<typeof setInterval> {
-  console.log("⏰ Agendador de lembretes automáticos de 24h iniciado.");
+  console.log("⏰ Agendador de lembretes automáticos de 24h do Volut iniciado.");
 
   setTimeout(() => {
     processScheduleReminders().catch((err) =>

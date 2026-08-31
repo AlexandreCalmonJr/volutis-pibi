@@ -1,19 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import ProtectedRoute from "./components/ProtectedRoute";
-import Dashboard from "./pages/Dashboard";
-import Escalas from "./pages/Escalas";
-import Eventos from "./pages/Eventos";
-import Voluntarios from "./pages/Voluntarios";
-import Comunicacao from "./pages/Comunicacao";
-import Louvor from "./pages/Louvor";
-import Perfil from "./pages/Perfil";
-import Relatorios from "./pages/Relatorios";
-import Triagem from "./pages/TriagemPage";
-import Convites from "./pages/ConvitesPage";
-import Ministerios from "./pages/MinisteriosPage";
-import UsuariosAdmin from "./pages/UsuariosAdminPage";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Escalas = lazy(() => import("./pages/Escalas"));
+const Eventos = lazy(() => import("./pages/Eventos"));
+const Voluntarios = lazy(() => import("./pages/Voluntarios"));
+const Comunicacao = lazy(() => import("./pages/Comunicacao"));
+const Louvor = lazy(() => import("./pages/Louvor"));
+const Perfil = lazy(() => import("./pages/Perfil"));
+const Relatorios = lazy(() => import("./pages/Relatorios"));
+const Triagem = lazy(() => import("./pages/TriagemPage"));
+const Convites = lazy(() => import("./pages/ConvitesPage"));
+const Ministerios = lazy(() => import("./pages/MinisteriosPage"));
+const UsuariosAdmin = lazy(() => import("./pages/UsuariosAdminPage"));
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import CadastroPage from "./pages/CadastroPage";
@@ -44,6 +44,14 @@ const pageTitles: Record<string, string> = {
 function EscalaDeepLink() {
   const { id } = useParams();
   return <Navigate to={`/escalas${id ? `?scheduleItemId=${encodeURIComponent(id)}` : ""}`} replace />;
+}
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-16">
+      <div className="w-10 h-10 rounded-full border-4 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin" />
+    </div>
+  );
 }
 
 function AppLayout() {
@@ -280,22 +288,24 @@ function AppLayout() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/escalas" element={<Escalas />} />
-            <Route path="/eventos" element={<Eventos />} />
-            <Route path="/voluntarios" element={<Voluntarios />} />
-            <Route path="/comunicacao" element={<Comunicacao />} />
-            <Route path="/perfil" element={<Perfil />} />
-            <Route path="/louvor" element={<Louvor />} />
-            <Route path="/relatorios" element={<Relatorios />} />
-            <Route path="/triagem" element={<Triagem />} />
-            <Route path="/usuarios" element={<UsuariosAdmin />} />
-            <Route path="/convites" element={<Convites />} />
-            <Route path="/ministerios" element={<Ministerios />} />
-            <Route path="/escala/:id" element={<EscalaDeepLink />} />
-            <Route path="*" element={<div className="text-center py-20"><p className="text-lg font-semibold text-[var(--color-text)]">Página não encontrada</p><p className="text-sm text-[var(--color-muted)] mt-2">O endpoint que você procura não existe.</p></div>} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/escalas" element={<Escalas />} />
+              <Route path="/eventos" element={<Eventos />} />
+              <Route path="/voluntarios" element={<Voluntarios />} />
+              <Route path="/comunicacao" element={<Comunicacao />} />
+              <Route path="/perfil" element={<Perfil />} />
+              <Route path="/louvor" element={<Louvor />} />
+              <Route path="/relatorios" element={<Relatorios />} />
+              <Route path="/triagem" element={<Triagem />} />
+              <Route path="/usuarios" element={<UsuariosAdmin />} />
+              <Route path="/convites" element={<Convites />} />
+              <Route path="/ministerios" element={<Ministerios />} />
+              <Route path="/escala/:id" element={<EscalaDeepLink />} />
+              <Route path="*" element={<div className="text-center py-20"><p className="text-lg font-semibold text-[var(--color-text)]">Página não encontrada</p><p className="text-sm text-[var(--color-muted)] mt-2">O endpoint que você procura não existe.</p></div>} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>

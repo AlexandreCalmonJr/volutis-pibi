@@ -34,7 +34,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export async function buildServer() {
-  const app = Fastify({ logger: { level: "warn" } });
+  const app = Fastify({ logger: { level: process.env.LOG_LEVEL || "info" } });
 
   const isProd = process.env.NODE_ENV === "production";
 
@@ -68,12 +68,20 @@ export async function buildServer() {
     return reply.code(status).send({ error: message });
   });
 
+  app.addHook("onRequest", async (req) => {
+    req.log.info({ method: req.method, url: req.url }, "incoming request");
+  });
+
+  app.addHook("onResponse", async (req, reply) => {
+    req.log.info({ method: req.method, url: req.url, statusCode: reply.statusCode }, "request completed");
+  });
+
   app.get("/health", async () => {
     try {
       await prisma.$queryRaw`SELECT 1`;
-      return { status: "ok", service: "volutis-pibi-api", db: "connected" };
+      return { status: "ok", service: "volut-pibi-api", db: "connected", uptimeSec: Math.round(process.uptime()), version: process.env.APP_VERSION || "dev" };
     } catch {
-      return { status: "degraded", service: "volutis-pibi-api", db: "disconnected" };
+      return { status: "degraded", service: "volut-pibi-api", db: "disconnected", uptimeSec: Math.round(process.uptime()), version: process.env.APP_VERSION || "dev" };
     }
   });
 
@@ -128,7 +136,7 @@ if (!isTest) {
   const app = await buildServer();
   const port = Number(process.env.PORT ?? 3333);
   await app.listen({ port, host: "0.0.0.0" });
-  console.log(`🚀 Volutis PIBI API rodando em http://localhost:${port}`);
+  console.log(`🚀 Volut PIBI API rodando em http://localhost:${port}`);
 
   const schedulerInterval = startReminderScheduler();
   initNativeWhatsApp().catch(() => {});

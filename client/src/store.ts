@@ -41,7 +41,7 @@ export const useAuth = create<AuthState>()(
         set({ user: null, accessToken: null, refreshToken: null });
       },
     }),
-    { name: "volutis-auth" }
+    { name: "volut-auth" }
   )
 );
 

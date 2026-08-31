@@ -487,3 +487,11 @@ model HolyricsLog {
   @@index([eventId, createdAt])
   @@index([songId, createdAt])
 }
+
+model SchedulerLease {
+  key       String   @id
+  ownerId   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
