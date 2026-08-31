@@ -33,6 +33,9 @@ model Church {
   applications Application[]
   pendingTokens PendingToken[]
   transferRequests MinistryTransferRequest[]
+  feedPosts    FeedPost[]
+  feedComments FeedComment[]
+  holyricsLogs HolyricsLog[]
   createdAt    DateTime   @default(now())
 }
 
@@ -103,6 +106,8 @@ model Member {
   notifications    UserNotification[]
   pushSubscriptions PushSubscription[]
   transferRequests MinistryTransferRequest[] @relation("TransferMember")
+  feedPosts        FeedPost[]
+  feedComments     FeedComment[]
   points           Int              @default(0)
 
   @@index([churchId])
@@ -285,6 +290,46 @@ model ChatMessage {
   @@index([eventId, createdAt])
 }
 
+model FeedPost {
+  id         String   @id @default(cuid())
+  content    String?
+  mediaType  String? // IMAGE | AUDIO | LINK
+  mediaUrl   String?
+  linkUrl    String?
+  authorName String
+  createdAt  DateTime @default(now())
+
+  church   Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  churchId String
+
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId String
+
+  comments FeedComment[]
+
+  @@index([churchId, createdAt])
+  @@index([memberId, createdAt])
+}
+
+model FeedComment {
+  id         String   @id @default(cuid())
+  content    String
+  authorName String
+  createdAt  DateTime @default(now())
+
+  post   FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId String
+
+  church   Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  churchId String
+
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId String
+
+  @@index([postId, createdAt])
+  @@index([memberId, createdAt])
+}
+
 model Badge {
   id   String @id @default(cuid())
   name String
@@ -423,4 +468,22 @@ model MinistryTransferRequest {
   @@index([memberId, createdAt])
   @@index([fromMinistryId])
   @@index([toMinistryId])
+}
+
+model HolyricsLog {
+  id        String   @id @default(cuid())
+  action    String
+  status    String // SUCCESS | ERROR
+  message   String?
+  payload   String?
+  eventId   String?
+  songId    String?
+  createdAt DateTime @default(now())
+
+  church   Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  churchId String
+
+  @@index([churchId, createdAt])
+  @@index([eventId, createdAt])
+  @@index([songId, createdAt])
 }

@@ -205,6 +205,10 @@ export default function Escalas() {
     skipped: number;
     errors: Array<{ row: number; message: string }>;
   } | null>(null);
+  const [importPreviewOpen, setImportPreviewOpen] = useState(false);
+  const [importPreviewRows, setImportPreviewRows] = useState<Array<{ row: number; eventTitle: string; roleName: string; memberName: string; status: "ready" | "warning" | "error"; message: string }>>([]);
+  const [importDraftRows, setImportDraftRows] = useState<any[]>([]);
+  const [importPreviewSummary, setImportPreviewSummary] = useState<{ total: number; ready: number; warnings: number; errors: number } | null>(null);
   const [replacementItem, setReplacementItem] = useState<DayScheduleItem | null>(null);
   const focusedEventId = searchParams.get("eventId");
   const focusedScheduleItemId = searchParams.get("scheduleItemId");
@@ -457,6 +461,29 @@ export default function Escalas() {
         throw new Error("A planilha não contém linhas válidas. Use colunas como Evento, Data, Horário, Função e Voluntário.");
       }
 
+      const preview = await api<{ summary: { total: number; ready: number; warnings: number; errors: number }; rows: Array<{ row: number; eventTitle: string; roleName: string; memberName: string; status: "ready" | "warning" | "error"; message: string }> }>("/schedules/import/preview", {
+        method: "POST",
+        body: {
+          rows: mappedRows,
+          createMissingEvents: true,
+        },
+      });
+
+      setImportDraftRows(mappedRows);
+      setImportPreviewRows(preview.rows);
+      setImportPreviewSummary(preview.summary);
+      setImportPreviewOpen(true);
+    } catch (err: any) {
+      alert(err?.message || "Não foi possível importar a planilha.");
+    } finally {
+      setImportingExcel(false);
+    }
+  }
+
+  async function confirmImportExcel() {
+    if (importDraftRows.length === 0) return;
+    setImportingExcel(true);
+    try {
       const result = await api<{
         imported: number;
         createdEvents: number;
@@ -466,17 +493,18 @@ export default function Escalas() {
       }>("/schedules/import", {
         method: "POST",
         body: {
-          rows: mappedRows,
+          rows: importDraftRows,
           notify: true,
           overwritePending: false,
           createMissingEvents: true,
         },
       });
-
       setImportSummary(result);
+      setImportPreviewOpen(false);
+      setImportDraftRows([]);
       await fetchEvents();
     } catch (err: any) {
-      alert(err?.message || "Não foi possível importar a planilha.");
+      alert(err?.message || "Não foi possível confirmar a importação.");
     } finally {
       setImportingExcel(false);
     }
@@ -541,6 +569,56 @@ export default function Escalas() {
               </ul>
             </div>
           )}
+        </div>
+      )}
+
+      {importPreviewOpen && importPreviewSummary && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4">
+              <div>
+                <h3 className="font-bold text-lg text-[#1e1b4b]">Prévia da importação de escala</h3>
+                <p className="text-xs text-[#7c6ea8]">Revise as linhas antes de gravar no banco.</p>
+              </div>
+              <button onClick={() => setImportPreviewOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+              <div className="rounded-xl bg-[#f5f3ff] p-3"><p className="text-lg font-bold text-[#1e1b4b]">{importPreviewSummary.total}</p><p className="text-xs text-[#7c6ea8]">Linhas</p></div>
+              <div className="rounded-xl bg-emerald-50 p-3"><p className="text-lg font-bold text-emerald-700">{importPreviewSummary.ready}</p><p className="text-xs text-emerald-700">Prontas</p></div>
+              <div className="rounded-xl bg-amber-50 p-3"><p className="text-lg font-bold text-amber-700">{importPreviewSummary.warnings}</p><p className="text-xs text-amber-700">Avisos</p></div>
+              <div className="rounded-xl bg-rose-50 p-3"><p className="text-lg font-bold text-rose-700">{importPreviewSummary.errors}</p><p className="text-xs text-rose-700">Erros</p></div>
+            </div>
+            <div className="overflow-y-auto border border-[#ede9fe] rounded-xl">
+              <table className="w-full text-sm">
+                <thead className="bg-[#faf8ff] sticky top-0">
+                  <tr>
+                    <th className="text-left px-4 py-2">Linha</th>
+                    <th className="text-left px-4 py-2">Evento</th>
+                    <th className="text-left px-4 py-2">Função</th>
+                    <th className="text-left px-4 py-2">Voluntário</th>
+                    <th className="text-left px-4 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreviewRows.slice(0, 50).map((row) => (
+                    <tr key={`${row.row}-${row.memberName}-${row.roleName}`} className="border-t border-[#f0eefe]">
+                      <td className="px-4 py-2">{row.row}</td>
+                      <td className="px-4 py-2">{row.eventTitle}</td>
+                      <td className="px-4 py-2">{row.roleName}</td>
+                      <td className="px-4 py-2">{row.memberName}</td>
+                      <td className="px-4 py-2"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${row.status === "ready" ? "bg-emerald-100 text-emerald-700" : row.status === "warning" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"}`}>{row.message}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="pt-3 flex items-center justify-end gap-2 border-t border-[#f0eefe]">
+              <button type="button" onClick={() => setImportPreviewOpen(false)} disabled={importingExcel} className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all">Cancelar</button>
+              <button type="button" onClick={confirmImportExcel} disabled={importingExcel || importPreviewSummary.errors > 0} className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all shadow-sm disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>
+                {importingExcel ? "Importando..." : "Confirmar importação"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

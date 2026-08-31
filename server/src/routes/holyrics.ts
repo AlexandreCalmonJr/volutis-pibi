@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/db.js";
 import { requireRole, type AuthUser } from "../middleware/auth.js";
-import { callHolyrics, isConfigured, HolyricsNotConfiguredError, checkHolyricsPermissions, syncSongToHolyrics } from "../services/holyrics.service.js";
+import { callHolyrics, isConfigured, HolyricsNotConfiguredError, checkHolyricsPermissions, syncSongToHolyrics, findMatchingHolyricsSchedule } from "../services/holyrics.service.js";
 
 const configSchema = z.object({
   mode: z.enum(["local", "online"]),
@@ -25,6 +25,28 @@ const configSchema = z.object({
 async function getChurch(auth: AuthUser) {
   if (!auth.churchId) return null;
   return prisma.church.findUnique({ where: { id: auth.churchId } });
+}
+
+async function writeHolyricsLog(input: {
+  churchId: string;
+  action: string;
+  status: "SUCCESS" | "ERROR";
+  message?: string | null;
+  payload?: Record<string, unknown>;
+  eventId?: string;
+  songId?: string;
+}) {
+  return prisma.holyricsLog.create({
+    data: {
+      churchId: input.churchId,
+      action: input.action,
+      status: input.status,
+      message: input.message,
+      payload: input.payload ? JSON.stringify(input.payload) : null,
+      eventId: input.eventId,
+      songId: input.songId,
+    },
+  });
 }
 
 export async function holyricsRoutes(app: FastifyInstance) {
@@ -105,6 +127,67 @@ export async function holyricsRoutes(app: FastifyInstance) {
     return { connected: true, version: result.data?.version ?? null, permissions: result.data?.permissions ?? null };
   });
 
+  app.post("/events/:eventId/holyrics/set-current", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
+    const { eventId } = req.params as { eventId: string };
+    const auth = req.user as AuthUser;
+    const church = await getChurch(auth);
+    if (!church) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!event || event.churchId !== auth.churchId) return reply.code(404).send({ error: "Evento não encontrado" });
+
+    const matched = await findMatchingHolyricsSchedule(church, event);
+    if (!matched.match) {
+      await writeHolyricsLog({ churchId: church.id, action: "SET_CURRENT_SCHEDULE", status: "ERROR", message: matched.error || "Evento não encontrado no Holyrics", eventId, payload: { title: event.title, startTime: event.startTime } });
+      return reply.code(404).send({ error: matched.error || "Não encontrei um culto/evento correspondente no Holyrics para este horário." });
+    }
+
+    const holyricsEventId = String(matched.match.id || matched.match.event_id || "");
+    if (!holyricsEventId) {
+      await writeHolyricsLog({ churchId: church.id, action: "SET_CURRENT_SCHEDULE", status: "ERROR", message: "Holyrics não retornou ID utilizável para o evento", eventId });
+      return reply.code(409).send({ error: "Holyrics não retornou um ID utilizável para selecionar este culto." });
+    }
+
+    const result = await callHolyrics(church, "SetCurrentSchedule", { event_id: holyricsEventId });
+    await writeHolyricsLog({ churchId: church.id, action: "SET_CURRENT_SCHEDULE", status: result.status === "ok" ? "SUCCESS" : "ERROR", message: result.status === "ok" ? "Culto atual definido no Holyrics" : result.error, eventId, payload: { holyricsEventId } });
+    if (result.status !== "ok") return reply.code(502).send({ error: result.error });
+    return { ok: true, holyricsEventId };
+  });
+
+  app.get("/events/:eventId/holyrics/status", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
+    const { eventId } = req.params as { eventId: string };
+    const auth = req.user as AuthUser;
+    const church = await getChurch(auth);
+    if (!church) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!event || event.churchId !== auth.churchId) return reply.code(404).send({ error: "Evento não encontrado" });
+
+    const [setlist, liturgy, matched, latestLogs] = await Promise.all([
+      prisma.setlistItem.findMany({ where: { eventId }, include: { song: true }, orderBy: { order: "asc" } }),
+      prisma.liturgyItem.count({ where: { eventId } }),
+      findMatchingHolyricsSchedule(church, event),
+      prisma.holyricsLog.findMany({ where: { churchId: church.id, eventId }, orderBy: { createdAt: "desc" }, take: 5 }),
+    ]);
+    const linkedSongs = setlist.filter((item) => !!item.song.holyricsId).length;
+    const pendingSongs = setlist.length - linkedSongs;
+
+    return {
+      eventId,
+      setlistCount: setlist.length,
+      linkedSongs,
+      pendingSongs,
+      liturgyCount: liturgy,
+      canSetCurrent: !!matched.match,
+      matchError: matched.match ? null : matched.error || "Evento ainda não localizado no Holyrics",
+      latestLogs: latestLogs.map((log) => ({
+        id: log.id,
+        action: log.action,
+        status: log.status,
+        message: log.message,
+        createdAt: log.createdAt,
+      })),
+    };
+  });
+
   // ── Importação de músicas ────────────────────────────────
   app.post("/holyrics/import-songs", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
     const church = await getChurch(req.user as AuthUser);
@@ -173,6 +256,15 @@ export async function holyricsRoutes(app: FastifyInstance) {
           },
     });
 
+    await writeHolyricsLog({
+      churchId: church.id,
+      action: "SYNC_SONG",
+      status: sync.ok ? "SUCCESS" : "ERROR",
+      message: sync.ok ? `Música ${sync.mode} no Holyrics` : sync.error,
+      songId: song.id,
+      payload: { title: song.title, holyricsId: sync.ok ? sync.holyricsId : null },
+    });
+
     if (!sync.ok) return reply.code(502).send({ error: sync.error, song: updatedSong });
     return { song: updatedSong, result: sync.mode };
   });
@@ -205,6 +297,8 @@ export async function holyricsRoutes(app: FastifyInstance) {
       }
     }
 
+    await writeHolyricsLog({ churchId: church.id, action: "SYNC_LIBRARY", status: summary.failed > 0 ? "ERROR" : "SUCCESS", message: `Sincronização da biblioteca: ${summary.synced} sincronizadas, ${summary.linked} vinculadas, ${summary.failed} falhas`, payload: summary });
+
     return summary;
   });
 
@@ -229,6 +323,14 @@ export async function holyricsRoutes(app: FastifyInstance) {
         orderBy: { order: "asc" },
       });
       if (items.length === 0) return reply.code(400).send({ error: "Setlist vazia" });
+
+      const current = await findMatchingHolyricsSchedule(church, event);
+      if (current.match) {
+        const holyricsEventId = String(current.match.id || current.match.event_id || "");
+        if (holyricsEventId) {
+          await callHolyrics(church, "SetCurrentSchedule", { event_id: holyricsEventId }).catch(() => {});
+        }
+      }
 
       for (const item of items) {
         if (item.song.holyricsId) continue;
@@ -276,6 +378,15 @@ export async function holyricsRoutes(app: FastifyInstance) {
         ...liturgy.map((item, idx) => `${idx + 1}. ${item.title}${item.startTime ? ` (${item.startTime})` : ""}`),
       ].join("\n");
       await callHolyrics(church, "SetTextCP", { text: summaryText, show: true, display_ahead: true }).catch(() => {});
+
+      await writeHolyricsLog({
+        churchId: church.id,
+        action: "PUBLISH_EVENT",
+        status: "SUCCESS",
+        message: `Evento publicado no Holyrics com ${linked.length} música(s) e ${liturgy.length} item(ns) de liturgia`,
+        eventId,
+        payload: { linked: linked.length, skipped, liturgy: liturgy.length },
+      });
 
       return { sent: linked.length, skipped, liturgyItems: liturgy.length };
     }

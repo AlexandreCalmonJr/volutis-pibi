@@ -17,6 +17,7 @@ import { checkinRoutes } from "./routes/checkin.js";
 import { songRoutes } from "./routes/songs.js";
 import { liturgyRoutes } from "./routes/liturgy.js";
 import { chatRoutes } from "./routes/chat.js";
+import { feedRoutes } from "./routes/feed.js";
 import { holyricsRoutes } from "./routes/holyrics.js";
 import { inviteRoutes } from "./routes/invites.js";
 import { applicationRoutes } from "./routes/applications.js";
@@ -86,6 +87,7 @@ export async function buildServer() {
   await app.register(songRoutes, { prefix: "/api" });
   await app.register(liturgyRoutes, { prefix: "/api" });
   await app.register(chatRoutes, { prefix: "/api" });
+  await app.register(feedRoutes, { prefix: "/api" });
   await app.register(holyricsRoutes, { prefix: "/api" });
   await app.register(inviteRoutes, { prefix: "/api" });
   await app.register(applicationRoutes, { prefix: "/api" });

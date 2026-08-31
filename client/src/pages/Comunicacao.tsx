@@ -54,11 +54,11 @@ export default function Comunicacao() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const tabParam = searchParams.get("tab");
-  const requestedTab = tabParam === "notificacoes" || tabParam === "whatsapp" ? tabParam : "chat";
+  const requestedTab = tabParam === "notificacoes" || tabParam === "whatsapp" || tabParam === "feed" ? tabParam : "chat";
   const requestedEventId = searchParams.get("eventId");
   const highlightedNotificationId = searchParams.get("notificationId");
   const highlightedMessageId = searchParams.get("messageId");
-  const [aba, setAba] = useState<"chat" | "notificacoes" | "whatsapp">(requestedTab);
+  const [aba, setAba] = useState<"chat" | "feed" | "notificacoes" | "whatsapp">(requestedTab);
   const [events, setEvents] = useState<Event[]>([]);
   const [eventId, setEventId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -79,6 +79,11 @@ export default function Comunicacao() {
   const [broadcastSuccess, setBroadcastSuccess] = useState<{ total: number; sentWhatsapp: number } | null>(null);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [feedPosts, setFeedPosts] = useState<Array<any>>([]);
+  const [loadingFeed, setLoadingFeed] = useState(false);
+  const [postingFeed, setPostingFeed] = useState(false);
+  const [feedForm, setFeedForm] = useState({ content: "", mediaType: "IMAGE", mediaUrl: "", linkUrl: "" });
+  const [feedCommentDrafts, setFeedCommentDrafts] = useState<Record<string, string>>({});
 
   // Test WhatsApp
   const [testPhone, setTestPhone] = useState("");
@@ -161,11 +166,22 @@ export default function Comunicacao() {
     }
   }, [setNotifications]);
 
-  useEffect(() => {
-    if (aba === "notificacoes") {
-      fetchNotifications();
+  const fetchFeed = useCallback(async () => {
+    setLoadingFeed(true);
+    try {
+      const posts = await api<any[]>("/feed/posts");
+      setFeedPosts(posts);
+    } catch {
+      setFeedPosts([]);
+    } finally {
+      setLoadingFeed(false);
     }
-  }, [aba, fetchNotifications]);
+  }, []);
+
+  useEffect(() => {
+    if (aba === "notificacoes") fetchNotifications();
+    if (aba === "feed") fetchFeed();
+  }, [aba, fetchNotifications, fetchFeed]);
 
   // Polling quando estiver aguardando leitura do QR Code
   useEffect(() => {
@@ -374,7 +390,36 @@ export default function Comunicacao() {
     }
   }
 
-  function handleChangeTab(nextTab: "chat" | "notificacoes" | "whatsapp") {
+  async function handleCreateFeedPost(e: React.FormEvent) {
+    e.preventDefault();
+    if (!feedForm.content.trim() && !feedForm.mediaUrl.trim() && !feedForm.linkUrl.trim()) return;
+    setPostingFeed(true);
+    try {
+      await api("/feed/posts", {
+        method: "POST",
+        body: {
+          content: feedForm.content.trim() || undefined,
+          mediaType: feedForm.mediaUrl.trim() ? feedForm.mediaType : feedForm.linkUrl.trim() ? "LINK" : undefined,
+          mediaUrl: feedForm.mediaUrl.trim() || undefined,
+          linkUrl: feedForm.linkUrl.trim() || undefined,
+        },
+      });
+      setFeedForm({ content: "", mediaType: "IMAGE", mediaUrl: "", linkUrl: "" });
+      await fetchFeed();
+    } finally {
+      setPostingFeed(false);
+    }
+  }
+
+  async function handleFeedComment(postId: string) {
+    const content = feedCommentDrafts[postId]?.trim();
+    if (!content) return;
+    await api(`/feed/posts/${postId}/comments`, { method: "POST", body: { content } });
+    setFeedCommentDrafts((prev) => ({ ...prev, [postId]: "" }));
+    await fetchFeed();
+  }
+
+  function handleChangeTab(nextTab: "chat" | "feed" | "notificacoes" | "whatsapp") {
     setAba(nextTab);
     const params = new URLSearchParams(searchParams);
     params.set("tab", nextTab);
@@ -423,17 +468,83 @@ export default function Comunicacao() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white border border-[#e5e0f8] rounded-xl p-1 w-fit">
-        {(["chat", "notificacoes", "whatsapp"] as const).map((a) => (
+        {(["chat", "feed", "notificacoes", "whatsapp"] as const).map((a) => (
           <button
             key={a}
             onClick={() => handleChangeTab(a)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${aba === a ? "text-white shadow-sm" : "text-[#7c6ea8] hover:bg-gray-50"}`}
             style={aba === a ? { backgroundColor: "#7c3aed" } : {}}
           >
-            {a === "chat" ? "Chats de Evento" : a === "notificacoes" ? "Notificações" : "WhatsApp & Disparos"}
+            {a === "chat" ? "Chats de Evento" : a === "feed" ? "Feed" : a === "notificacoes" ? "Notificações" : "WhatsApp & Disparos"}
           </button>
         ))}
       </div>
+
+      {aba === "feed" && (
+        <div className="grid grid-cols-1 xl:grid-cols-[380px_minmax(0,1fr)] gap-6">
+          <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-4 h-fit">
+            <div>
+              <h3 className="font-bold text-[#1e1b4b]">Feed da Igreja</h3>
+              <p className="text-xs text-[#7c6ea8] mt-1">Compartilhe ideias, fotos, áudios e links com a equipe.</p>
+            </div>
+            <form onSubmit={handleCreateFeedPost} className="space-y-3">
+              <textarea value={feedForm.content} onChange={(e) => setFeedForm((prev) => ({ ...prev, content: e.target.value }))} rows={5} placeholder="Conte uma novidade, deixe um recado ou organize a equipe..." className="w-full px-4 py-3 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] focus:outline-none focus:border-[#7c3aed] resize-none" />
+              <div className="grid grid-cols-2 gap-3">
+                <select value={feedForm.mediaType} onChange={(e) => setFeedForm((prev) => ({ ...prev, mediaType: e.target.value }))} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
+                  <option value="IMAGE">Foto</option>
+                  <option value="AUDIO">Áudio</option>
+                  <option value="LINK">Link</option>
+                </select>
+                <input value={feedForm.mediaUrl} onChange={(e) => setFeedForm((prev) => ({ ...prev, mediaUrl: e.target.value }))} placeholder="URL da mídia" className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+              </div>
+              <input value={feedForm.linkUrl} onChange={(e) => setFeedForm((prev) => ({ ...prev, linkUrl: e.target.value }))} placeholder="URL extra (opcional)" className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+              <button type="submit" disabled={postingFeed} className="w-full py-3 px-4 rounded-xl text-white font-medium text-sm transition-all shadow-sm hover:opacity-90 disabled:opacity-40" style={{ backgroundColor: "#7c3aed" }}>{postingFeed ? "Publicando..." : "Publicar no feed"}</button>
+            </form>
+          </div>
+          <div className="space-y-4">
+            {loadingFeed ? (
+              <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8 text-center text-sm text-[#7c6ea8]">Carregando feed...</div>
+            ) : feedPosts.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8 text-center text-sm text-[#7c6ea8]">Ainda não há publicações. Faça a primeira!</div>
+            ) : (
+              feedPosts.map((post) => (
+                <div key={post.id} className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar name={post.member?.name || post.authorName} photoUrl={post.member?.photoUrl} avatarKey={post.member?.avatarKey} size={40} />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-[#1e1b4b]">{post.authorName}</p>
+                      <p className="text-xs text-[#7c6ea8]">{formatNotificationDate(post.createdAt)}</p>
+                    </div>
+                  </div>
+                  {post.content && <p className="text-sm text-[#1e1b4b] whitespace-pre-wrap">{post.content}</p>}
+                  {post.mediaUrl && post.mediaType === "IMAGE" && <img src={post.mediaUrl} alt="Publicação" className="w-full rounded-2xl border border-[#ede9fe] object-cover max-h-[420px]" />}
+                  {post.mediaUrl && post.mediaType === "AUDIO" && <audio controls className="w-full"><source src={post.mediaUrl} /></audio>}
+                  {post.linkUrl && <a href={post.linkUrl} target="_blank" rel="noopener noreferrer" className="inline-flex rounded-xl bg-[#f5f3ff] px-4 py-2 text-sm font-semibold text-[#7c3aed]">Abrir link compartilhado</a>}
+                  <div className="border-t border-[#f0eefe] pt-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[#7c6ea8]">Comentários ({post.comments?.length || 0})</p>
+                    <div className="space-y-3">
+                      {(post.comments || []).map((comment: any) => (
+                        <div key={comment.id} className="bg-[#faf8ff] rounded-xl p-3 border border-[#ede9fe]">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Avatar name={comment.member?.name || comment.authorName} photoUrl={comment.member?.photoUrl} avatarKey={comment.member?.avatarKey} size={28} />
+                            <p className="text-xs font-semibold text-[#1e1b4b]">{comment.authorName}</p>
+                            <span className="text-[11px] text-[#7c6ea8]">{formatNotificationDate(comment.createdAt)}</span>
+                          </div>
+                          <p className="text-sm text-[#5b5077]">{comment.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input value={feedCommentDrafts[post.id] || ""} onChange={(e) => setFeedCommentDrafts((prev) => ({ ...prev, [post.id]: e.target.value }))} placeholder="Comente nesta publicação" className="flex-1 px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+                      <button type="button" onClick={() => void handleFeedComment(post.id)} className="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style={{ backgroundColor: "#7c3aed" }}>Comentar</button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Chat */}
       {aba === "chat" && (

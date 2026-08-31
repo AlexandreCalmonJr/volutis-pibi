@@ -7,7 +7,7 @@
  *
  * Respostas normalizadas para { status: "ok"|"error", data?, error? }.
  */
-import type { Church, Song } from "@prisma/client";
+import type { Church, Event, Song } from "@prisma/client";
 
 export interface HolyricsResult<T = any> {
   status: "ok" | "error";
@@ -174,4 +174,35 @@ export async function syncSongToHolyrics(church: Church, song: Song) {
 
 export async function checkHolyricsPermissions(church: Church, actions: string[]) {
   return callHolyrics<any>(church, "CheckPermissions", { actions: actions.join(",") });
+}
+
+function formatHolyricsDatetime(date: Date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mi = String(date.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+export async function findMatchingHolyricsSchedule(church: Church, event: Pick<Event, "title" | "startTime">) {
+  const eventDate = new Date(event.startTime);
+  const targetName = event.title.trim().toLowerCase();
+  const targetDateTime = formatHolyricsDatetime(eventDate);
+
+  const schedules = await callHolyrics<any[]>(church, "GetSchedules", {
+    month: eventDate.getMonth() + 1,
+    year: eventDate.getFullYear(),
+  });
+  if (schedules.status !== "ok") {
+    return { match: null, error: schedules.error || "Não foi possível listar as escalas do Holyrics" };
+  }
+
+  const match = (schedules.data || []).find((item) => {
+    const name = String(item.name || item.title || "").trim().toLowerCase();
+    const datetime = String(item.datetime || "").slice(0, 16);
+    return name === targetName && datetime === targetDateTime;
+  }) || null;
+
+  return { match, error: null };
 }

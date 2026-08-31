@@ -117,6 +117,8 @@ const importScheduleSchema = z.object({
   })).min(1),
 });
 
+const previewScheduleSchema = importScheduleSchema.pick({ createMissingEvents: true, rows: true });
+
 function getAppUrl(req: any): string {
   if (process.env.APP_URL) return process.env.APP_URL;
   const origin = req.headers.origin;
@@ -156,6 +158,14 @@ function normalizePhone(input?: string) {
   if (digits.length === 11) return `55${digits}`;
   if (digits.length === 13 && digits.startsWith("55")) return digits;
   return digits.length >= 10 ? digits : undefined;
+}
+
+async function resolveMemberForImport(churchId: string, row: z.infer<typeof importScheduleSchema>["rows"][number]) {
+  return row.memberEmail
+    ? prisma.member.findFirst({ where: { churchId, user: { email: row.memberEmail.trim().toLowerCase() } } })
+    : row.memberPhone
+      ? prisma.member.findFirst({ where: { churchId, phone: normalizePhone(row.memberPhone) } })
+      : prisma.member.findFirst({ where: { churchId, name: row.memberName.trim() } });
 }
 
 export async function scheduleRoutes(app: FastifyInstance) {
@@ -315,6 +325,63 @@ export async function scheduleRoutes(app: FastifyInstance) {
   );
 
   app.post(
+    "/schedules/import/preview",
+    { preHandler: [requireRole("MINISTRY_LEADER")] },
+    async (req, reply) => {
+      const auth = req.user as AuthUser;
+      if (!auth.churchId) return reply.code(400).send({ error: "Igreja não identificada no usuário autenticado" });
+      const body = previewScheduleSchema.parse(req.body);
+
+      const previewRows: Array<{ row: number; eventTitle: string; roleName: string; memberName: string; status: "ready" | "warning" | "error"; message: string }> = [];
+      let ready = 0;
+      let warnings = 0;
+      let errors = 0;
+
+      for (const [index, row] of body.rows.entries()) {
+        const eventDate = parseImportDate(row.date);
+        const startTime = parseImportDateTime(row.date, row.startTime);
+        if (!eventDate || !startTime) {
+          previewRows.push({ row: index + 1, eventTitle: row.eventTitle, roleName: row.roleName, memberName: row.memberName, status: "error", message: "Data ou horário inválidos" });
+          errors++;
+          continue;
+        }
+
+        const member = await resolveMemberForImport(auth.churchId, row);
+        if (!member) {
+          previewRows.push({ row: index + 1, eventTitle: row.eventTitle, roleName: row.roleName, memberName: row.memberName, status: "error", message: "Voluntário não encontrado" });
+          errors++;
+          continue;
+        }
+
+        const startOfDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 0, 0, 0, 0);
+        const endOfDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 23, 59, 59, 999);
+        const event = await prisma.event.findFirst({ where: { churchId: auth.churchId, title: row.eventTitle.trim(), date: { gte: startOfDay, lte: endOfDay } } });
+        const eligible = await getEligibleMinistryMembershipsForRole(member.id, auth.churchId, row.roleName.trim());
+        const hasConflict = event ? !!(await findConflict(member.id, event.id)) : false;
+
+        if (eligible.length === 0) {
+          previewRows.push({ row: index + 1, eventTitle: row.eventTitle, roleName: row.roleName, memberName: row.memberName, status: "error", message: "Voluntário sem vínculo compatível" });
+          errors++;
+        } else if (!event && body.createMissingEvents) {
+          previewRows.push({ row: index + 1, eventTitle: row.eventTitle, roleName: row.roleName, memberName: row.memberName, status: "warning", message: "Evento será criado na importação" });
+          warnings++;
+        } else if (!event) {
+          previewRows.push({ row: index + 1, eventTitle: row.eventTitle, roleName: row.roleName, memberName: row.memberName, status: "error", message: "Evento não encontrado" });
+          errors++;
+        } else if (hasConflict) {
+          previewRows.push({ row: index + 1, eventTitle: row.eventTitle, roleName: row.roleName, memberName: row.memberName, status: "warning", message: "Possível conflito de horário" });
+          warnings++;
+        } else {
+          previewRows.push({ row: index + 1, eventTitle: row.eventTitle, roleName: row.roleName, memberName: row.memberName, status: "ready", message: "Pronta para importar" });
+          ready++;
+        }
+      }
+
+      return { summary: { total: body.rows.length, ready, warnings, errors }, rows: previewRows };
+    }
+  );
+
+  app.post(
     "/schedules/import",
     { preHandler: [requireRole("MINISTRY_LEADER")] },
     async (req, reply) => {
@@ -343,23 +410,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
             continue;
           }
 
-          const member = row.memberEmail
-            ? await prisma.member.findFirst({
-                where: {
-                  churchId: auth.churchId,
-                  user: { email: row.memberEmail.trim().toLowerCase() },
-                },
-              })
-            : row.memberPhone
-              ? await prisma.member.findFirst({
-                  where: {
-                    churchId: auth.churchId,
-                    phone: normalizePhone(row.memberPhone),
-                  },
-                })
-              : await prisma.member.findFirst({
-                  where: { churchId: auth.churchId, name: row.memberName.trim() },
-                });
+          const member = await resolveMemberForImport(auth.churchId, row);
 
           if (!member) {
             summary.skipped++;

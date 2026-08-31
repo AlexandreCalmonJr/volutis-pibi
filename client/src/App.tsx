@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
@@ -40,6 +40,11 @@ const pageTitles: Record<string, string> = {
   "/convites": "Convites",
   "/ministerios": "Ministérios",
 };
+
+function EscalaDeepLink() {
+  const { id } = useParams();
+  return <Navigate to={`/escalas${id ? `?scheduleItemId=${encodeURIComponent(id)}` : ""}`} replace />;
+}
 
 function AppLayout() {
   const navigate = useNavigate();
@@ -288,6 +293,7 @@ function AppLayout() {
             <Route path="/usuarios" element={<UsuariosAdmin />} />
             <Route path="/convites" element={<Convites />} />
             <Route path="/ministerios" element={<Ministerios />} />
+            <Route path="/escala/:id" element={<EscalaDeepLink />} />
             <Route path="*" element={<div className="text-center py-20"><p className="text-lg font-semibold text-[var(--color-text)]">Página não encontrada</p><p className="text-sm text-[var(--color-muted)] mt-2">O endpoint que você procura não existe.</p></div>} />
           </Routes>
         </main>
