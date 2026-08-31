@@ -135,6 +135,7 @@ export default function TriagemPage() {
         body: {
           notes,
           role: reviewRole,
+          avatarKey: draftAvatarKey,
           ministryAssignments,
         },
       });
@@ -584,7 +585,7 @@ export default function TriagemPage() {
                               <span className="text-sm font-medium">{p.ministry.name}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <label className="flex items-center gap-1 text-xs text-gray-600">
+                             <label className="flex items-center gap-1 text-xs text-gray-600">
                                 <input
                                   type="checkbox"
                                   checked={assignment?.isLeader || false}
@@ -601,6 +602,36 @@ export default function TriagemPage() {
                                 />
                                 Líder
                               </label>
+                              {p.ministry.roles && p.ministry.roles.length > 0 && (
+                                <div className="flex flex-wrap gap-1 max-w-[220px]">
+                                  {p.ministry.roles.map((role) => {
+                                    const selected = assignment?.roles.includes(role.name) || false;
+                                    return (
+                                      <button
+                                        key={role.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setMinistryAssignments((prev) =>
+                                            prev.map((a) =>
+                                              a.ministryId === p.ministry.id
+                                                ? {
+                                                    ...a,
+                                                    roles: selected
+                                                      ? a.roles.filter((item) => item !== role.name)
+                                                      : [...a.roles, role.name],
+                                                  }
+                                                : a
+                                            )
+                                          );
+                                        }}
+                                        className={`px-2 py-1 rounded-full text-[11px] font-semibold ${selected ? "bg-purple-600 text-white" : "bg-white border border-gray-200 text-gray-600"}`}
+                                      >
+                                        {role.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           </div>
                         );

@@ -158,7 +158,7 @@ export default function RegisterPage() {
           <h1 className="text-2xl font-bold text-gray-800" style={{ fontFamily: "'Fraunces', serif" }}>
             Criar sua Conta
           </h1>
-          <p className="text-gray-600 mt-1">Você foi convidado(a) para o Volutis</p>
+          <p className="text-gray-600 mt-1">Você foi convidado(a) para o Volut</p>
         </div>
 
         {/* Form Card */}

@@ -61,6 +61,7 @@ const adminApplicationSchema = z.object({
 const reviewSchema = z.object({
   notes: z.string().optional(),
   role: z.enum(["VOLUNTEER", "MEMBER"]).default("VOLUNTEER"),
+  avatarKey: z.enum(["violet", "blue", "emerald", "amber", "rose", "slate"]).optional(),
   ministryAssignments: z.array(z.object({
     ministryId: z.string(),
     roles: z.array(z.string()).default([]),
@@ -71,6 +72,15 @@ const reviewSchema = z.object({
 const noteSchema = z.object({
   notes: z.string(),
 });
+
+async function getLeaderMinistryIds(memberId?: string) {
+  if (!memberId) return [] as string[];
+  const links = await prisma.ministryMember.findMany({
+    where: { memberId, isLeader: true },
+    select: { ministryId: true },
+  });
+  return links.map((link) => link.ministryId);
+}
 
 export async function applicationRoutes(app: FastifyInstance) {
   // ─── ROTAS PÚBLICAS (sem autenticação) ──────────────────────────
@@ -194,6 +204,11 @@ export async function applicationRoutes(app: FastifyInstance) {
     const { status, search } = req.query as { status?: string; search?: string };
 
     const where: any = { churchId: auth.churchId };
+    if (auth.role !== "ADMIN") {
+      const leaderMinistryIds = await getLeaderMinistryIds(auth.memberId);
+      if (leaderMinistryIds.length === 0) return [];
+      where.preferences = { some: { ministryId: { in: leaderMinistryIds } } };
+    }
     if (status && status !== "ALL") where.status = status;
     if (search) {
       where.OR = [
@@ -229,18 +244,25 @@ export async function applicationRoutes(app: FastifyInstance) {
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
 
+    const baseWhere: any = { churchId: auth.churchId };
+    if (auth.role !== "ADMIN") {
+      const leaderMinistryIds = await getLeaderMinistryIds(auth.memberId);
+      if (leaderMinistryIds.length === 0) return { pending: 0, approved: 0, rejected: 0, total: 0, approvedThisMonth: 0 };
+      baseWhere.preferences = { some: { ministryId: { in: leaderMinistryIds } } };
+    }
+
     const [pending, approved, rejected, total] = await Promise.all([
-      prisma.application.count({ where: { churchId: auth.churchId, status: "PENDING" } }),
-      prisma.application.count({ where: { churchId: auth.churchId, status: "APPROVED" } }),
-      prisma.application.count({ where: { churchId: auth.churchId, status: "REJECTED" } }),
-      prisma.application.count({ where: { churchId: auth.churchId } }),
+      prisma.application.count({ where: { ...baseWhere, status: "PENDING" } }),
+      prisma.application.count({ where: { ...baseWhere, status: "APPROVED" } }),
+      prisma.application.count({ where: { ...baseWhere, status: "REJECTED" } }),
+      prisma.application.count({ where: baseWhere }),
     ]);
 
     const thisMonth = new Date();
     thisMonth.setDate(1);
     thisMonth.setHours(0, 0, 0, 0);
     const approvedThisMonth = await prisma.application.count({
-      where: { churchId: auth.churchId, status: "APPROVED", reviewedAt: { gte: thisMonth } },
+      where: { ...baseWhere, status: "APPROVED", reviewedAt: { gte: thisMonth } },
     });
 
     return { pending, approved, rejected, total, approvedThisMonth };
@@ -262,6 +284,11 @@ export async function applicationRoutes(app: FastifyInstance) {
 
     if (!application || application.churchId !== auth.churchId) {
       return reply.code(404).send({ error: "Candidato não encontrado" });
+    }
+    if (auth.role !== "ADMIN") {
+      const leaderMinistryIds = await getLeaderMinistryIds(auth.memberId);
+      const canAccess = application.preferences.some((p) => leaderMinistryIds.includes(p.ministry.id));
+      if (!canAccess) return reply.code(403).send({ error: "Sem permissão para ver este candidato" });
     }
 
     return {
@@ -287,9 +314,15 @@ export async function applicationRoutes(app: FastifyInstance) {
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
 
-    const application = await prisma.application.findUnique({ where: { id }, select: { churchId: true } });
+    const application = await prisma.application.findUnique({ where: { id }, include: { preferences: true } });
     if (!application || application.churchId !== auth.churchId) {
       return reply.code(404).send({ error: "Candidato não encontrado" });
+    }
+    if (auth.role !== "ADMIN") {
+      const leaderMinistryIds = await getLeaderMinistryIds(auth.memberId);
+      if (!application.preferences.some((p) => leaderMinistryIds.includes(p.ministryId))) {
+        return reply.code(403).send({ error: "Sem permissão para editar este candidato" });
+      }
     }
 
     const body = noteSchema.parse(req.body);
@@ -317,6 +350,11 @@ export async function applicationRoutes(app: FastifyInstance) {
     }
     if (application.status !== "PENDING") {
       return reply.code(400).send({ error: "Candidato já foi revisado" });
+    }
+    if (auth.role !== "ADMIN") {
+      const leaderMinistryIds = await getLeaderMinistryIds(auth.memberId);
+      const canApprove = application.preferences.some((p) => leaderMinistryIds.includes(p.ministryId));
+      if (!canApprove) return reply.code(403).send({ error: "Sem permissão para aprovar este candidato" });
     }
 
     const body = reviewSchema.parse(req.body ?? {});
@@ -354,7 +392,7 @@ export async function applicationRoutes(app: FastifyInstance) {
             name: application.name,
             phone: application.phone,
             photoUrl: application.photoUrl,
-            avatarKey: application.avatarKey,
+            avatarKey: body.avatarKey ?? application.avatarKey,
             instruments: application.instruments,
             churchId: auth.churchId!,
             approvalStatus: "PENDING",
@@ -428,6 +466,13 @@ export async function applicationRoutes(app: FastifyInstance) {
     }
     if (application.status !== "PENDING") {
       return reply.code(400).send({ error: "Candidato já foi revisado" });
+    }
+    if (auth.role !== "ADMIN") {
+      const leaderMinistryIds = await getLeaderMinistryIds(auth.memberId);
+      const prefs = await prisma.applicationPreference.findMany({ where: { applicationId: id }, select: { ministryId: true } });
+      if (!prefs.some((pref) => leaderMinistryIds.includes(pref.ministryId))) {
+        return reply.code(403).send({ error: "Sem permissão para rejeitar este candidato" });
+      }
     }
 
     const body = noteSchema.parse(req.body ?? {});

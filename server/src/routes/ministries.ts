@@ -42,6 +42,11 @@ async function userLeadsMinistry(memberId: string | undefined, ministryId: strin
   return !!link;
 }
 
+async function ensureMinistryManagementAccess(auth: AuthUser, ministryId: string) {
+  if (auth.role === "ADMIN") return true;
+  return userLeadsMinistry(auth.memberId, ministryId);
+}
+
 async function ministryHasLeader(ministryId: string) {
   const count = await prisma.ministryMember.count({ where: { ministryId, isLeader: true } });
   return count > 0;
@@ -169,6 +174,8 @@ export async function ministryRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     if (!(await belongsToChurch("ministry", id, (req.user as AuthUser).churchId)))
       return reply.code(404).send({ error: "Ministério não encontrado" });
+    if (!(await ensureMinistryManagementAccess(req.user as AuthUser, id)))
+      return reply.code(403).send({ error: "Sem permissão para gerenciar este ministério" });
     const body = roleSchema.parse(req.body);
     const role = await prisma.ministryRole.create({ data: { name: body.name, ministryId: id } });
     return reply.code(201).send(role);
@@ -178,6 +185,8 @@ export async function ministryRoutes(app: FastifyInstance) {
     const { id, roleId } = req.params as { id: string; roleId: string };
     if (!(await belongsToChurch("ministry", id, (req.user as AuthUser).churchId)))
       return reply.code(404).send({ error: "Ministério não encontrado" });
+    if (!(await ensureMinistryManagementAccess(req.user as AuthUser, id)))
+      return reply.code(403).send({ error: "Sem permissão para gerenciar este ministério" });
     const role = await prisma.ministryRole.findUnique({ where: { id: roleId }, select: { ministryId: true } });
     if (!role || role.ministryId !== id)
       return reply.code(404).send({ error: "Função não encontrada" });
@@ -192,6 +201,8 @@ export async function ministryRoutes(app: FastifyInstance) {
     const body = memberLinkSchema.parse(req.body);
     if (!(await belongsToChurch("ministry", id, auth.churchId)))
       return reply.code(404).send({ error: "Ministério não encontrado" });
+    if (!(await ensureMinistryManagementAccess(auth, id)))
+      return reply.code(403).send({ error: "Sem permissão para gerenciar este ministério" });
     if (!(await belongsToChurch("member", body.memberId, auth.churchId)))
       return reply.code(404).send({ error: "Membro não encontrado" });
     const link = await prisma.ministryMember.upsert({
@@ -206,6 +217,8 @@ export async function ministryRoutes(app: FastifyInstance) {
     const { id, memberId } = req.params as { id: string; memberId: string };
     if (!(await belongsToChurch("ministry", id, (req.user as AuthUser).churchId)))
       return reply.code(404).send({ error: "Ministério não encontrado" });
+    if (!(await ensureMinistryManagementAccess(req.user as AuthUser, id)))
+      return reply.code(403).send({ error: "Sem permissão para gerenciar este ministério" });
     try {
       await prisma.ministryMember.delete({
         where: { memberId_ministryId: { memberId, ministryId: id } },
@@ -221,6 +234,8 @@ export async function ministryRoutes(app: FastifyInstance) {
     const auth = req.user as AuthUser;
     if (!(await belongsToChurch("ministry", id, auth.churchId)))
       return reply.code(404).send({ error: "Ministério não encontrado" });
+    if (!(await ensureMinistryManagementAccess(auth, id)))
+      return reply.code(403).send({ error: "Sem permissão para gerenciar este ministério" });
     if (!(await belongsToChurch("member", memberId, auth.churchId)))
       return reply.code(404).send({ error: "Membro não encontrado" });
 

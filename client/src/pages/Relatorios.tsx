@@ -36,6 +36,18 @@ interface RankingMember {
   points: number;
 }
 
+interface EventSummary {
+  id: string;
+  title: string;
+  date: string;
+  scheduleItems: Array<{
+    id: string;
+    status: string;
+    member: { id: string; name: string };
+    checkin?: { id: string; checkedInAt: string; method: string } | null;
+  }>;
+}
+
 function BarChart({ data, maxValue, color }: { data: { label: string; value: number }[]; maxValue: number; color: string }) {
   return (
     <div className="flex items-end gap-2 h-32">
@@ -152,18 +164,21 @@ export default function Relatorios() {
   const [abaRelatorio, setAbaRelatorio] = useState<"geral" | "felicitometro" | "jornada">("geral");
   const [members, setMembers] = useState<Member[]>([]);
   const [ranking, setRanking] = useState<RankingMember[]>([]);
+  const [events, setEvents] = useState<EventSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [membersData, rankingData] = await Promise.all([
+        const [membersData, rankingData, eventsData] = await Promise.all([
           api<Member[]>("/members"),
           api<RankingMember[]>("/gamification/ranking"),
+          api<EventSummary[]>("/events"),
         ]);
         setMembers(membersData);
         setRanking(rankingData);
+        setEvents(eventsData);
       } catch (err: any) {
         setError(err.message || "Erro ao carregar dados");
       } finally {
@@ -175,6 +190,13 @@ export default function Relatorios() {
 
   const totalMembers = members.length;
   const totalPoints = members.reduce((a, m) => a + m.points, 0);
+  const allScheduleItems = events.flatMap((event) => event.scheduleItems || []);
+  const totalSchedules = allScheduleItems.length;
+  const confirmedSchedules = allScheduleItems.filter((item) => item.status === "CONFIRMED").length;
+  const checkedInSchedules = allScheduleItems.filter((item) => !!item.checkin).length;
+  const confirmationRate = totalSchedules > 0 ? Math.round((confirmedSchedules / totalSchedules) * 100) : 0;
+  const checkinRate = totalSchedules > 0 ? Math.round((checkedInSchedules / totalSchedules) * 100) : 0;
+  const felicimetro = Math.round((confirmationRate * 0.55) + (checkinRate * 0.45));
 
   const ministryCounts = new Map<string, number>();
   members.forEach((m) => {
@@ -188,6 +210,52 @@ export default function Relatorios() {
   }));
 
   const topRanking = ranking.slice(0, 5);
+  const monthTrend = Array.from({ length: 6 }).map((_, idx) => {
+    const ref = new Date();
+    ref.setMonth(ref.getMonth() - (5 - idx), 1);
+    ref.setHours(0, 0, 0, 0);
+    const month = ref.getMonth();
+    const year = ref.getFullYear();
+    const monthItems = events
+      .filter((event) => {
+        const date = new Date(event.date);
+        return date.getMonth() === month && date.getFullYear() === year;
+      })
+      .flatMap((event) => event.scheduleItems || []);
+    const monthConfirmed = monthItems.filter((item) => item.status === "CONFIRMED").length;
+    return {
+      mes: ref.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+      score: monthItems.length > 0 ? Number(((monthConfirmed / monthItems.length) * 5).toFixed(1)) : 0,
+    };
+  });
+  const memberJourney = members.map((member) => {
+    const items = allScheduleItems.filter((item) => item.member.id === member.id);
+    return {
+      ...member,
+      scheduleCount: items.length,
+      checkinCount: items.filter((item) => !!item.checkin).length,
+    };
+  });
+
+  function exportMembersCsv() {
+    const header = ["Nome", "Ministério", "Funções", "Pontos", "Escalas", "Check-ins"];
+    const rows = memberJourney.map((member) => [
+      member.name,
+      getMinistryName(member),
+      member.instruments?.join(" | ") || "",
+      String(member.points),
+      String(member.scheduleCount),
+      String(member.checkinCount),
+    ]);
+    const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "relatorio-volut-membros.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   if (loading) {
     return (
@@ -230,11 +298,11 @@ export default function Relatorios() {
             Acompanhamento geral
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c3aed] hover:bg-[#f5f3ff] transition-colors">
+        <button onClick={exportMembersCsv} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c3aed] hover:bg-[#f5f3ff] transition-colors">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          Exportar PDF (Em breve)
+          Exportar CSV
         </button>
       </div>
 
@@ -256,12 +324,12 @@ export default function Relatorios() {
       {abaRelatorio === "geral" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: "Membros Cadastrados", value: String(totalMembers), trend: "", positive: true },
-              { label: "Total de Pontos", value: String(totalPoints), trend: "", positive: true },
-              { label: "Ministérios Ativos", value: String(ministryCounts.size), trend: "", positive: true },
-              { label: "Top Pontuação", value: ranking.length > 0 ? String(ranking[0].points) : "0", trend: ranking.length > 0 ? ranking[0].name : "", positive: true },
-            ].map((s) => (
+               {[
+               { label: "Membros Cadastrados", value: String(totalMembers), trend: "", positive: true },
+               { label: "Total de Pontos", value: String(totalPoints), trend: "", positive: true },
+               { label: "Confirmação de Escalas", value: `${confirmationRate}%`, trend: `${confirmedSchedules}/${totalSchedules} confirmadas`, positive: true },
+               { label: "Check-ins Realizados", value: `${checkinRate}%`, trend: `${checkedInSchedules} check-ins`, positive: true },
+             ].map((s) => (
               <div key={s.label} className="bg-white rounded-2xl border border-[#e5e0f8] p-5">
                 <p className="text-3xl font-bold text-[#1e1b4b]">{s.value}</p>
                 <p className="text-xs text-[#7c6ea8] mt-1">{s.label}</p>
@@ -374,8 +442,8 @@ export default function Relatorios() {
               style={{ background: "linear-gradient(135deg, #7c3aed 0%, #4338ca 100%)" }}
             >
               <p className="text-white/70 text-sm font-medium mb-2">Felicitômetro</p>
-              <p className="text-7xl font-bold text-white">—</p>
-              <p className="text-white/70 text-sm mt-1">em breve</p>
+              <p className="text-7xl font-bold text-white">{felicimetro}</p>
+              <p className="text-white/70 text-sm mt-1">índice de engajamento operacional</p>
               <div className="flex gap-1 mt-3">
                 {[1, 2, 3, 4, 5].map((s) => (
                   <svg key={s} className="w-5 h-5" fill="rgba(255,255,255,0.3)" viewBox="0 0 24 24">
@@ -386,9 +454,9 @@ export default function Relatorios() {
             </div>
 
             <div className="lg:col-span-2 bg-white rounded-2xl border border-[#e5e0f8] p-6">
-              <h2 className="font-semibold text-[#1e1b4b] mb-1">Evolução do Clima da Equipe</h2>
-              <p className="text-xs text-[#7c6ea8] mb-4">Nota média mensal</p>
-              <p className="text-sm text-[#7c6ea8] text-center py-12">Gráfico em breve</p>
+              <h2 className="font-semibold text-[#1e1b4b] mb-1">Evolução do Engajamento</h2>
+              <p className="text-xs text-[#7c6ea8] mb-4">Proxy por taxa de confirmação mensal</p>
+              <LineChart data={monthTrend} />
             </div>
           </div>
 
@@ -396,14 +464,18 @@ export default function Relatorios() {
           <div className="bg-white rounded-2xl border border-[#e5e0f8] overflow-hidden">
             <div className="px-6 py-4 border-b border-[#f0eefe] flex items-center justify-between">
               <h2 className="font-semibold text-[#1e1b4b]">Respostas Recentes</h2>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 opacity-50 cursor-not-allowed" style={{ backgroundColor: "#7c3aed" }}>
-                Enviar Pesquisa (Em breve)
-              </button>
+                <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold" style={{ backgroundColor: "#7c3aed" }}>
+                  {`Confirmação ${confirmationRate}% · Check-in ${checkinRate}%`}
+                </button>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="rounded-xl bg-[#f5f3ff] p-4 text-center"><p className="text-2xl font-bold text-[#1e1b4b]">{totalSchedules}</p><p className="text-xs text-[#7c6ea8] mt-1">Escalas monitoradas</p></div>
+                  <div className="rounded-xl bg-[#eefcf6] p-4 text-center"><p className="text-2xl font-bold text-[#14532d]">{confirmedSchedules}</p><p className="text-xs text-[#166534] mt-1">Confirmadas</p></div>
+                  <div className="rounded-xl bg-[#eff6ff] p-4 text-center"><p className="text-2xl font-bold text-[#1d4ed8]">{checkedInSchedules}</p><p className="text-xs text-[#2563eb] mt-1">Check-ins</p></div>
+                </div>
+              </div>
             </div>
-            <div className="p-6">
-              <EmptyState message="Felicitômetro ainda não disponível. Em breve você poderá acompanhar a satisfação da equipe aqui." />
-            </div>
-          </div>
         </div>
       )}
 
@@ -415,7 +487,7 @@ export default function Relatorios() {
             <EmptyState message="Nenhum membro encontrado." />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {members.map((m) => {
+              {memberJourney.map((m) => {
                 const ministryName = getMinistryName(m);
                 const color = getMinistryColor(ministryName);
                 return (
@@ -429,12 +501,12 @@ export default function Relatorios() {
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-center">
                       <div className="bg-[#f5f3ff] rounded-xl p-2.5">
-                        <p className="text-lg font-bold text-[#1e1b4b]">{m.points}</p>
-                        <p className="text-xs text-[#7c6ea8]">Pontos</p>
+                        <p className="text-lg font-bold text-[#1e1b4b]">{m.scheduleCount}</p>
+                        <p className="text-xs text-[#7c6ea8]">Escalas</p>
                       </div>
                       <div className="bg-[#f5f3ff] rounded-xl p-2.5">
-                        <p className="text-lg font-bold text-[#1e1b4b]">{m.instruments?.length || 0}</p>
-                        <p className="text-xs text-[#7c6ea8]">Funções</p>
+                        <p className="text-lg font-bold text-[#1e1b4b]">{m.checkinCount}</p>
+                        <p className="text-xs text-[#7c6ea8]">Check-ins</p>
                       </div>
                     </div>
                     {m.instruments && m.instruments.length > 0 && (

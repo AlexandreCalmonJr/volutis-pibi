@@ -71,7 +71,7 @@ export default function Sidebar({ currentPage, onNavigate, mobileOpen, onMobileC
             </svg>
           </div>
           <div>
-            <p className="text-white font-semibold text-sm leading-tight">Volutis</p>
+            <p className="text-white font-semibold text-sm leading-tight">Volut</p>
           </div>
         </div>
 

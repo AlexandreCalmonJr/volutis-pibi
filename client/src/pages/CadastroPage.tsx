@@ -466,7 +466,7 @@ export default function CadastroPage() {
 
         {/* Footer */}
         <p className="text-center text-xs text-gray-500 mt-6">
-          Powered by Volutis PIBI
+          Powered by Volut PIBI
         </p>
       </div>
     </div>

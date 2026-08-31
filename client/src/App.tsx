@@ -165,7 +165,7 @@ function AppLayout() {
             </button>
             <div>
               <h1 className="text-sm font-semibold text-[var(--color-text)]">
-                {pageTitles[location.pathname] ?? "Volutis"}
+                {pageTitles[location.pathname] ?? "Volut"}
               </h1>
             </div>
           </div>

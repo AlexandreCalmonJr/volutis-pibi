@@ -28,6 +28,136 @@ interface Event {
   scheduleItems: ScheduleItem[];
 }
 
+interface Ministry {
+  id: string;
+  name: string;
+  roles: Array<{ id: string; name: string }>;
+}
+
+interface MemberOption {
+  id: string;
+  name: string;
+  approvalStatus: string;
+  photoUrl?: string | null;
+  avatarKey?: string | null;
+  ministryMembers?: Array<{
+    ministryId: string;
+    roles: string[];
+  }>;
+}
+
+interface Suggestion {
+  memberId: string;
+  name: string;
+  photoUrl?: string | null;
+  avatarKey?: string | null;
+  roles: string[];
+  timesServedLast90d: number;
+}
+
+interface DayScheduleItem extends ScheduleItem {
+  eventTitle: string;
+  eventType: string;
+  eventId: string;
+}
+
+const MONTHS_PT: Record<string, number> = {
+  JANEIRO: 0,
+  FEVEREIRO: 1,
+  MARÇO: 2,
+  MARCO: 2,
+  ABRIL: 3,
+  MAIO: 4,
+  JUNHO: 5,
+  JULHO: 6,
+  AGOSTO: 7,
+  SETEMBRO: 8,
+  OUTUBRO: 9,
+  NOVEMBRO: 10,
+  DEZEMBRO: 11,
+};
+
+const SLOT_EVENT_MAP: Record<string, { title: string; type: string; startTime: string }> = {
+  "DOMINGO/ MANHÃ": { title: "Culto Domingo Manhã", type: "SUNDAY_MORNING", startTime: "09:00" },
+  "DOMINGO/ NOITE": { title: "Culto Domingo Noite", type: "SUNDAY_EVENING", startTime: "18:00" },
+  "SEGUNDA-FEIRA": { title: "Reunião Segunda-feira", type: "SPECIAL_EVENT", startTime: "19:30" },
+  "QUARTA-FEIRA": { title: "Culto de Oração", type: "WEDNESDAY_PRAYER", startTime: "19:30" },
+  "SEXTA E SABADO/NOITE": { title: "Culto Sexta/Sábado Noite", type: "SPECIAL_EVENT", startTime: "19:30" },
+};
+
+function normalizeHeader(value: unknown) {
+  return String(value ?? "").replace(/\s+/g, " ").trim().toUpperCase();
+}
+
+function inferRoleName(title: string, sheetName: string) {
+  const match = title.match(/escala\s+(.+)$/i);
+  if (match) return match[1].trim();
+  return sheetName.replace(/\s*\([^)]*\)/g, "").trim();
+}
+
+function parseMatrixRows(rows: any[][], sheetName: string) {
+  const currentYear = new Date().getFullYear();
+  const parsed: Array<{ eventTitle: string; eventType: string; date: string; startTime: string; roleName: string; memberName: string }> = [];
+
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex] || [];
+    for (let colIndex = 0; colIndex < row.length; colIndex++) {
+      if (normalizeHeader(row[colIndex]) !== "MÊS") continue;
+
+      let titleCell = "";
+      for (let seekRow = Math.max(0, rowIndex - 4); seekRow < rowIndex; seekRow++) {
+        for (let seekCol = Math.max(0, colIndex - 1); seekCol <= Math.min(rows[seekRow]?.length ?? 0, colIndex + 8); seekCol++) {
+          const candidate = String(rows[seekRow]?.[seekCol] ?? "").trim();
+          if (/escala/i.test(candidate)) titleCell = candidate;
+        }
+      }
+      const roleName = inferRoleName(titleCell || sheetName, sheetName);
+      const dayCol = colIndex + 1;
+
+      const slotColumns: Array<{ col: number; header: string }> = [];
+      for (let slotCol = colIndex + 2; slotCol < row.length; slotCol++) {
+        const header = String(row[slotCol] ?? "").trim();
+        if (!header) continue;
+        if (normalizeHeader(header) === "MÊS") break;
+        slotColumns.push({ col: slotCol, header });
+      }
+
+      let currentMonth: number | null = null;
+      for (let dataRow = rowIndex + 1; dataRow < rows.length; dataRow++) {
+        const values = rows[dataRow] || [];
+        const monthLabel = normalizeHeader(values[colIndex]);
+        const maybeDay = Number(values[dayCol]);
+
+        if (monthLabel in MONTHS_PT) currentMonth = MONTHS_PT[monthLabel];
+        if (!Number.isFinite(maybeDay) || maybeDay <= 0 || currentMonth === null) continue;
+
+        const baseDate = new Date(currentYear, currentMonth, maybeDay);
+        const dateStr = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, "0")}-${String(baseDate.getDate()).padStart(2, "0")}`;
+
+        for (const slot of slotColumns) {
+          const memberName = String(values[slot.col] ?? "").trim();
+          if (!memberName) continue;
+          const mapped = SLOT_EVENT_MAP[normalizeHeader(slot.header)] ?? {
+            title: slot.header.trim(),
+            type: "SPECIAL_EVENT",
+            startTime: "19:30",
+          };
+          parsed.push({
+            eventTitle: mapped.title,
+            eventType: mapped.type,
+            date: dateStr,
+            startTime: mapped.startTime,
+            roleName,
+            memberName,
+          });
+        }
+      }
+    }
+  }
+
+  return parsed;
+}
+
 export default function Escalas() {
   const [searchParams] = useSearchParams();
   const [events, setEvents] = useState<Event[]>([]);
@@ -44,7 +174,8 @@ export default function Escalas() {
   const [gerando, setGerando] = useState(false);
   const [overwrite, setOverwrite] = useState(false);
   const [selectedMinistryId, setSelectedMinistryId] = useState("ALL");
-  const [ministriesList, setMinistriesList] = useState<Array<{ id: string; name: string }>>([]);
+  const [ministriesList, setMinistriesList] = useState<Ministry[]>([]);
+  const [membersList, setMembersList] = useState<MemberOption[]>([]);
   const [autoResult, setAutoResult] = useState<{
     eventsProcessed: number;
     rolesAssigned: number;
@@ -54,15 +185,37 @@ export default function Escalas() {
       roleName: string;
       memberName: string;
       ministryName: string;
-    }>;
+    }>; 
   } | null>(null);
+  const [modalAddOpen, setModalAddOpen] = useState(false);
+  const [addingVolunteer, setAddingVolunteer] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [selectedEventForAdd, setSelectedEventForAdd] = useState<string>("");
+  const [selectedAddMinistryId, setSelectedAddMinistryId] = useState<string>("");
+  const [selectedRoleName, setSelectedRoleName] = useState<string>("");
+  const [selectedMemberId, setSelectedMemberId] = useState<string>("");
+  const [forceAssign, setForceAssign] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [importingExcel, setImportingExcel] = useState(false);
+  const [importSummary, setImportSummary] = useState<{
+    imported: number;
+    createdEvents: number;
+    notified: number;
+    skipped: number;
+    errors: Array<{ row: number; message: string }>;
+  } | null>(null);
+  const [replacementItem, setReplacementItem] = useState<DayScheduleItem | null>(null);
   const focusedEventId = searchParams.get("eventId");
   const focusedScheduleItemId = searchParams.get("scheduleItemId");
 
   useEffect(() => {
-    api<Array<{ id: string; name: string }>>("/ministries")
+    api<Ministry[]>("/ministries")
       .then((data) => setMinistriesList(data))
       .catch(() => setMinistriesList([]));
+    api<MemberOption[]>("/members")
+      .then((data) => setMembersList(data.filter((item) => item.approvalStatus === "ACTIVE")))
+      .catch(() => setMembersList([]));
   }, []);
 
   useEffect(() => {
@@ -150,11 +303,184 @@ export default function Escalas() {
 
   const eventosDoDia = diaSelecionado ? eventosPorDia(diaSelecionado) : [];
   const itemsDoDia = eventosDoDia.flatMap((ev) =>
-    ev.scheduleItems.map((item) => ({ ...item, eventTitle: ev.title, eventType: ev.type }))
+    ev.scheduleItems.map((item) => ({ ...item, eventTitle: ev.title, eventType: ev.type, eventId: ev.id }))
   );
   const itemsFiltrados = filtroMinisterio === "Todos"
     ? itemsDoDia
     : itemsDoDia.filter((item) => item.roleName === filtroMinisterio);
+  const eventOptions = eventosDoDia;
+  const selectedMinistry = ministriesList.find((item) => item.id === selectedAddMinistryId) || null;
+  const availableMembers = membersList.filter((member) => {
+    if (!selectedAddMinistryId) return true;
+    const link = member.ministryMembers?.find((item) => item.ministryId === selectedAddMinistryId);
+    if (!link) return false;
+    if (!selectedRoleName) return true;
+    return link.roles.length === 0 || link.roles.includes(selectedRoleName);
+  });
+
+  useEffect(() => {
+    if (!modalAddOpen) return;
+    const firstEventId = eventOptions[0]?.id ?? "";
+    setSelectedEventForAdd((current) => current || firstEventId);
+  }, [modalAddOpen, eventOptions]);
+
+  useEffect(() => {
+    if (!selectedMinistry) {
+      setSelectedRoleName("");
+      return;
+    }
+    if (!selectedMinistry.roles.some((role) => role.name === selectedRoleName)) {
+      setSelectedRoleName(selectedMinistry.roles[0]?.name ?? "");
+    }
+  }, [selectedMinistry, selectedRoleName]);
+
+  useEffect(() => {
+    if (!modalAddOpen || !selectedEventForAdd || !selectedAddMinistryId || !selectedRoleName) {
+      setSuggestions([]);
+      return;
+    }
+    setLoadingSuggestions(true);
+    api<Suggestion[]>(`/events/${selectedEventForAdd}/suggestions?ministryId=${encodeURIComponent(selectedAddMinistryId)}&role=${encodeURIComponent(selectedRoleName)}`)
+      .then((data) => setSuggestions(data))
+      .catch(() => setSuggestions([]))
+      .finally(() => setLoadingSuggestions(false));
+  }, [modalAddOpen, selectedEventForAdd, selectedAddMinistryId, selectedRoleName]);
+
+  function openAddVolunteerModal() {
+    const firstEventId = eventOptions[0]?.id ?? "";
+    const firstMinistryId = ministriesList[0]?.id ?? "";
+    setAddError(null);
+    setSelectedEventForAdd(firstEventId);
+    setSelectedAddMinistryId(firstMinistryId);
+    setSelectedRoleName(ministriesList[0]?.roles?.[0]?.name ?? "");
+    setSelectedMemberId("");
+    setForceAssign(false);
+    setSuggestions([]);
+    setReplacementItem(null);
+    setModalAddOpen(true);
+  }
+
+  function openReplaceVolunteerModal(item: DayScheduleItem) {
+    const inferredMinistry = ministriesList.find((ministry) => ministry.roles.some((role) => role.name === item.roleName));
+    setAddError(null);
+    setReplacementItem(item);
+    setSelectedEventForAdd(item.eventId);
+    setSelectedAddMinistryId(inferredMinistry?.id ?? "");
+    setSelectedRoleName(item.roleName);
+    setSelectedMemberId("");
+    setForceAssign(false);
+    setSuggestions([]);
+    setModalAddOpen(true);
+  }
+
+  async function handleAddVolunteer() {
+    if (!selectedEventForAdd || !selectedRoleName || !selectedMemberId) return;
+    if (replacementItem && replacementItem.member.id === selectedMemberId) {
+      setAddError("Escolha outro voluntário para substituir a escala atual.");
+      return;
+    }
+    setAddingVolunteer(true);
+    setAddError(null);
+    try {
+      await api(`/events/${selectedEventForAdd}/schedule`, {
+        method: "POST",
+        body: {
+          memberId: selectedMemberId,
+          roleName: selectedRoleName,
+          ministryId: selectedAddMinistryId || undefined,
+          force: forceAssign,
+        },
+      });
+      if (replacementItem) {
+        await api(`/schedule-items/${replacementItem.id}`, { method: "DELETE" });
+      }
+      await fetchEvents();
+      setModalAddOpen(false);
+    } catch (err: any) {
+      setAddError(err?.message || "Não foi possível adicionar o voluntário.");
+    } finally {
+      setAddingVolunteer(false);
+    }
+  }
+
+  async function handleRemoveScheduleItem(id: string) {
+    try {
+      await api(`/schedule-items/${id}`, { method: "DELETE" });
+      await fetchEvents();
+    } catch (err: any) {
+      alert(err?.message || "Não foi possível remover o voluntário da escala.");
+    }
+  }
+
+  async function handleImportExcel(file: File) {
+    setImportingExcel(true);
+    setImportSummary(null);
+    try {
+      const XLSX = await import("xlsx");
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const mappedRows = workbook.SheetNames.flatMap((sheetName) => {
+        const sheet = workbook.Sheets[sheetName];
+        const jsonRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
+        const rowFormat = jsonRows.map((row) => {
+          const eventTitle = String(row.eventTitle || row["Evento"] || row["event"] || row["Culto"] || "").trim();
+          const eventType = String(row.eventType || row["Tipo"] || "SPECIAL_EVENT").trim();
+          const date = String(row.date || row["Data"] || row["Dia"] || "").trim();
+          const startTime = String(row.startTime || row["Horário"] || row["Horario"] || row["Hora"] || row["Inicio"] || "").trim();
+          const endTime = String(row.endTime || row["Fim"] || "").trim();
+          const roleName = String(row.roleName || row["Função"] || row["Funcao"] || row["Cargo"] || "").trim();
+          const memberName = String(row.memberName || row["Voluntário"] || row["Voluntario"] || row["Nome"] || "").trim();
+          const memberEmail = String(row.memberEmail || row["Email"] || "").trim();
+          const memberPhone = String(row.memberPhone || row["Telefone"] || row["WhatsApp"] || "").trim();
+
+            return {
+              eventTitle,
+              eventType,
+              ministryName: String(row.ministryName || row["Ministério"] || row["Ministerio"] || row["Equipe"] || "").trim() || undefined,
+              date,
+              startTime,
+            endTime: endTime || undefined,
+            roleName,
+            memberName,
+            memberEmail: memberEmail || undefined,
+            memberPhone: memberPhone || undefined,
+          };
+        }).filter((row) => row.eventTitle && row.date && row.startTime && row.roleName && row.memberName);
+
+        if (rowFormat.length > 0) return rowFormat;
+
+        const matrixRows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: "" }) as any[][];
+        return parseMatrixRows(matrixRows, sheetName);
+      });
+
+      if (mappedRows.length === 0) {
+        throw new Error("A planilha não contém linhas válidas. Use colunas como Evento, Data, Horário, Função e Voluntário.");
+      }
+
+      const result = await api<{
+        imported: number;
+        createdEvents: number;
+        notified: number;
+        skipped: number;
+        errors: Array<{ row: number; message: string }>;
+      }>("/schedules/import", {
+        method: "POST",
+        body: {
+          rows: mappedRows,
+          notify: true,
+          overwritePending: false,
+          createMissingEvents: true,
+        },
+      });
+
+      setImportSummary(result);
+      await fetchEvents();
+    } catch (err: any) {
+      alert(err?.message || "Não foi possível importar a planilha.");
+    } finally {
+      setImportingExcel(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -168,7 +494,20 @@ export default function Escalas() {
             {events.length} eventos este mês
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-[#f5f3ff] transition-all cursor-pointer">
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleImportExcel(file);
+                e.currentTarget.value = "";
+              }}
+            />
+            {importingExcel ? "Importando Excel..." : "Importar Excel"}
+          </label>
           <button
             onClick={() => {
               setAutoResult(null);
@@ -184,6 +523,26 @@ export default function Escalas() {
           </button>
         </div>
       </div>
+
+      {importSummary && (
+        <div className="rounded-2xl border border-[#d1fae5] bg-[#ecfdf5] px-5 py-4 text-sm text-[#166534] space-y-2">
+          <p className="font-semibold">Importação concluída</p>
+          <p>
+            {importSummary.imported} escala(s) importada(s), {importSummary.createdEvents} evento(s) criado(s), {importSummary.skipped} linha(s) ignorada(s)
+            {importSummary.notified > 0 ? ` e ${importSummary.notified} notificação(ões) disparada(s).` : "."}
+          </p>
+          {importSummary.errors.length > 0 && (
+            <div className="text-xs text-[#166534]">
+              <p className="font-semibold mb-1">Linhas ignoradas:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                {importSummary.errors.slice(0, 8).map((error) => (
+                  <li key={`${error.row}-${error.message}`}>Linha {error.row}: {error.message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendário */}
@@ -345,7 +704,7 @@ export default function Escalas() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                 </svg>
                 <p className="text-sm">Sem escalas para este ministerio</p>
-                <button className="mt-2 text-xs text-[#7c3aed] hover:underline">+ Adicionar voluntário</button>
+                <button onClick={openAddVolunteerModal} className="mt-2 text-xs text-[#7c3aed] hover:underline">+ Adicionar voluntário</button>
               </div>
             ) : (
               <div className="divide-y divide-[#f0eefe]">
@@ -368,12 +727,12 @@ export default function Escalas() {
                         </div>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="w-7 h-7 rounded-lg hover:bg-amber-50 flex items-center justify-center" title="Substituir">
+                        <button onClick={() => openReplaceVolunteerModal(item)} className="w-7 h-7 rounded-lg hover:bg-amber-50 flex items-center justify-center" title="Substituir">
                           <svg className="w-3.5 h-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                           </svg>
                         </button>
-                        <button className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center" title="Remover">
+                        <button onClick={() => handleRemoveScheduleItem(item.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center" title="Remover">
                           <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                           </svg>
@@ -388,13 +747,104 @@ export default function Escalas() {
 
           {diaSelecionado && eventosDoDia.length > 0 && (
             <div className="px-6 py-4 border-t border-[#f0eefe]">
-              <button className="w-full py-2 rounded-xl text-sm font-semibold border-2 border-dashed border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] transition-colors">
+              <button onClick={openAddVolunteerModal} className="w-full py-2 rounded-xl text-sm font-semibold border-2 border-dashed border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] transition-colors">
                 + Adicionar Voluntário
               </button>
             </div>
           )}
         </div>
       </div>
+
+      {modalAddOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5">
+            <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4">
+              <div>
+                <h3 className="font-bold text-lg text-[#1e1b4b]">{replacementItem ? "Substituir voluntário da escala" : "Adicionar voluntário à escala"}</h3>
+                <p className="text-xs text-[#7c6ea8]">{replacementItem ? `Escala atual: ${replacementItem.member.name} em ${replacementItem.eventTitle}` : "Escolha evento, ministério, função e voluntário."}</p>
+              </div>
+              <button onClick={() => setModalAddOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors">✕</button>
+            </div>
+
+            {addError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{addError}</div>}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Evento</label>
+                <select value={selectedEventForAdd} onChange={(e) => setSelectedEventForAdd(e.target.value)} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
+                  <option value="">Selecione o evento</option>
+                  {eventOptions.map((event) => (
+                    <option key={event.id} value={event.id}>{event.title} — {new Date(event.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Ministério</label>
+                <select value={selectedAddMinistryId} onChange={(e) => setSelectedAddMinistryId(e.target.value)} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
+                  <option value="">Selecione o ministério</option>
+                  {ministriesList.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Função</label>
+                <select value={selectedRoleName} onChange={(e) => setSelectedRoleName(e.target.value)} disabled={!selectedMinistry} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed] disabled:opacity-50">
+                  <option value="">Selecione a função</option>
+                  {(selectedMinistry?.roles ?? []).map((role) => (
+                    <option key={role.id} value={role.name}>{role.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Voluntário</label>
+                <select value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
+                  <option value="">Selecione o voluntário</option>
+                  {availableMembers.map((member) => (
+                    <option key={member.id} value={member.id}>{member.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-[#5b5077]">
+              <input type="checkbox" checked={forceAssign} onChange={(e) => setForceAssign(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
+              Permitir conflito de horário se o líder quiser forçar a escala
+            </label>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-[#5b5077] uppercase tracking-wider">Sugestões inteligentes</p>
+                {loadingSuggestions && <span className="text-[11px] text-[#7c6ea8]">Carregando...</span>}
+              </div>
+              {suggestions.length === 0 ? (
+                <div className="rounded-xl border border-[#ede9fe] bg-[#faf8ff] px-4 py-3 text-sm text-[#7c6ea8]">Selecione ministério e função para ver as melhores sugestões.</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {suggestions.slice(0, 6).map((suggestion) => (
+                    <button key={suggestion.memberId} onClick={() => setSelectedMemberId(suggestion.memberId)} className={`rounded-xl border p-3 text-left transition-colors ${selectedMemberId === suggestion.memberId ? "border-[#7c3aed] bg-[#faf5ff]" : "border-[#ede9fe] hover:bg-[#faf8ff]"}`}>
+                      <div className="flex items-center gap-3">
+                        <Avatar name={suggestion.name} photoUrl={suggestion.photoUrl} avatarKey={suggestion.avatarKey} size={36} />
+                        <div>
+                          <p className="text-sm font-semibold text-[#1e1b4b]">{suggestion.name}</p>
+                          <p className="text-[11px] text-[#7c6ea8]">Últimos 90 dias: {suggestion.timesServedLast90d} escala(s)</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 flex items-center justify-end gap-2 border-t border-[#f0eefe]">
+              <button type="button" onClick={() => setModalAddOpen(false)} disabled={addingVolunteer} className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all">Cancelar</button>
+              <button type="button" onClick={handleAddVolunteer} disabled={addingVolunteer || !selectedEventForAdd || !selectedRoleName || !selectedMemberId} className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>
+                {addingVolunteer ? (replacementItem ? "Substituindo..." : "Adicionando...") : (replacementItem ? "Confirmar substituição" : "Confirmar voluntário")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Geração Automática */}
       {modalAutoOpen && (
@@ -501,7 +951,7 @@ export default function Escalas() {
 
                 <div className="p-3.5 bg-[#f8f7ff] border border-[#ede9fe] rounded-xl text-xs text-[#5b5077] space-y-1 leading-relaxed">
                   <div className="flex items-center gap-1.5 font-semibold text-[#7c3aed]">
-                    <span>🧠</span> Algoritmo Inteligente Volutis:
+                    <span>🧠</span> Algoritmo Inteligente Volut:
                   </div>
                   <ul className="list-disc list-inside space-y-0.5 text-[11px] text-[#7c6ea8]">
                     <li>Verifica indisponibilidades e bloqueios de data informados pelos voluntários.</li>

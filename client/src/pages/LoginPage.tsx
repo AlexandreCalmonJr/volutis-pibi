@@ -76,7 +76,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>
-            Volutis
+            Volut
           </h1>
           <p className="text-sm text-[#7c6ea8] mt-1">Gestão de Voluntários da Igreja</p>
         </div>

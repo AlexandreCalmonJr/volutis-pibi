@@ -36,7 +36,7 @@ export async function eventRoutes(app: FastifyInstance) {
       },
       include: {
         scheduleItems: {
-          include: { member: { select: { id: true, name: true, photoUrl: true } } },
+          include: { member: { select: { id: true, name: true, photoUrl: true, avatarKey: true } }, checkin: true },
         },
       },
       orderBy: { date: "asc" },

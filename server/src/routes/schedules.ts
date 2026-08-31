@@ -99,6 +99,24 @@ const swapRespondSchema = z.object({
   action: z.enum(["ACCEPT", "DECLINE"]),
 });
 
+const importScheduleSchema = z.object({
+  notify: z.boolean().default(true),
+  overwritePending: z.boolean().default(false),
+  createMissingEvents: z.boolean().default(true),
+  rows: z.array(z.object({
+    eventTitle: z.string().min(2),
+    eventType: z.string().optional(),
+    date: z.string().min(8),
+    startTime: z.string().min(4),
+    endTime: z.string().optional(),
+    roleName: z.string().min(1),
+    memberName: z.string().min(2),
+    memberEmail: z.string().email().optional(),
+    memberPhone: z.string().optional(),
+    force: z.boolean().optional(),
+  })).min(1),
+});
+
 function getAppUrl(req: any): string {
   if (process.env.APP_URL) return process.env.APP_URL;
   const origin = req.headers.origin;
@@ -106,6 +124,38 @@ function getAppUrl(req: any): string {
   const proto = req.headers["x-forwarded-proto"] ?? "https";
   const host = req.headers["x-forwarded-host"] ?? req.headers.host;
   return host ? `${proto}://${host}` : "https://volutis-pibi.vercel.app";
+}
+
+function parseImportDate(input: string) {
+  const raw = input.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [y, m, d] = raw.split("-").map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0, 0);
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+    const [d, m, y] = raw.split("/").map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0, 0);
+  }
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function parseImportDateTime(dateInput: string, timeInput: string) {
+  const date = parseImportDate(dateInput);
+  if (!date) return null;
+  const time = timeInput.trim();
+  const match = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), Number(match[1]), Number(match[2]), 0, 0);
+}
+
+function normalizePhone(input?: string) {
+  if (!input) return undefined;
+  const digits = input.replace(/\D/g, "");
+  if (digits.length === 10) return `55${digits.slice(0, 2)}9${digits.slice(2)}`;
+  if (digits.length === 11) return `55${digits}`;
+  if (digits.length === 13 && digits.startsWith("55")) return digits;
+  return digits.length >= 10 ? digits : undefined;
 }
 
 export async function scheduleRoutes(app: FastifyInstance) {
@@ -261,6 +311,160 @@ export async function scheduleRoutes(app: FastifyInstance) {
       });
 
       return reply.code(201).send({ ...item, whatsappLink });
+    }
+  );
+
+  app.post(
+    "/schedules/import",
+    { preHandler: [requireRole("MINISTRY_LEADER")] },
+    async (req, reply) => {
+      const auth = req.user as AuthUser;
+      if (!auth.churchId) return reply.code(400).send({ error: "Igreja não identificada no usuário autenticado" });
+      const body = importScheduleSchema.parse(req.body);
+      const appUrl = getAppUrl(req);
+
+      const summary = {
+        imported: 0,
+        createdEvents: 0,
+        notified: 0,
+        skipped: 0,
+        errors: [] as Array<{ row: number; message: string }>,
+      };
+
+      for (const [index, row] of body.rows.entries()) {
+        try {
+          const eventDate = parseImportDate(row.date);
+          const startTime = parseImportDateTime(row.date, row.startTime);
+          const endTime = row.endTime ? parseImportDateTime(row.date, row.endTime) : null;
+
+          if (!eventDate || !startTime) {
+            summary.skipped++;
+            summary.errors.push({ row: index + 1, message: "Data ou horário inválidos" });
+            continue;
+          }
+
+          const member = row.memberEmail
+            ? await prisma.member.findFirst({
+                where: {
+                  churchId: auth.churchId,
+                  user: { email: row.memberEmail.trim().toLowerCase() },
+                },
+              })
+            : row.memberPhone
+              ? await prisma.member.findFirst({
+                  where: {
+                    churchId: auth.churchId,
+                    phone: normalizePhone(row.memberPhone),
+                  },
+                })
+              : await prisma.member.findFirst({
+                  where: { churchId: auth.churchId, name: row.memberName.trim() },
+                });
+
+          if (!member) {
+            summary.skipped++;
+            summary.errors.push({ row: index + 1, message: `Voluntário não encontrado: ${row.memberName}` });
+            continue;
+          }
+
+          const startOfDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 0, 0, 0, 0);
+          const endOfDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 23, 59, 59, 999);
+
+          let event = await prisma.event.findFirst({
+            where: {
+              churchId: auth.churchId,
+              title: row.eventTitle.trim(),
+              date: { gte: startOfDay, lte: endOfDay },
+            },
+          });
+
+          if (!event && body.createMissingEvents) {
+            event = await prisma.event.create({
+              data: {
+                churchId: auth.churchId,
+                title: row.eventTitle.trim(),
+                type: row.eventType?.trim() || "SPECIAL_EVENT",
+                date: eventDate,
+                startTime,
+                endTime: endTime ?? undefined,
+              },
+            });
+            summary.createdEvents++;
+          }
+
+          if (!event) {
+            summary.skipped++;
+            summary.errors.push({ row: index + 1, message: `Evento não encontrado: ${row.eventTitle}` });
+            continue;
+          }
+
+          const eligible = await getEligibleMinistryMembershipsForRole(member.id, auth.churchId, row.roleName.trim());
+          if (eligible.length === 0) {
+            summary.skipped++;
+            summary.errors.push({ row: index + 1, message: `Voluntário sem vínculo compatível para ${row.roleName}` });
+            continue;
+          }
+
+          if (await isUnavailable(member.id, event.date)) {
+            summary.skipped++;
+            summary.errors.push({ row: index + 1, message: `Voluntário indisponível nesta data: ${row.memberName}` });
+            continue;
+          }
+
+          const conflict = await findConflict(member.id, event.id);
+          if (conflict && !row.force) {
+            summary.skipped++;
+            summary.errors.push({ row: index + 1, message: `Conflito de horário para ${row.memberName}` });
+            continue;
+          }
+
+          const existing = await prisma.scheduleItem.findFirst({
+            where: { eventId: event.id, memberId: member.id, roleName: row.roleName.trim() },
+          });
+
+          if (existing) {
+            if (body.overwritePending && existing.status === "PENDING") {
+              await prisma.scheduleItem.delete({ where: { id: existing.id } });
+            } else {
+              summary.skipped++;
+              summary.errors.push({ row: index + 1, message: `Escala já existente para ${row.memberName} em ${row.roleName}` });
+              continue;
+            }
+          }
+
+          const item = await prisma.scheduleItem.create({
+            data: {
+              eventId: event.id,
+              memberId: member.id,
+              roleName: row.roleName.trim(),
+              status: "PENDING",
+            },
+            include: { member: true, event: true },
+          });
+
+          if (body.notify) {
+            await dispatchScheduleAssignedNotification({
+              memberId: member.id,
+              memberName: item.member.name,
+              memberPhone: item.member.phone,
+              eventId: event.id,
+              eventTitle: item.event.title,
+              eventStartTime: item.event.startTime,
+              roleName: item.roleName,
+              scheduleItemId: item.id,
+              appUrl,
+            });
+            summary.notified++;
+          }
+
+          summary.imported++;
+        } catch (error: any) {
+          summary.skipped++;
+          summary.errors.push({ row: index + 1, message: error?.message || "Erro inesperado ao importar a linha" });
+        }
+      }
+
+      return summary;
     }
   );
 
