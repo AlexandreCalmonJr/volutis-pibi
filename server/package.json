@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:baseline:mark": "prisma migrate resolve --applied 20260831000000_postgres_baseline",
     "seed": "tsx prisma/seed.ts",
     "test": "tsx src/tests/smoke.ts",
     "test:all": "tsx src/tests/run-all.ts",

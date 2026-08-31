@@ -62,6 +62,10 @@ npx tsx server/src/tests/smoke-phase6.ts     # Fase 6 — badges/painel do líde
 
 Ver [DEPLOY.md](./DEPLOY.md) — Vercel (frontend) + Northflank/Railway/Render (backend) + PostgreSQL.
 
+## Prisma e banco existente
+
+Se o banco PostgreSQL já existe e contém dados reais, siga `server/prisma/BASELINE_POSTGRES.md` antes de depender de `prisma migrate deploy` em produção.
+
 ## Stack
 
 React 19 · Vite 6 · Tailwind 4 · Zustand | Node 22 · Fastify 5 · Prisma 6 · Zod | PostgreSQL | JWT + refresh rotativo | WebSocket

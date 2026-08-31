@@ -22,6 +22,18 @@ DATABASE_URL="postgresql://..." npm run seed -w server
 
 > O ambiente atual do projeto usa PostgreSQL como padrão.
 
+### Banco já existente com dados reais
+
+Se o banco do Northflank já está em uso e veio de um período em que o projeto ainda tinha histórico antigo de SQLite, **não resete o banco**. Faça o baseline da migration PostgreSQL primeiro: [Prisma Baselining](https://www.prisma.io/docs/orm/prisma-migrate/workflows/baselining).
+
+```bash
+DATABASE_URL="postgresql://..." npm run prisma:generate -w server
+DATABASE_URL="postgresql://..." npm run prisma:baseline:mark -w server
+DATABASE_URL="postgresql://..." npx prisma migrate status --schema server/prisma/schema.prisma
+```
+
+Depois disso, os próximos deploys podem usar `prisma migrate deploy` normalmente.
+
 ## 2. Backend (Northflank)
 
 1. Suba o repositório no GitHub.
@@ -41,6 +53,8 @@ DATABASE_URL="postgresql://..." npm run seed -w server
    - **Build**: `npm install && npm run prisma:generate -w server && npx prisma migrate deploy --schema server/prisma/schema.prisma`
    - **Start**: `npm start -w server`
 6. Anote a URL pública gerada.
+
+> Em produção, o container agora falha de propósito se `prisma migrate deploy` quebrar. O fallback `prisma db push` só roda com `PRISMA_ALLOW_DB_PUSH_FALLBACK=true` explicitamente definido.
 
 ## 2.1 Alternativas de backend
 
