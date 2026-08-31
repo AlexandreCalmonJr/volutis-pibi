@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { fromJson, prisma, toJson } from "../lib/db.js";
 import { requireRole, type AuthUser } from "../middleware/auth.js";
+import { countPushSubscriptions, isPushConfigured, sendPushToMember } from "../services/push.service.js";
 
 const SEED_VOLUNTEER_EMAILS = ["joao@pibi.org.br", "maria@pibi.org.br", "pedro@pibi.org.br"];
 const SEED_EVENT_TITLES = ["Culto Domingo Manhã", "Culto Domingo Noite", "Culto de Oração"];
@@ -36,6 +37,10 @@ const directUserSchema = z.object({
 
 const directUserUpdateSchema = directUserSchema.partial().extend({
   password: z.string().min(6).optional(),
+});
+
+const pushTestSchema = z.object({
+  memberId: z.string().optional(),
 });
 
 function normalizePhone(phone?: string | null): string | undefined {
@@ -324,6 +329,60 @@ export async function adminRoutes(app: FastifyInstance) {
       await tx.user.delete({ where: { id } });
     });
     return reply.code(204).send();
+  });
+
+  app.post("/admin/push-test", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    const body = pushTestSchema.parse(req.body ?? {});
+    const targetMemberId = body.memberId ?? auth.memberId;
+
+    if (!targetMemberId) {
+      return reply.code(400).send({ error: "Nenhum membro alvo disponível para o teste" });
+    }
+
+    const member = await prisma.member.findUnique({ where: { id: targetMemberId } });
+    if (!member || member.churchId !== auth.churchId) {
+      return reply.code(404).send({ error: "Membro não encontrado para o teste" });
+    }
+
+    if (!isPushConfigured()) {
+      return reply.code(409).send({ error: "Push notifications não configuradas no servidor. Defina as chaves VAPID primeiro." });
+    }
+
+    const subscriptions = await countPushSubscriptions(targetMemberId);
+    if (subscriptions === 0) {
+      return reply.code(409).send({ error: "Nenhum dispositivo registrado para este usuário. Abra o app no celular e ative as notificações primeiro." });
+    }
+
+    const created = await prisma.userNotification.create({
+      data: {
+        memberId: targetMemberId,
+        type: "ANNOUNCEMENT",
+        title: "Teste de notificação no celular 📲",
+        body: `Olá, ${member.name}! Este é um teste manual do administrador para validar o push do aplicativo.`,
+        data: JSON.stringify({ source: "admin-push-test", targetMemberId }),
+      },
+    });
+
+    const result = await sendPushToMember(targetMemberId, {
+      id: created.id,
+      type: "ANNOUNCEMENT",
+      title: created.title,
+      body: created.body,
+      data: { source: "admin-push-test", targetMemberId },
+      at: created.createdAt.toISOString(),
+      readAt: null,
+      whatsappLink: null,
+    });
+
+    return {
+      ok: result.sent > 0,
+      sent: result.sent,
+      subscriptions,
+      message: result.sent > 0
+        ? `Notificação de teste enviada para ${result.sent} dispositivo(s).`
+        : "Nenhum dispositivo aceitou o push. Verifique a permissão no celular e reinstale a assinatura, se necessário.",
+    };
   });
 
   app.get("/admin/seed-data/preview", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {

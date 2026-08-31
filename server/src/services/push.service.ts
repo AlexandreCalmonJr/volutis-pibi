@@ -54,6 +54,14 @@ export function getPushPublicConfig() {
   return { enabled, publicKey: enabled ? publicKey ?? null : null };
 }
 
+export function isPushConfigured() {
+  return getConfig().enabled;
+}
+
+export async function countPushSubscriptions(memberId: string) {
+  return prisma.pushSubscription.count({ where: { memberId } });
+}
+
 export async function upsertPushSubscription(
   memberId: string,
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } },

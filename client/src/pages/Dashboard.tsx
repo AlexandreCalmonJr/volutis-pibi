@@ -62,6 +62,8 @@ export default function Dashboard() {
   const [seedLoading, setSeedLoading] = useState(false);
   const [seedSaving, setSeedSaving] = useState(false);
   const [seedFeedback, setSeedFeedback] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [pushTestBusy, setPushTestBusy] = useState(false);
+  const [pushTestFeedback, setPushTestFeedback] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [seedOptions, setSeedOptions] = useState({
     removeVolunteers: true,
     removeEvents: true,
@@ -119,6 +121,23 @@ export default function Dashboard() {
     }
   }
 
+  async function runPushTest() {
+    if (!isAdmin) return;
+    setPushTestBusy(true);
+    setPushTestFeedback(null);
+    try {
+      const result = await api<{ ok: boolean; sent: number; subscriptions: number; message: string }>("/admin/push-test", {
+        method: "POST",
+        body: {},
+      });
+      setPushTestFeedback({ type: result.ok ? "ok" : "error", text: result.message });
+    } catch (e: any) {
+      setPushTestFeedback({ type: "error", text: e.message || "Não foi possível disparar o teste de notificação." });
+    } finally {
+      setPushTestBusy(false);
+    }
+  }
+
   const now = new Date();
   const dateStr = now.toLocaleDateString("pt-BR", {
     weekday: "long",
@@ -145,7 +164,16 @@ export default function Dashboard() {
           </p>
         </div>
         {(user?.role === "ADMIN" || user?.role === "MINISTRY_LEADER") && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-end">
+            {isAdmin && (
+              <button
+                onClick={runPushTest}
+                disabled={pushTestBusy}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#c4b5fd] text-[#7c3aed] bg-white hover:bg-[#f5f3ff] disabled:opacity-50 transition-all"
+              >
+                {pushTestBusy ? "Testando push..." : "Testar notificação no celular"}
+              </button>
+            )}
             {isAdmin && (
               <button
                 onClick={openSeedCleanup}
@@ -167,6 +195,12 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {pushTestFeedback && (
+        <div className={`rounded-2xl border px-4 py-3 text-sm ${pushTestFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+          {pushTestFeedback.text}
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
