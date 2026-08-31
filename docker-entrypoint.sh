@@ -17,7 +17,4 @@ else
   exit 1
 fi
 
-echo "🌱 Executando seed inicial (se necessário)..."
-npx tsx prisma/seed.ts || true
-
 exec "$@"
