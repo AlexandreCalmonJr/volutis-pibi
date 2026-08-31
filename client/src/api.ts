@@ -43,13 +43,14 @@ export async function api<T = any>(
 ): Promise<T> {
   const { accessToken } = useAuth.getState();
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const hasBody = options.body !== undefined;
   const res = await fetch(`${API_URL}/api${cleanPath}`, {
     method: options.method ?? "GET",
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: hasBody ? JSON.stringify(options.body) : undefined,
   });
 
 

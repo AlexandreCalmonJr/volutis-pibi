@@ -18,6 +18,16 @@ interface DashboardStats {
   events: DashboardEvent[];
 }
 
+interface SeedPreview {
+  counts: {
+    volunteers: number;
+    events: number;
+    songs: number;
+    ministries: number;
+    removableMinistries: number;
+  };
+}
+
 const tipoEventoColor: Record<string, { bg: string; text: string }> = {
   SUNDAY_MORNING: { bg: "#ede9fe", text: "#7c3aed" },
   SUNDAY_EVENING: { bg: "#dbeafe", text: "#2563eb" },
@@ -47,13 +57,67 @@ export default function Dashboard() {
   const displayName = user?.memberName || (user?.email?.split("@")[0] ?? "Usuário");
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [seedOpen, setSeedOpen] = useState(false);
+  const [seedPreview, setSeedPreview] = useState<SeedPreview | null>(null);
+  const [seedLoading, setSeedLoading] = useState(false);
+  const [seedSaving, setSeedSaving] = useState(false);
+  const [seedFeedback, setSeedFeedback] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [seedOptions, setSeedOptions] = useState({
+    removeVolunteers: true,
+    removeEvents: true,
+    removeSongs: true,
+    removeMinistries: false,
+  });
 
-  useEffect(() => {
+  const isAdmin = user?.role === "ADMIN";
+
+  const fetchDashboard = () => {
+    setLoading(true);
     api<DashboardStats>("/dashboard/stats")
       .then(setStats)
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchDashboard();
   }, []);
+
+  async function openSeedCleanup() {
+    if (!isAdmin) return;
+    setSeedOpen(true);
+    setSeedLoading(true);
+    setSeedFeedback(null);
+    try {
+      const preview = await api<SeedPreview>("/admin/seed-data/preview");
+      setSeedPreview(preview);
+    } catch (e: any) {
+      setSeedFeedback({ type: "error", text: e.message || "Não foi possível carregar os dados do seed." });
+    } finally {
+      setSeedLoading(false);
+    }
+  }
+
+  async function runSeedCleanup() {
+    setSeedSaving(true);
+    setSeedFeedback(null);
+    try {
+      const result = await api<{ message: string; preview: SeedPreview; removedVolunteers: number; removedEvents: number; removedSongs: number; removedMinistries: number; skippedMinistries: number }>("/admin/seed-data/cleanup", {
+        method: "POST",
+        body: seedOptions,
+      });
+      setSeedPreview(result.preview);
+      setSeedFeedback({
+        type: "ok",
+        text: `${result.message} Removidos: ${result.removedVolunteers} voluntário(s), ${result.removedEvents} evento(s), ${result.removedSongs} música(s), ${result.removedMinistries} ministério(s).${result.skippedMinistries ? ` ${result.skippedMinistries} ministério(s) foram mantidos por ainda terem membros.` : ""}`,
+      });
+      fetchDashboard();
+    } catch (e: any) {
+      setSeedFeedback({ type: "error", text: e.message || "Não foi possível executar a limpeza." });
+    } finally {
+      setSeedSaving(false);
+    }
+  }
 
   const now = new Date();
   const dateStr = now.toLocaleDateString("pt-BR", {
@@ -81,16 +145,26 @@ export default function Dashboard() {
           </p>
         </div>
         {(user?.role === "ADMIN" || user?.role === "MINISTRY_LEADER") && (
-          <button
-            onClick={() => navigate("/escalas")}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
-            style={{ backgroundColor: "var(--color-primary)" }}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            Gerar Escala
-          </button>
+          <div className="flex gap-2">
+            {isAdmin && (
+              <button
+                onClick={openSeedCleanup}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-red-200 text-red-600 bg-white hover:bg-red-50 transition-all"
+              >
+                Limpar seed
+              </button>
+            )}
+            <button
+              onClick={() => navigate("/escalas")}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
+              style={{ backgroundColor: "var(--color-primary)" }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Gerar Escala
+            </button>
+          </div>
         )}
       </div>
 
@@ -178,6 +252,77 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {seedOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSeedOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-[var(--color-text)]">Limpeza de dados de seed</h2>
+                <p className="text-sm text-[var(--color-text-secondary)] mt-1">Remove somente registros conhecidos do seed, sem mexer no administrador.</p>
+              </div>
+              <button onClick={() => setSeedOpen(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200">×</button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {seedFeedback && (
+                <div className={`rounded-xl border px-4 py-3 text-sm ${seedFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+                  {seedFeedback.text}
+                </div>
+              )}
+
+              {seedLoading ? (
+                <div className="py-10 text-center text-sm text-[var(--color-muted)]">Carregando prévia...</div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
+                      <input type="checkbox" checked={seedOptions.removeVolunteers} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeVolunteers: e.target.checked }))} />
+                      <div>
+                        <p className="font-semibold text-[var(--color-text)]">Voluntários demo</p>
+                        <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontrados: {seedPreview?.counts.volunteers ?? 0}</p>
+                      </div>
+                    </label>
+                    <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
+                      <input type="checkbox" checked={seedOptions.removeEvents} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeEvents: e.target.checked }))} />
+                      <div>
+                        <p className="font-semibold text-[var(--color-text)]">Eventos de seed</p>
+                        <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontrados: {seedPreview?.counts.events ?? 0}</p>
+                      </div>
+                    </label>
+                    <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
+                      <input type="checkbox" checked={seedOptions.removeSongs} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeSongs: e.target.checked }))} />
+                      <div>
+                        <p className="font-semibold text-[var(--color-text)]">Músicas demo</p>
+                        <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontradas: {seedPreview?.counts.songs ?? 0}</p>
+                      </div>
+                    </label>
+                    <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
+                      <input type="checkbox" checked={seedOptions.removeMinistries} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeMinistries: e.target.checked }))} />
+                      <div>
+                        <p className="font-semibold text-[var(--color-text)]">Ministérios de seed</p>
+                        <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontrados: {seedPreview?.counts.ministries ?? 0} · removíveis agora: {seedPreview?.counts.removableMinistries ?? 0}</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                    Ministérios com membros vinculados não são apagados automaticamente. O administrador principal `admin@pibi.org.br` também é preservado.
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-[var(--color-border)] flex justify-end gap-3">
+              <button onClick={() => setSeedOpen(false)} className="px-4 py-2 rounded-xl border border-[var(--color-border)] text-sm font-semibold text-[var(--color-text-secondary)]">Fechar</button>
+              <button onClick={runSeedCleanup} disabled={seedLoading || seedSaving} className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold disabled:opacity-50">
+                {seedSaving ? "Limpando..." : "Executar limpeza"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
