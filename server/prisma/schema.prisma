@@ -32,6 +32,7 @@ model Church {
   invites      Invite[]
   applications Application[]
   pendingTokens PendingToken[]
+  transferRequests MinistryTransferRequest[]
   createdAt    DateTime   @default(now())
 }
 
@@ -100,6 +101,7 @@ model Member {
   swapRequests     SwapRequest[]
   applications     Application[]
   notifications    UserNotification[]
+  transferRequests MinistryTransferRequest[] @relation("TransferMember")
   points           Int              @default(0)
 
   @@index([churchId])
@@ -119,6 +121,8 @@ model Ministry {
   members                MinistryMember[]
   applicationPreferences ApplicationPreference[]
   invites                Invite[]
+  outgoingTransfers      MinistryTransferRequest[] @relation("TransferFromMinistry")
+  incomingTransfers      MinistryTransferRequest[] @relation("TransferToMinistry")
 }
 
 model MinistryRole {
@@ -364,4 +368,39 @@ model UserNotification {
 
   @@index([memberId, createdAt])
   @@index([memberId, readAt])
+}
+
+model MinistryTransferRequest {
+  id                     String   @id @default(cuid())
+  status                 String   @default("PENDING_SOURCE_LEADER") // PENDING_SOURCE_LEADER | PENDING_TARGET_LEADER | APPROVED | REJECTED | CANCELLED
+  mode                   String   @default("TRANSFER") // TRANSFER | ADD
+  requestedRoles         String   @default("[]")
+  requestedLeader        Boolean  @default(false)
+  reason                 String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  sourceLeaderApprovedAt DateTime?
+  sourceLeaderApprovedBy String?
+  targetLeaderApprovedAt DateTime?
+  targetLeaderApprovedBy String?
+  rejectedAt             DateTime?
+  rejectedBy             String?
+  rejectionReason        String?
+
+  member   Member @relation("TransferMember", fields: [memberId], references: [id], onDelete: Cascade)
+  memberId String
+
+  fromMinistry   Ministry? @relation("TransferFromMinistry", fields: [fromMinistryId], references: [id], onDelete: SetNull)
+  fromMinistryId String?
+
+  toMinistry   Ministry @relation("TransferToMinistry", fields: [toMinistryId], references: [id], onDelete: Cascade)
+  toMinistryId String
+
+  church   Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  churchId String
+
+  @@index([churchId, status])
+  @@index([memberId, createdAt])
+  @@index([fromMinistryId])
+  @@index([toMinistryId])
 }

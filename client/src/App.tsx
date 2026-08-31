@@ -12,6 +12,7 @@ import Perfil from "./pages/Perfil";
 import Relatorios from "./pages/Relatorios";
 import Triagem from "./pages/TriagemPage";
 import Convites from "./pages/ConvitesPage";
+import Ministerios from "./pages/MinisteriosPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import CadastroPage from "./pages/CadastroPage";
@@ -34,6 +35,7 @@ const pageTitles: Record<string, string> = {
   "/relatorios": "Relatórios",
   "/triagem": "Triagem",
   "/convites": "Convites",
+  "/ministerios": "Ministérios",
 };
 
 function AppLayout() {
@@ -236,6 +238,7 @@ function AppLayout() {
             <Route path="/relatorios" element={<Relatorios />} />
             <Route path="/triagem" element={<Triagem />} />
             <Route path="/convites" element={<Convites />} />
+            <Route path="/ministerios" element={<Ministerios />} />
             <Route path="*" element={<div className="text-center py-20"><p className="text-lg font-semibold text-[var(--color-text)]">Página não encontrada</p><p className="text-sm text-[var(--color-muted)] mt-2">O endpoint que você procura não existe.</p></div>} />
           </Routes>
         </main>
