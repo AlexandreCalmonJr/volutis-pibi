@@ -54,6 +54,14 @@ function PageLoader() {
   );
 }
 
+function LeaderRoute({ children }: { children: React.ReactNode }) {
+  const user = useAuth((s) => s.user);
+  if (user?.role !== "ADMIN" && user?.role !== "MINISTRY_LEADER") {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
 function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -296,8 +304,8 @@ function AppLayout() {
               <Route path="/voluntarios" element={<Voluntarios />} />
               <Route path="/comunicacao" element={<Comunicacao />} />
               <Route path="/perfil" element={<Perfil />} />
-              <Route path="/louvor" element={<Louvor />} />
-              <Route path="/relatorios" element={<Relatorios />} />
+              <Route path="/louvor" element={<LeaderRoute><Louvor /></LeaderRoute>} />
+              <Route path="/relatorios" element={<LeaderRoute><Relatorios /></LeaderRoute>} />
               <Route path="/triagem" element={<Triagem />} />
               <Route path="/usuarios" element={<UsuariosAdmin />} />
               <Route path="/convites" element={<Convites />} />

@@ -54,11 +54,10 @@ export default function Comunicacao() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const tabParam = searchParams.get("tab");
-  const requestedTab = tabParam === "notificacoes" || tabParam === "whatsapp" || tabParam === "feed" ? tabParam : "chat";
   const requestedEventId = searchParams.get("eventId");
   const highlightedNotificationId = searchParams.get("notificationId");
   const highlightedMessageId = searchParams.get("messageId");
-  const [aba, setAba] = useState<"chat" | "feed" | "notificacoes" | "whatsapp">(requestedTab);
+  const [aba, setAba] = useState<"chat" | "feed" | "notificacoes" | "whatsapp">("chat");
   const [events, setEvents] = useState<Event[]>([]);
   const [eventId, setEventId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -94,6 +93,8 @@ export default function Comunicacao() {
   const [disconnecting, setDisconnecting] = useState(false);
 
   const user = useAuth((s) => s.user);
+  const isLeaderOrAdmin = user?.role === "ADMIN" || user?.role === "MINISTRY_LEADER";
+  const requestedTab = tabParam === "notificacoes" ? tabParam : tabParam === "whatsapp" && isLeaderOrAdmin ? tabParam : tabParam === "feed" ? tabParam : "chat";
   const notifications = useNotifications((s) => s.items);
   const setNotifications = useNotifications((s) => s.setItems);
   const markReadLocal = useNotifications((s) => s.markReadLocal);
@@ -461,17 +462,17 @@ export default function Comunicacao() {
             Comunicação
           </h1>
           <p className="text-[#5b5077] text-sm mt-1">
-            Chat por evento · Notificações · WhatsApp & Comunicados
+            Chat por evento · Notificações{isLeaderOrAdmin ? " · WhatsApp & Comunicados" : ""}
           </p>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white border border-[#e5e0f8] rounded-xl p-1 w-fit">
-        {(["chat", "feed", "notificacoes", "whatsapp"] as const).map((a) => (
+        {(["chat", "feed", "notificacoes", ...(isLeaderOrAdmin ? ["whatsapp"] : [])] as const).map((a) => (
           <button
             key={a}
-            onClick={() => handleChangeTab(a)}
+            onClick={() => handleChangeTab(a as any)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${aba === a ? "text-white shadow-sm" : "text-[#7c6ea8] hover:bg-gray-50"}`}
             style={aba === a ? { backgroundColor: "#7c3aed" } : {}}
           >
@@ -836,8 +837,8 @@ export default function Comunicacao() {
         </div>
       )}
 
-      {/* WhatsApp & Disparos */}
-      {aba === "whatsapp" && (
+      {/* WhatsApp & Disparos - only for leaders/admins */}
+      {aba === "whatsapp" && isLeaderOrAdmin && (
         <div className="space-y-6">
           {/* Status Bar */}
           <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6">

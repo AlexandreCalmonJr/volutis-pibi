@@ -409,6 +409,12 @@ export default function Perfil() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">E-mail</label>
+              <input value={user?.email ?? ""} readOnly className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-[#faf8ff] cursor-not-allowed focus:outline-none" />
+              <p className="mt-1.5 text-xs text-[#7c6ea8]">O e-mail está vinculado à sua conta e não pode ser alterado por aqui.</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">Foto (URL)</label>
