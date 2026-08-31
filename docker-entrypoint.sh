@@ -3,6 +3,9 @@ set -e
 
 cd /app/server
 
+echo "📦 Marcando baseline como aplicada (idempotente)..."
+npx prisma migrate resolve --applied 20260831000000_postgres_baseline 2>/dev/null || true
+
 echo "📦 Sincronizando schema do banco de dados (Prisma)..."
 if npx prisma migrate deploy; then
   echo "✅ Migrations aplicadas com sucesso."
