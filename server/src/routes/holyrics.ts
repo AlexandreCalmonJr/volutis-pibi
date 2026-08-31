@@ -10,6 +10,16 @@ const configSchema = z.object({
   localPort: z.number().int().positive().optional(),
   token: z.string().optional(),
   apiKey: z.string().optional(),
+}).superRefine((value, ctx) => {
+  if (value.mode === "local") {
+    if (!value.localIp) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["localIp"], message: "Informe o IP local do Holyrics" });
+    if (!value.localPort) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["localPort"], message: "Informe a porta local do Holyrics" });
+    if (!value.token) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["token"], message: "Informe o token local do Holyrics" });
+  }
+  if (value.mode === "online") {
+    if (!value.apiKey) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["apiKey"], message: "Informe a API key do Holyrics" });
+    if (!value.token) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["token"], message: "Informe o token do Holyrics" });
+  }
 });
 
 async function getChurch(auth: AuthUser) {
@@ -73,10 +83,23 @@ export async function holyricsRoutes(app: FastifyInstance) {
     return {
       configured: true,
       connected: result.status === "ok",
+      mode: church.holyricsMode,
       version: result.data?.version ?? null,
       permissions: result.data?.permissions ?? null,
       error: result.error ?? null,
+      help: church.holyricsMode === "local"
+        ? "No modo local, o Holyrics precisa estar aberto na mesma rede e com o API Server ativado."
+        : "No modo online, confirme token e API key válidos no painel do Holyrics.",
     };
+  });
+
+  app.post("/holyrics/test", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
+    const church = await getChurch(req.user as AuthUser);
+    if (!church) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+    if (!isConfigured(church)) return reply.code(409).send({ error: "Holyrics não configurado", code: "NOT_CONFIGURED" });
+    const result = await callHolyrics(church, "GetTokenInfo");
+    if (result.status !== "ok") return reply.code(502).send({ connected: false, error: result.error });
+    return { connected: true, version: result.data?.version ?? null, permissions: result.data?.permissions ?? null };
   });
 
   // ── Importação de músicas ────────────────────────────────
@@ -91,20 +114,27 @@ export async function holyricsRoutes(app: FastifyInstance) {
     for (const hs of result.data ?? []) {
       if (!hs.id || !hs.title) continue;
       const existing = await prisma.song.findFirst({
-        where: { churchId: church.id, holyricsId: String(hs.id) },
+        where: {
+          churchId: church.id,
+          OR: [
+            { holyricsId: String(hs.id) },
+            { title: hs.title, artist: hs.artist || null },
+          ],
+        },
       });
       const data = {
         title: hs.title,
         artist: hs.artist || null,
         originalKey: hs.key || null,
         bpm: hs.bpm ? Math.round(hs.bpm) : null,
+        holyricsId: String(hs.id),
       };
       if (existing) {
         await prisma.song.update({ where: { id: existing.id }, data });
         updated++;
       } else {
         await prisma.song.create({
-          data: { ...data, holyricsId: String(hs.id), churchId: church.id },
+          data: { ...data, churchId: church.id },
         });
         created++;
       }
