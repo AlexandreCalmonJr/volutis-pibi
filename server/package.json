@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:baseline:mark": "prisma migrate resolve --applied 20260831000000_postgres_baseline",
+    "push:vapid": "web-push generate-vapid-keys",
     "seed": "tsx prisma/seed.ts",
     "test": "tsx src/tests/smoke.ts",
     "test:all": "tsx src/tests/run-all.ts",
@@ -30,12 +31,14 @@
     "prisma": "^6.2.1",
     "qrcode": "^1.5.4",
     "tsx": "^4.19.2",
+    "web-push": "^3.6.7",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.10.5",
     "@types/qrcode": "^1.5.6",
+    "@types/web-push": "^3.6.4",
     "@types/ws": "^8.18.1",
     "typescript": "^5.7.2"
   }

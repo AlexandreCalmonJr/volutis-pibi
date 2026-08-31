@@ -23,6 +23,7 @@ import { applicationRoutes } from "./routes/applications.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { adminRoutes } from "./routes/admin.js";
 import { notificationRoutes } from "./routes/notifications.js";
+import { pushRoutes } from "./routes/push.js";
 import { whatsappWebhookRoutes } from "./routes/whatsapp-webhook.js";
 import { websocketHandler } from "./websocket/handler.js";
 import { startReminderScheduler } from "./services/scheduler.service.js";
@@ -91,6 +92,7 @@ export async function buildServer() {
   await app.register(dashboardRoutes, { prefix: "/api" });
   await app.register(adminRoutes, { prefix: "/api" });
   await app.register(notificationRoutes, { prefix: "/api" });
+  await app.register(pushRoutes, { prefix: "/api" });
   await app.register(whatsappWebhookRoutes, { prefix: "/api" });
   await app.register(websocketHandler);
 

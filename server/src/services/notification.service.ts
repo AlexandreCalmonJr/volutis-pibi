@@ -4,6 +4,7 @@
  */
 import type { WebSocket } from "ws";
 import { prisma } from "../lib/db.js";
+import { sendPushToMember } from "./push.service.js";
 
 const clients = new Map<string, Set<WebSocket>>();
 
@@ -85,8 +86,16 @@ export async function notifyMember(memberId: string, n: Omit<Notification, "id" 
 
   const message = serializeNotification(created);
   const payload = JSON.stringify(message);
+  let deliveredRealtime = false;
   for (const socket of clients.get(memberId) ?? []) {
-    if (socket.readyState === socket.OPEN) socket.send(payload);
+    if (socket.readyState === socket.OPEN) {
+      socket.send(payload);
+      deliveredRealtime = true;
+    }
+  }
+
+  if (!deliveredRealtime) {
+    await sendPushToMember(memberId, message).catch(() => {});
   }
 
   return message;

@@ -1,5 +1,5 @@
 // Service Worker — Volutis PIBI
-const CACHE_VERSION = "volutis-pibi-v3";
+const CACHE_VERSION = "volutis-pibi-v4";
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();
@@ -99,4 +99,32 @@ self.addEventListener("fetch", (e) => {
   );
 });
 
+self.addEventListener("push", (event) => {
+  const payload = event.data ? event.data.json() : { title: "Volutis PIBI", body: "Você recebeu uma nova notificação." };
+  const title = payload.title || "Volutis PIBI";
+  const options = {
+    body: payload.body || "Abra o aplicativo para ver os detalhes.",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: payload.tag || "volutis-notification",
+    data: payload.data || {},
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/comunicacao?tab=notificacoes";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) {
+          if ("navigate" in client) client.navigate(targetUrl).catch(() => {});
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow ? self.clients.openWindow(targetUrl) : undefined;
+    })
+  );
+});
 

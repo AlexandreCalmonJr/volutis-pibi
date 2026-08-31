@@ -101,6 +101,7 @@ model Member {
   swapRequests     SwapRequest[]
   applications     Application[]
   notifications    UserNotification[]
+  pushSubscriptions PushSubscription[]
   transferRequests MinistryTransferRequest[] @relation("TransferMember")
   points           Int              @default(0)
 
@@ -368,6 +369,22 @@ model UserNotification {
 
   @@index([memberId, createdAt])
   @@index([memberId, readAt])
+}
+
+model PushSubscription {
+  id             String   @id @default(cuid())
+  endpoint       String   @unique
+  p256dh         String
+  auth           String
+  userAgent      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastNotifiedAt DateTime?
+
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId String
+
+  @@index([memberId])
 }
 
 model MinistryTransferRequest {

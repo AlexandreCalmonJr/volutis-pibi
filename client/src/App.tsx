@@ -24,6 +24,7 @@ import { useAuth, useNotifications, type NotificationItem } from "./store";
 import { api } from "./api";
 import { resolveNotificationTarget } from "./lib/notifications";
 import { Avatar } from "./components/Avatar";
+import { getPushConfig, registerPushSubscription } from "./push";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -46,6 +47,12 @@ function AppLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [pushAvailable, setPushAvailable] = useState(false);
+  const [pushEnabledServer, setPushEnabledServer] = useState(false);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">(
+    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported"
+  );
+  const [pushBusy, setPushBusy] = useState(false);
   const user = useAuth((s) => s.user);
   const notifications = useNotifications((s) => s.items);
   const setNotifications = useNotifications((s) => s.setItems);
@@ -62,6 +69,19 @@ function AppLayout() {
       .catch(() => setNotifications([]))
       .finally(() => setNotificationsLoading(false));
   }, [user, setNotifications]);
+
+  useEffect(() => {
+    if (!user || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return;
+    setPushAvailable(true);
+    getPushConfig()
+      .then((config) => {
+        setPushEnabledServer(config.enabled);
+        if (config.enabled && Notification.permission === "granted") {
+          return registerPushSubscription();
+        }
+      })
+      .catch(() => setPushEnabledServer(false));
+  }, [user]);
 
   const unreadCount = useMemo(
     () => notifications.filter((item) => !item.readAt).length,
@@ -105,6 +125,19 @@ function AppLayout() {
     }
     const target = resolveNotificationTarget(item);
     navigate(target.path);
+  }
+
+  async function handleEnablePush() {
+    if (!("Notification" in window)) return;
+    setPushBusy(true);
+    try {
+      const permission = await Notification.requestPermission();
+      setPushPermission(permission);
+      if (permission !== "granted") throw new Error("Permissão de notificação não concedida.");
+      await registerPushSubscription();
+    } finally {
+      setPushBusy(false);
+    }
   }
 
   return (
@@ -178,6 +211,19 @@ function AppLayout() {
                       Marcar todas
                     </button>
                   </div>
+
+                  {pushAvailable && pushEnabledServer && pushPermission !== "granted" && (
+                    <div className="px-4 py-3 border-b border-[var(--color-border)] bg-violet-50/60">
+                      <p className="text-xs font-medium text-[var(--color-text)]">Ative as notificações do dispositivo para receber alertas mesmo com o app fechado.</p>
+                      <button
+                        onClick={handleEnablePush}
+                        disabled={pushBusy || pushPermission === "denied"}
+                        className="mt-2 text-xs font-semibold text-[var(--color-primary)] disabled:opacity-40"
+                      >
+                        {pushPermission === "denied" ? "Permissão bloqueada no navegador" : pushBusy ? "Ativando..." : "Ativar notificações no celular"}
+                      </button>
+                    </div>
+                  )}
 
                   <div className="max-h-[420px] overflow-y-auto">
                     {notificationsLoading ? (

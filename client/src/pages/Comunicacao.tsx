@@ -12,16 +12,24 @@ interface Event {
 }
 
 interface ChatSender {
-  id: string;
   name: string;
-  photoUrl?: string;
+  photoUrl?: string | null;
+  avatarKey?: string | null;
 }
 
 interface ChatMessage {
   id: string;
-  text: string;
+  content: string;
   createdAt: string;
-  sender: ChatSender;
+  authorName: string;
+}
+
+function toChatSender(message: ChatMessage): ChatSender {
+  return {
+    name: message.authorName,
+    photoUrl: null,
+    avatarKey: null,
+  };
 }
 
 interface Ministry {
@@ -58,6 +66,7 @@ export default function Comunicacao() {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   // WhatsApp state
   const [waStatus, setWaStatus] = useState<WhatsAppStatus | null>(null);
@@ -210,11 +219,38 @@ export default function Comunicacao() {
   useEffect(() => {
     if (!eventId) return;
     setLoadingMessages(true);
+    setChatError(null);
     api<ChatMessage[]>(`/events/${eventId}/chat`)
       .then(setMessages)
-      .catch(() => setMessages([]))
+      .catch((err: any) => {
+        setMessages([]);
+        setChatError(err?.message || "Não foi possível carregar as mensagens.");
+      })
       .finally(() => setLoadingMessages(false));
   }, [eventId]);
+
+  useEffect(() => {
+    if (aba !== "chat" || !eventId) return;
+    const interval = setInterval(() => {
+      const last = messages[messages.length - 1];
+      const qs = last?.createdAt ? `?after=${encodeURIComponent(last.createdAt)}` : "";
+      api<ChatMessage[]>(`/events/${eventId}/chat${qs}`)
+        .then((incoming) => {
+          if (!incoming.length) return;
+          setMessages((prev) => {
+            const seen = new Set(prev.map((item) => item.id));
+            const merged = [...prev];
+            for (const item of incoming) {
+              if (!seen.has(item.id)) merged.push(item);
+            }
+            return merged;
+          });
+        })
+        .catch(() => {});
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [aba, eventId, messages]);
 
   const selectedEvent = events.find((e) => e.id === eventId);
 
@@ -223,14 +259,16 @@ export default function Comunicacao() {
     setSending(true);
     const text = novaMensagem.trim();
     setNovaMensagem("");
+    setChatError(null);
     try {
       const created = await api<ChatMessage>(`/events/${eventId}/chat`, {
         method: "POST",
-        body: { text },
+        body: { content: text },
       });
       setMessages((prev) => [...prev, created]);
-    } catch {
+    } catch (err: any) {
       setNovaMensagem(text);
+      setChatError(err?.message || "Não foi possível enviar a mensagem.");
     } finally {
       setSending(false);
     }
@@ -294,7 +332,7 @@ export default function Comunicacao() {
   }
 
   function isMyMessage(msg: ChatMessage) {
-    return user?.memberId ? msg.sender.id === user.memberId : msg.sender.id === user?.id;
+    return msg.authorName === (user?.memberName || user?.email || "");
   }
 
   function formatTime(dateStr: string) {
@@ -458,6 +496,11 @@ export default function Comunicacao() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {chatError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {chatError}
+                </div>
+              )}
               {!eventId ? (
                 <div className="flex-1 flex items-center justify-center h-full">
                   <p className="text-sm text-[#7c6ea8]">Selecione um evento para ver as mensagens.</p>
@@ -473,14 +516,15 @@ export default function Comunicacao() {
               ) : (
                 messages.map((msg) => {
                   const mine = isMyMessage(msg);
+                  const sender = toChatSender(msg);
                   return (
                     <div key={msg.id} className={`flex gap-3 ${mine ? "flex-row-reverse" : ""} ${highlightedMessageId === msg.id ? "rounded-2xl ring-2 ring-[#7c3aed] p-2" : ""}`}>
                       {!mine && (
-                        <Avatar name={msg.sender.name} size={32} className="flex-shrink-0 mt-0.5" />
+                        <Avatar name={sender.name} photoUrl={sender.photoUrl} avatarKey={sender.avatarKey} size={32} className="flex-shrink-0 mt-0.5" />
                       )}
                       <div className={`max-w-sm ${mine ? "items-end" : "items-start"} flex flex-col`}>
                         {!mine && (
-                          <p className="text-xs font-medium text-[#5b5077] mb-1">{msg.sender.name}</p>
+                          <p className="text-xs font-medium text-[#5b5077] mb-1">{sender.name}</p>
                         )}
                         <div
                           className="px-4 py-2.5 rounded-2xl text-sm"
@@ -490,7 +534,7 @@ export default function Comunicacao() {
                               : { backgroundColor: "#f5f3ff", color: "#1e1b4b", borderBottomLeftRadius: "4px" }
                           }
                         >
-                          {msg.text}
+                          {msg.content}
                         </div>
                         <p className="text-xs text-[#7c6ea8] mt-1">{formatTime(msg.createdAt)}</p>
                       </div>
