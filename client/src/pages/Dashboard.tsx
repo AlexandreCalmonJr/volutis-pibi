@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../store";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 
 interface DashboardEvent {
   id: string;
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const user = useAuth((s) => s.user);
   const navigate = useNavigate();
   const displayName = user?.memberName || (user?.email?.split("@")[0] ?? "Usuário");
+  const { isSupported, isSubscribed, permission, loading: pushLoading, busy: pushBusy, error: pushError, enablePush } = usePushNotifications();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [seedOpen, setSeedOpen] = useState(false);
@@ -64,6 +66,51 @@ export default function Dashboard() {
   const [seedFeedback, setSeedFeedback] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [pushTestBusy, setPushTestBusy] = useState(false);
   const [pushTestFeedback, setPushTestFeedback] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [pushPanelOpen, setPushPanelOpen] = useState(false);
+  const [pushMembers, setPushMembers] = useState<{ id: string; name: string; email: string | null; pushDevices: number }[]>([]);
+  const [pushTarget, setPushTarget] = useState<"ALL" | string>("ALL");
+  const [pushTitle, setPushTitle] = useState("Aviso da Igreja 📢");
+  const [pushBody, setPushBody] = useState("");
+  const [pushMembersLoading, setPushMembersLoading] = useState(false);
+
+  async function openPushPanel() {
+    setPushPanelOpen(true);
+    setPushTestFeedback(null);
+    setPushMembersLoading(true);
+    try {
+      const result = await api<{ pushConfigured: boolean; members: typeof pushMembers }>("/admin/members-push");
+      setPushMembers(result.members);
+    } catch (e: any) {
+      setPushTestFeedback({ type: "error", text: e.message || "Não foi possível carregar membros." });
+    } finally {
+      setPushMembersLoading(false);
+    }
+  }
+
+  async function runPushTest() {
+    if (!isAdmin || !pushBody.trim()) return;
+    setPushTestBusy(true);
+    setPushTestFeedback(null);
+    try {
+      if (pushTarget === "ALL") {
+        const result = await api<{ ok: boolean; sent: number; total: number; message: string }>("/admin/broadcast", {
+          method: "POST",
+          body: { title: pushTitle, body: pushBody },
+        });
+        setPushTestFeedback({ type: result.ok ? "ok" : "error", text: result.message });
+      } else {
+        const result = await api<{ ok: boolean; sent: number; subscriptions: number; message: string }>("/admin/push-test", {
+          method: "POST",
+          body: { memberId: pushTarget },
+        });
+        setPushTestFeedback({ type: result.ok ? "ok" : "error", text: result.message });
+      }
+    } catch (e: any) {
+      setPushTestFeedback({ type: "error", text: e.message || "Não foi possível enviar a notificação." });
+    } finally {
+      setPushTestBusy(false);
+    }
+  }
   const [seedOptions, setSeedOptions] = useState({
     removeVolunteers: true,
     removeEvents: true,
@@ -121,22 +168,6 @@ export default function Dashboard() {
     }
   }
 
-  async function runPushTest() {
-    if (!isAdmin) return;
-    setPushTestBusy(true);
-    setPushTestFeedback(null);
-    try {
-      const result = await api<{ ok: boolean; sent: number; subscriptions: number; message: string }>("/admin/push-test", {
-        method: "POST",
-        body: {},
-      });
-      setPushTestFeedback({ type: result.ok ? "ok" : "error", text: result.message });
-    } catch (e: any) {
-      setPushTestFeedback({ type: "error", text: e.message || "Não foi possível disparar o teste de notificação." });
-    } finally {
-      setPushTestBusy(false);
-    }
-  }
 
   const now = new Date();
   const dateStr = now.toLocaleDateString("pt-BR", {
@@ -167,11 +198,13 @@ export default function Dashboard() {
           <div className="flex gap-2 flex-wrap justify-end">
             {isAdmin && (
               <button
-                onClick={runPushTest}
-                disabled={pushTestBusy}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#c4b5fd] text-[#7c3aed] bg-white hover:bg-[#f5f3ff] disabled:opacity-50 transition-all"
+                onClick={openPushPanel}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#c4b5fd] text-[#7c3aed] bg-white hover:bg-[#f5f3ff] transition-all"
               >
-                {pushTestBusy ? "Testando push..." : "Testar notificação no celular"}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                Enviar notificação
               </button>
             )}
             {isAdmin && (
@@ -196,9 +229,38 @@ export default function Dashboard() {
         )}
       </div>
 
-      {pushTestFeedback && (
-        <div className={`rounded-2xl border px-4 py-3 text-sm ${pushTestFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
-          {pushTestFeedback.text}
+      {isSupported && !pushLoading && !isSubscribed && (
+        <div className="rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-500/10 via-indigo-500/10 to-purple-500/10 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-violet-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-violet-500/20">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-[var(--color-text)]">
+                Ativar notificações no celular 📲
+              </h3>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 max-w-xl">
+                Não perca suas escalas! Receba lembretes automáticos e avisos importantes diretamente na tela de bloqueio, mesmo com o app fechado.
+              </p>
+              {pushError && (
+                <p className="text-xs text-rose-600 font-medium mt-1">
+                  {pushError}
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={enablePush}
+            disabled={pushBusy || permission === "denied"}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs sm:text-sm font-semibold transition-all shadow-md shadow-violet-500/20 hover:shadow-lg flex items-center justify-center gap-2 flex-shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            {pushBusy ? "Ativando..." : permission === "denied" ? "Permissão bloqueada" : "Ativar no meu celular"}
+          </button>
         </div>
       )}
 
@@ -286,6 +348,96 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {pushPanelOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setPushPanelOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-[var(--color-text)]">Enviar notificação</h2>
+                <p className="text-sm text-[var(--color-text-secondary)] mt-1">Envie para um membro específico ou para todos</p>
+              </div>
+              <button onClick={() => setPushPanelOpen(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-lg">×</button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {pushTestFeedback && (
+                <div className={`rounded-xl border px-4 py-3 text-sm ${pushTestFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+                  {pushTestFeedback.text}
+                </div>
+              )}
+
+              {pushMembersLoading ? (
+                <div className="py-8 text-center text-sm text-[var(--color-muted)]">Carregando membros...</div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-semibold text-[var(--color-text)] mb-1.5">Destinatário</label>
+                    <select
+                      value={pushTarget}
+                      onChange={(e) => setPushTarget(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)]"
+                    >
+                      <option value="ALL">📢 Todos os membros ({pushMembers.length})</option>
+                      {pushMembers.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} {m.pushDevices > 0 ? `(${m.pushDevices} dispositivo${m.pushDevices > 1 ? "s" : ""})` : "(sem push ativo)"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-[var(--color-text)] mb-1.5">Título</label>
+                    <input
+                      value={pushTitle}
+                      onChange={(e) => setPushTitle(e.target.value)}
+                      placeholder="Ex: Aviso importante"
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-primary)]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-[var(--color-text)] mb-1.5">Mensagem</label>
+                    <textarea
+                      value={pushBody}
+                      onChange={(e) => setPushBody(e.target.value)}
+                      placeholder="Digite a mensagem da notificação..."
+                      rows={3}
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-primary)] resize-none"
+                    />
+                  </div>
+
+                  {pushTarget !== "ALL" && (() => {
+                    const selected = pushMembers.find((m) => m.id === pushTarget);
+                    return selected && selected.pushDevices === 0 ? (
+                      <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                        ⚠️ Este membro não possui dispositivos com push ativo. A notificação aparecerá no app, mas não chegará como notificação no celular. O membro precisa abrir o app e ativar as notificações.
+                      </div>
+                    ) : null;
+                  })()}
+
+                  <div className="rounded-xl bg-violet-50/60 border border-violet-200 px-4 py-3 text-xs text-violet-800">
+                    💡 A notificação será entregue via push no celular (se o membro ativou) e também aparecerá dentro do app em tempo real via WebSocket.
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-[var(--color-border)] flex justify-end gap-3">
+              <button onClick={() => setPushPanelOpen(false)} className="px-4 py-2 rounded-xl border border-[var(--color-border)] text-sm font-semibold text-[var(--color-text-secondary)]">Fechar</button>
+              <button
+                onClick={runPushTest}
+                disabled={pushTestBusy || !pushBody.trim() || pushMembersLoading}
+                className="px-5 py-2 rounded-xl bg-[#7c3aed] text-white text-sm font-semibold disabled:opacity-50 hover:bg-[#6d28d9] transition-colors"
+              >
+                {pushTestBusy ? "Enviando..." : pushTarget === "ALL" ? `Enviar para todos (${pushMembers.length})` : "Enviar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {seedOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

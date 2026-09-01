@@ -86,17 +86,19 @@ export async function notifyMember(memberId: string, n: Omit<Notification, "id" 
 
   const message = serializeNotification(created);
   const payload = JSON.stringify(message);
-  let deliveredRealtime = false;
+
+  // Entrega em tempo real via WebSocket (toast in-app)
   for (const socket of clients.get(memberId) ?? []) {
     if (socket.readyState === socket.OPEN) {
       socket.send(payload);
-      deliveredRealtime = true;
     }
   }
 
-  if (!deliveredRealtime) {
-    await sendPushToMember(memberId, message).catch(() => {});
-  }
+  // Push notification — sempre envia, independente do WebSocket,
+  // para que a notificação chegue mesmo com o app fechado/em background.
+  await sendPushToMember(memberId, message).catch((err) => {
+    console.warn(`[push] falha ao enviar push para membro ${memberId}:`, err?.message ?? err);
+  });
 
   return message;
 }

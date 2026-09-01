@@ -1,6 +1,7 @@
 import { useAuth } from "../store";
 import { useNavigate } from "react-router-dom";
 import { Avatar } from "./Avatar";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 
 export type Page = string;
 
@@ -29,6 +30,7 @@ export default function Sidebar({ currentPage, onNavigate, mobileOpen, onMobileC
   const user = useAuth((s) => s.user);
   const logout = useAuth((s) => s.logout);
   const navigate = useNavigate();
+  const { isSupported, isSubscribed, permission, loading, busy, error, enablePush } = usePushNotifications();
 
   const handleLogout = () => {
     logout();
@@ -101,6 +103,41 @@ export default function Sidebar({ currentPage, onNavigate, mobileOpen, onMobileC
             );
           })}
         </nav>
+
+        <div className="px-3 py-2">
+          {isSupported && !loading && (
+            <div className="rounded-xl p-3 bg-white/5 border border-white/10 text-xs">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className={`w-2 h-2 rounded-full ${isSubscribed ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+                <span className="text-white font-medium">
+                  {isSubscribed ? "Notificações ativas" : "Alertas no celular"}
+                </span>
+              </div>
+              {!isSubscribed ? (
+                <>
+                  <p className="text-indigo-300 text-[11px] mb-2.5 leading-relaxed">
+                    Receba avisos de escalas e eventos mesmo com o app fechado.
+                  </p>
+                  <button
+                    onClick={enablePush}
+                    disabled={busy || permission === "denied"}
+                    className="w-full py-1.5 px-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    {busy ? "Ativando..." : permission === "denied" ? "Bloqueado no navegador" : "Ativar no Celular"}
+                  </button>
+                  {error && <p className="text-rose-300 text-[10px] mt-1.5">{error}</p>}
+                </>
+              ) : (
+                <p className="text-emerald-300/80 text-[11px]">
+                  Dispositivo registrado para receber escalas em segundo plano.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="px-4 py-4 border-t border-white/10">
           <div className="flex items-center gap-3">

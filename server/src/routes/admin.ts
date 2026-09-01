@@ -4,6 +4,7 @@ import { z } from "zod";
 import { fromJson, prisma, toJson } from "../lib/db.js";
 import { requireRole, type AuthUser } from "../middleware/auth.js";
 import { countPushSubscriptions, isPushConfigured, sendPushToMember } from "../services/push.service.js";
+import { notifyMember } from "../services/notification.service.js";
 
 const SEED_VOLUNTEER_EMAILS = ["joao@pibi.org.br", "maria@pibi.org.br", "pedro@pibi.org.br"];
 const SEED_EVENT_TITLES = ["Culto Domingo Manhã", "Culto Domingo Noite", "Culto de Oração"];
@@ -382,6 +383,81 @@ export async function adminRoutes(app: FastifyInstance) {
       message: result.sent > 0
         ? `Notificação de teste enviada para ${result.sent} dispositivo(s).`
         : "Nenhum dispositivo aceitou o push. Verifique a permissão no celular e reinstale a assinatura, se necessário.",
+    };
+  });
+
+  // Lista membros com status de push (para selecionar destinatários)
+  app.get("/admin/members-push", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+
+    const members = await prisma.member.findMany({
+      where: { churchId: auth.churchId, approvalStatus: "ACTIVE" },
+      include: { user: true },
+      orderBy: { name: "asc" },
+    });
+
+    const result = await Promise.all(
+      members.map(async (m) => {
+        const pushDevices = await countPushSubscriptions(m.id);
+        return {
+          id: m.id,
+          name: m.name,
+          email: m.user?.email ?? null,
+          pushDevices,
+        };
+      })
+    );
+
+    return {
+      pushConfigured: isPushConfigured(),
+      members: result,
+    };
+  });
+
+  // Envia notificação para TODOS os membros da igreja
+  const broadcastSchema = z.object({
+    title: z.string().min(1).max(200),
+    body: z.string().min(1).max(1000),
+  });
+
+  app.post("/admin/broadcast", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+
+    const { title, body } = broadcastSchema.parse(req.body);
+
+    const members = await prisma.member.findMany({
+      where: { churchId: auth.churchId, approvalStatus: "ACTIVE" },
+      select: { id: true, name: true },
+    });
+
+    if (!members.length) {
+      return reply.code(409).send({ error: "Nenhum membro ativo na igreja" });
+    }
+
+    let sent = 0;
+    let failed = 0;
+    for (const member of members) {
+      try {
+        await notifyMember(member.id, {
+          type: "ANNOUNCEMENT",
+          title,
+          body,
+          data: { source: "admin-broadcast" },
+        });
+        sent++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return {
+      ok: sent > 0,
+      sent,
+      failed,
+      total: members.length,
+      message: `Notificação enviada para ${sent} de ${members.length} membro(s).${failed > 0 ? ` ${failed} falha(s).` : ""}`,
     };
   });
 

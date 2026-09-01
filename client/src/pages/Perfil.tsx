@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../store";
 import { AVATAR_OPTIONS, Avatar, getInitials } from "../components/Avatar";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 
 interface MinistryLink {
   id: string;
@@ -103,6 +104,7 @@ export default function Perfil() {
   const setSession = useAuth((s) => s.setSession);
   const setTokens = useAuth((s) => s.setTokens);
   const logout = useAuth((s) => s.logout);
+  const { isSupported, isSubscribed, permission, loading: pushLoading, busy: pushBusy, error: pushError, enablePush, disablePush } = usePushNotifications();
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [schedule, setSchedule] = useState<MyScheduleResponse["items"]>([]);
@@ -550,6 +552,79 @@ export default function Perfil() {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-[#1e1b4b]">Notificações no Celular 📲</h3>
+              {isSupported && (
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isSubscribed ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                  <span className={`w-2 h-2 rounded-full ${isSubscribed ? "bg-emerald-500" : "bg-amber-500"}`} />
+                  {isSubscribed ? "Ativas neste aparelho" : "Inativas"}
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs text-[#7c6ea8] leading-relaxed mb-4">
+              Ative as notificações para receber suas escalas, lembretes de culto e mensagens importantes mesmo quando o aplicativo estiver fechado.
+            </p>
+
+            {pushError && (
+              <div className="mb-3 rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                {pushError}
+              </div>
+            )}
+
+            {!isSupported ? (
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
+                ⚠️ Este navegador ou modo de navegação não suporta notificações push. No iPhone, adicione o app à Tela de Início via Safari (iOS 16.4+).
+              </div>
+            ) : isSubscribed ? (
+              <div className="space-y-3">
+                <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-emerald-900">Seu dispositivo está configurado!</p>
+                    <p className="text-[11px] text-emerald-700 mt-0.5">
+                      Você receberá notificações sempre que for escalado ou houver comunicados.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={disablePush}
+                  disabled={pushBusy}
+                  className="w-full py-2 px-3 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  {pushBusy ? "Desativando..." : "Desativar notificações neste aparelho"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={enablePush}
+                  disabled={pushBusy || permission === "denied"}
+                  className="w-full py-2.5 px-4 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  {pushBusy ? "Ativando..." : permission === "denied" ? "Permissão bloqueada no navegador" : "Ativar Notificações no Celular"}
+                </button>
+
+                <div className="rounded-xl bg-violet-50/60 border border-violet-100 p-3 text-[11px] text-violet-800 space-y-1">
+                  <p className="font-semibold">💡 Dica de instalação:</p>
+                  <p>• <strong>Android</strong>: Toque em "Instalar" ou "Adicionar à tela inicial" no Chrome.</p>
+                  <p>• <strong>iPhone</strong>: No Safari, toque em Compartilhar ⎋ e escolha "Adicionar à Tela de Início".</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6">

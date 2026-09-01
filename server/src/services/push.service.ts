@@ -90,10 +90,16 @@ export async function removePushSubscription(memberId: string, endpoint: string)
 }
 
 export async function sendPushToMember(memberId: string, notification: Notification) {
-  if (!ensureConfigured()) return { sent: 0, skipped: true };
+  if (!ensureConfigured()) {
+    console.warn(`[push] VAPID não configurado — push não enviado para membro ${memberId}`);
+    return { sent: 0, skipped: true };
+  }
 
   const subscriptions = await prisma.pushSubscription.findMany({ where: { memberId } });
-  if (!subscriptions.length) return { sent: 0, skipped: true };
+  if (!subscriptions.length) {
+    console.warn(`[push] Membro ${memberId} não possui dispositivos registrados`);
+    return { sent: 0, skipped: true };
+  }
 
   const payload = JSON.stringify({
     title: notification.title,
@@ -127,7 +133,9 @@ export async function sendPushToMember(memberId: string, notification: Notificat
         });
         return true;
       } catch (error: any) {
+        console.error(`[push] Erro ao enviar para endpoint ${subscription.endpoint.slice(0, 60)}…:`, error?.statusCode ?? error?.message ?? error);
         if (error?.statusCode === 404 || error?.statusCode === 410) {
+          console.warn(`[push] Removendo subscription expirada/inválida (${error.statusCode})`);
           await prisma.pushSubscription.delete({ where: { id: subscription.id } }).catch(() => {});
         }
         return false;
@@ -135,5 +143,7 @@ export async function sendPushToMember(memberId: string, notification: Notificat
     })
   );
 
-  return { sent: results.filter((item) => item.status === "fulfilled" && item.value).length, skipped: false };
+  const sentCount = results.filter((item) => item.status === "fulfilled" && item.value).length;
+  console.log(`[push] Membro ${memberId}: ${sentCount}/${subscriptions.length} dispositivo(s) notificado(s) — "${notification.title}"`);
+  return { sent: sentCount, skipped: false };
 }
