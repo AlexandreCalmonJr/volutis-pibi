@@ -64,9 +64,6 @@ export function DevotionalCard() {
           <span className="px-3 py-1 rounded-full bg-violet-600 text-white text-[11px] font-bold uppercase tracking-wider shadow-sm">
             📖 Versículo do Dia
           </span>
-          <span className="text-xs text-[var(--color-muted)] font-medium capitalize">
-            {devotional.date}
-          </span>
         </div>
 
         <button

@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api";
+import { api, API_URL } from "../api";
 import { useAuth } from "../store";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { DevotionalCard } from "../components/DevotionalCard";
+import { AdminLogsModal } from "../components/AdminLogsModal";
 
 interface DashboardEvent {
   id: string;
@@ -73,6 +74,7 @@ export default function Dashboard() {
   const [pushTitle, setPushTitle] = useState("Aviso da Igreja 📢");
   const [pushBody, setPushBody] = useState("");
   const [pushMembersLoading, setPushMembersLoading] = useState(false);
+  const [logsModalOpen, setLogsModalOpen] = useState(false);
 
   async function openPushPanel() {
     setPushPanelOpen(true);
@@ -199,12 +201,27 @@ export default function Dashboard() {
           <div className="flex gap-2 flex-wrap justify-end">
             {isAdmin && (
               <button
+                onClick={() => setLogsModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 transition-all cursor-pointer shadow-sm"
+                title="Visualizar logs do sistema e status de dispositivos cadastrados"
+              >
+                <span>📊</span> Logs & Dispositivos
+              </button>
+            )}
+            {isAdmin && (
+              <button
                 onClick={async () => {
                   try {
-                    const res = await fetch("/api/admin/export/backup.json", {
-                      headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+                    const token = useAuth.getState().accessToken;
+                    const res = await fetch(`${API_URL}/api/admin/export/backup.json`, {
+                      headers: {
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                      },
                     });
-                    if (!res.ok) throw new Error("Erro ao gerar backup");
+                    if (!res.ok) {
+                      const errData = await res.json().catch(() => ({}));
+                      throw new Error(errData.error || `Erro ${res.status} ao gerar backup`);
+                    }
                     const blob = await res.blob();
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement("a");
@@ -540,6 +557,9 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Modal de Logs & Dispositivos do Administrador */}
+      <AdminLogsModal isOpen={logsModalOpen} onClose={() => setLogsModalOpen(false)} />
     </div>
   );
 }
