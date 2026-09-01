@@ -633,6 +633,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // ── Histórico de Auditoria (Audit Logs) ──────────────────────
   app.get("/admin/audit-logs", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
     const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
     const logs = await getAuditLogs(auth.churchId, 100);
     return reply.send({ logs });
   });
@@ -640,6 +641,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // ── Backup Completo da Igreja (JSON) ────────────────────────
   app.get("/admin/export/backup.json", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
     const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
     const churchId = auth.churchId;
 
     const [church, members, ministries, events, songs, invites, applications] = await Promise.all([

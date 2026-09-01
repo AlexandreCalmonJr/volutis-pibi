@@ -741,14 +741,16 @@ export async function scheduleRoutes(app: FastifyInstance) {
 
     const eventsIcs = items.map((item) => {
       const baseDate = new Date(item.event.date);
-      const [startH, startM] = (item.event.startTime || "19:00").split(":").map(Number);
+      const startH = item.event.startTime ? new Date(item.event.startTime).getHours() : 19;
+      const startM = item.event.startTime ? new Date(item.event.startTime).getMinutes() : 0;
       const start = new Date(baseDate);
-      start.setHours(startH || 19, startM || 0, 0, 0);
+      start.setHours(startH, startM, 0, 0);
 
       const end = new Date(start);
       if (item.event.endTime) {
-        const [endH, endM] = item.event.endTime.split(":").map(Number);
-        end.setHours(endH || 21, endM || 0, 0, 0);
+        const endH = new Date(item.event.endTime).getHours();
+        const endM = new Date(item.event.endTime).getMinutes();
+        end.setHours(endH, endM, 0, 0);
       } else {
         end.setHours(start.getHours() + 2); // Padrão de 2 horas de duração
       }
