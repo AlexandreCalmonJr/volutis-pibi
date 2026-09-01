@@ -3,6 +3,9 @@ import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
+import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
+import compress from "@fastify/compress";
 import { ZodError } from "zod";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -26,6 +29,7 @@ import { adminRoutes } from "./routes/admin.js";
 import { notificationRoutes } from "./routes/notifications.js";
 import { pushRoutes } from "./routes/push.js";
 import { whatsappWebhookRoutes } from "./routes/whatsapp-webhook.js";
+import { devotionalRoutes } from "./routes/devotional.js";
 import { websocketHandler } from "./websocket/handler.js";
 import { startReminderScheduler } from "./services/scheduler.service.js";
 import { initNativeWhatsApp } from "./services/whatsapp.service.js";
@@ -42,6 +46,34 @@ export async function buildServer() {
   if (isProd && (!jwtSecret || jwtSecret.length < 32 || jwtSecret.includes("dev"))) {
     throw new Error("JWT_SECRET ausente ou fraco em produção. Gere um com: openssl rand -hex 32");
   }
+
+  // Security headers with Helmet
+  await app.register(helmet, {
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false, // Disabled to allow media/iframes (YouTube, Spotify, etc.) and PWA service workers
+  });
+
+  // Response compression (gzip/brotli)
+  await app.register(compress, {
+    global: true,
+    threshold: 1024, // Compress responses larger than 1KB
+  });
+
+  // API Rate Limiting
+  await app.register(rateLimit, {
+    max: 300, // 300 requests per minute per IP
+    timeWindow: "1 minute",
+    allowList: (req) =>
+      req.url.startsWith("/health") ||
+      req.url.startsWith("/api/health") ||
+      req.url.startsWith("/ws"),
+    errorResponseBuilder: () => ({
+      statusCode: 429,
+      error: "Too Many Requests",
+      message: "Limite de requisições excedido. Tente novamente em 1 minuto.",
+    }),
+  });
 
   await app.register(cors, {
     origin: true,
@@ -76,14 +108,40 @@ export async function buildServer() {
     req.log.info({ method: req.method, url: req.url, statusCode: reply.statusCode }, "request completed");
   });
 
-  app.get("/health", async () => {
+  const getHealthStatus = async () => {
+    const memory = process.memoryUsage();
     try {
       await prisma.$queryRaw`SELECT 1`;
-      return { status: "ok", service: "volut-pibi-api", db: "connected", uptimeSec: Math.round(process.uptime()), version: process.env.APP_VERSION || "dev" };
+      return {
+        status: "ok",
+        service: "volut-pibi-api",
+        db: "connected",
+        uptimeSec: Math.round(process.uptime()),
+        memory: {
+          rssMb: Math.round(memory.rss / 1024 / 1024),
+          heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+        },
+        timestamp: new Date().toISOString(),
+        version: process.env.APP_VERSION || "0.1.0",
+      };
     } catch {
-      return { status: "degraded", service: "volut-pibi-api", db: "disconnected", uptimeSec: Math.round(process.uptime()), version: process.env.APP_VERSION || "dev" };
+      return {
+        status: "degraded",
+        service: "volut-pibi-api",
+        db: "disconnected",
+        uptimeSec: Math.round(process.uptime()),
+        memory: {
+          rssMb: Math.round(memory.rss / 1024 / 1024),
+          heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+        },
+        timestamp: new Date().toISOString(),
+        version: process.env.APP_VERSION || "0.1.0",
+      };
     }
-  });
+  };
+
+  app.get("/health", getHealthStatus);
+  app.get("/api/health", getHealthStatus);
 
   await app.register(websocket);
   await app.register(authRoutes, { prefix: "/api" });
@@ -104,6 +162,7 @@ export async function buildServer() {
   await app.register(notificationRoutes, { prefix: "/api" });
   await app.register(pushRoutes, { prefix: "/api" });
   await app.register(whatsappWebhookRoutes, { prefix: "/api" });
+  await app.register(devotionalRoutes, { prefix: "/api" });
   await app.register(websocketHandler);
 
   const clientDist = existsSync(join(process.cwd(), "client", "dist"))

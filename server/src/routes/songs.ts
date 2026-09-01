@@ -179,6 +179,35 @@ export async function songRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Reordenar Setlist ────────────────────────────────────
+  app.put(
+    "/events/:eventId/setlist/reorder",
+    { preHandler: [requireRole("MINISTRY_LEADER")] },
+    async (req, reply) => {
+      const { eventId } = req.params as { eventId: string };
+      const auth = req.user as AuthUser;
+      if (!(await belongsToChurch("event", eventId, auth.churchId)))
+        return reply.code(404).send({ error: "Evento não encontrado" });
+      const { itemIds } = z.object({ itemIds: z.array(z.string()).min(1) }).parse(req.body);
+      const valid = await prisma.setlistItem.findMany({
+        where: { id: { in: itemIds }, eventId },
+        select: { id: true },
+      });
+      if (valid.length !== itemIds.length)
+        return reply.code(400).send({ error: "Itens não pertencem a este evento" });
+      await prisma.$transaction(
+        itemIds.map((id, idx) =>
+          prisma.setlistItem.update({ where: { id }, data: { order: idx + 1 } })
+        )
+      );
+      return prisma.setlistItem.findMany({
+        where: { eventId },
+        include: { song: true },
+        orderBy: { order: "asc" },
+      });
+    }
+  );
+
   app.put(
     "/events/:eventId/setlist/reorder",
     { preHandler: [requireRole("MINISTRY_LEADER")] },

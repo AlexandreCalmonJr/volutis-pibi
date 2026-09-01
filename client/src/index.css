@@ -107,3 +107,35 @@ html, body, #root {
   scrollbar-width: thin;
   scrollbar-color: #c4b5fd transparent;
 }
+
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition {
+  animation: pageFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media print {
+  .bottom-nav,
+  aside,
+  header button,
+  .no-print {
+    display: none !important;
+  }
+  body, html, #root {
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
+

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
+import QRCode from "qrcode";
 import { z } from "zod";
 import { fromJson, prisma } from "../lib/db.js";
 import { rateLimitHit, rateLimitReset } from "../lib/ratelimit.js";
@@ -299,5 +300,101 @@ export async function authRoutes(app: FastifyInstance) {
     // NUNCA expor o hash de senha
     const { passwordHash: _ph, ...safeUser } = user;
     return { user: { ...safeUser, member: serializeAuthMember(user.member), memberName: user.member?.name } };
+  });
+
+  // ── Concluir Onboarding ─────────────────────────────────────
+  app.post("/auth/complete-onboarding", { preHandler: [async (req, r) => { try { await req.jwtVerify(); } catch { return r.code(401).send({ error: "Não autenticado" }); } }] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    await prisma.user.update({
+      where: { id: auth.sub },
+      data: { firstLogin: false },
+    }).catch(() => {});
+    return reply.send({ success: true });
+  });
+
+  // ── 2FA / MFA (Dois Fatores) ─────────────────────────────────
+  const pending2faSecrets = new Map<string, string>();
+
+  function generateBase32Secret(length = 20): string {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    const bytes = crypto.randomBytes(length);
+    let result = "";
+    for (let i = 0; i < length; i++) {
+      result += chars[bytes[i] % 32];
+    }
+    return result;
+  }
+
+  function base32ToBuffer(base32: string): Buffer {
+    const cleaned = base32.toUpperCase().replace(/=+$/, "");
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let bits = 0;
+    let value = 0;
+    const bytes: number[] = [];
+
+    for (let i = 0; i < cleaned.length; i++) {
+      const idx = chars.indexOf(cleaned[i]);
+      if (idx === -1) continue;
+      value = (value << 5) | idx;
+      bits += 5;
+      if (bits >= 8) {
+        bytes.push((value >>> (bits - 8)) & 255);
+        bits -= 8;
+      }
+    }
+    return Buffer.from(bytes);
+  }
+
+  function verifyTotpCode(secretBase32: string, token: string, windowSteps = 1): boolean {
+    if (!/^\d{6}$/.test(token)) return false;
+    const key = base32ToBuffer(secretBase32);
+    const currentTimeStep = Math.floor(Date.now() / 30000);
+
+    for (let i = -windowSteps; i <= windowSteps; i++) {
+      const step = currentTimeStep + i;
+      const timeBuffer = Buffer.alloc(8);
+      timeBuffer.writeBigInt64BE(BigInt(step), 0);
+
+      const hmac = crypto.createHmac("sha1", key).update(timeBuffer).digest();
+      const offset = hmac[hmac.length - 1] & 0x0f;
+      const binary =
+        ((hmac[offset] & 0x7f) << 24) |
+        ((hmac[offset + 1] & 0xff) << 16) |
+        ((hmac[offset + 2] & 0xff) << 8) |
+        (hmac[offset + 3] & 0xff);
+      const generatedCode = String(binary % 1000000).padStart(6, "0");
+
+      if (generatedCode === token) return true;
+    }
+    return false;
+  }
+
+  app.post("/auth/2fa/setup", { preHandler: [async (req, r) => { try { await req.jwtVerify(); } catch { return r.code(401).send({ error: "Não autenticado" }); } }] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    const secret = generateBase32Secret();
+    pending2faSecrets.set(auth.sub, secret);
+
+    const otpauthUrl = `otpauth://totp/Volutis%20PIBI:${encodeURIComponent(auth.email || "usuario")}?secret=${secret}&issuer=Volutis%20PIBI`;
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
+
+    return reply.send({ secret, qrCodeDataUrl });
+  });
+
+  app.post("/auth/2fa/verify", { preHandler: [async (req, r) => { try { await req.jwtVerify(); } catch { return r.code(401).send({ error: "Não autenticado" }); } }] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    const body = z.object({ code: z.string().min(6).max(6) }).parse(req.body);
+    const secret = pending2faSecrets.get(auth.sub);
+
+    if (!secret) {
+      return reply.code(400).send({ error: "Nenhuma configuração de 2FA em andamento. Inicie novamente." });
+    }
+
+    const isValid = verifyTotpCode(secret, body.code);
+    if (!isValid) {
+      return reply.code(400).send({ error: "Código de 6 dígitos inválido ou expirado." });
+    }
+
+    pending2faSecrets.delete(auth.sub);
+    return reply.send({ success: true, message: "Autenticação em duas etapas (2FA) ativada com sucesso!" });
   });
 }

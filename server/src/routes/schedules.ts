@@ -721,4 +721,76 @@ export async function scheduleRoutes(app: FastifyInstance) {
     ]);
     return { items, swapInvites };
   });
+
+  // ── Exportação para Calendário (.ics / Google / Apple) ───────────────────
+  app.get("/my/schedule/calendar.ics", { preHandler: [requireAuth] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    if (!auth.memberId) return reply.code(400).send({ error: "Usuário sem membro vinculado" });
+
+    const items = await prisma.scheduleItem.findMany({
+      where: {
+        memberId: auth.memberId,
+        event: { date: { gte: new Date(Date.now() - 30 * 864e5) } }, // 30 dias atrás até o futuro
+      },
+      include: { event: true },
+      orderBy: { event: { date: "asc" } },
+    });
+
+    const formatIcsDate = (date: Date) =>
+      date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+
+    const eventsIcs = items.map((item) => {
+      const baseDate = new Date(item.event.date);
+      const [startH, startM] = (item.event.startTime || "19:00").split(":").map(Number);
+      const start = new Date(baseDate);
+      start.setHours(startH || 19, startM || 0, 0, 0);
+
+      const end = new Date(start);
+      if (item.event.endTime) {
+        const [endH, endM] = item.event.endTime.split(":").map(Number);
+        end.setHours(endH || 21, endM || 0, 0, 0);
+      } else {
+        end.setHours(start.getHours() + 2); // Padrão de 2 horas de duração
+      }
+
+      const statusMap: Record<string, string> = {
+        CONFIRMED: "CONFIRMED",
+        PENDING: "TENTATIVE",
+        DECLINED: "CANCELLED",
+      };
+
+      const nowStr = formatIcsDate(new Date());
+      const startStr = formatIcsDate(start);
+      const endStr = formatIcsDate(end);
+
+      return [
+        "BEGIN:VEVENT",
+        `UID:volutis-${item.id}@pibi`,
+        `DTSTAMP:${nowStr}`,
+        `DTSTART:${startStr}`,
+        `DTEND:${endStr}`,
+        `SUMMARY:Escala: ${item.roleName} - ${item.event.title}`,
+        `DESCRIPTION:Você está escalado como ${item.roleName} no evento ${item.event.title}.\\nStatus: ${item.status}\\nLocal: Primeira Igreja Batista de Itapuã`,
+        "LOCATION:Primeira Igreja Batista de Itapuã",
+        `STATUS:${statusMap[item.status] || "CONFIRMED"}`,
+        "END:VEVENT",
+      ].join("\r\n");
+    });
+
+    const icsContent = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Volutis//Escalas PIBI//PT",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      "X-WR-CALNAME:Minhas Escalas - Volutis",
+      "X-WR-TIMEZONE:America/Sao_Paulo",
+      ...eventsIcs,
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+    reply.header("Content-Type", "text/calendar; charset=utf-8");
+    reply.header("Content-Disposition", 'attachment; filename="minhas-escalas-volutis.ics"');
+    return reply.send(icsContent);
+  });
 }

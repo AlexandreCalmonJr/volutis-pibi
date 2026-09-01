@@ -5,6 +5,7 @@ import { fromJson, prisma, toJson } from "../lib/db.js";
 import { requireRole, type AuthUser } from "../middleware/auth.js";
 import { countPushSubscriptions, isPushConfigured, sendPushToMember } from "../services/push.service.js";
 import { notifyMember } from "../services/notification.service.js";
+import { getAuditLogs, logAudit } from "../services/audit.service.js";
 
 const SEED_VOLUNTEER_EMAILS = ["joao@pibi.org.br", "maria@pibi.org.br", "pedro@pibi.org.br"];
 const SEED_EVENT_TITLES = ["Culto Domingo Manhã", "Culto Domingo Noite", "Culto de Oração"];
@@ -627,5 +628,68 @@ export async function adminRoutes(app: FastifyInstance) {
       message: "Banco de dados limpo para produção com sucesso.",
       summary: result,
     };
+  });
+
+  // ── Histórico de Auditoria (Audit Logs) ──────────────────────
+  app.get("/admin/audit-logs", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    const logs = await getAuditLogs(auth.churchId, 100);
+    return reply.send({ logs });
+  });
+
+  // ── Backup Completo da Igreja (JSON) ────────────────────────
+  app.get("/admin/export/backup.json", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    const churchId = auth.churchId;
+
+    const [church, members, ministries, events, songs, invites, applications] = await Promise.all([
+      prisma.church.findUnique({ where: { id: churchId } }),
+      prisma.member.findMany({
+        where: { churchId },
+        include: { ministryMembers: true, badges: true },
+      }),
+      prisma.ministry.findMany({
+        where: { churchId },
+        include: { roles: true },
+      }),
+      prisma.event.findMany({
+        where: { churchId },
+        include: { scheduleItems: true, liturgyItems: true, setlistItems: true },
+      }),
+      prisma.song.findMany({ where: { churchId } }),
+      prisma.invite.findMany({ where: { churchId } }),
+      prisma.application.findMany({ where: { churchId } }),
+    ]);
+
+    await logAudit({
+      action: "BACKUP_EXPORTED",
+      category: "ADMIN",
+      actorId: auth.memberId,
+      actorName: auth.email || "Admin",
+      actorRole: auth.role,
+      churchId,
+      details: {
+        membersCount: members.length,
+        eventsCount: events.length,
+        songsCount: songs.length,
+      },
+    });
+
+    const backupData = {
+      version: "1.0",
+      exportedAt: new Date().toISOString(),
+      church,
+      members,
+      ministries,
+      events,
+      songs,
+      invites,
+      applications,
+    };
+
+    const fileName = `backup-volutis-${church?.slug || "pibi"}-${new Date().toISOString().split("T")[0]}.json`;
+    reply.header("Content-Type", "application/json; charset=utf-8");
+    reply.header("Content-Disposition", `attachment; filename="${fileName}"`);
+    return reply.send(backupData);
   });
 }

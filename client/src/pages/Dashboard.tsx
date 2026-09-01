@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../store";
 import { usePushNotifications } from "../hooks/usePushNotifications";
+import { DevotionalCard } from "../components/DevotionalCard";
 
 interface DashboardEvent {
   id: string;
@@ -198,8 +199,35 @@ export default function Dashboard() {
           <div className="flex gap-2 flex-wrap justify-end">
             {isAdmin && (
               <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/admin/export/backup.json", {
+                      headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+                    });
+                    if (!res.ok) throw new Error("Erro ao gerar backup");
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `backup-volutis-${new Date().toISOString().split("T")[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                  } catch (err: any) {
+                    alert(err?.message || "Não foi possível exportar o backup.");
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 transition-all cursor-pointer shadow-sm"
+                title="Exportar backup completo de todos os dados da igreja em JSON"
+              >
+                <span>📥</span> Backup
+              </button>
+            )}
+            {isAdmin && (
+              <button
                 onClick={openPushPanel}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#c4b5fd] text-[#7c3aed] bg-white hover:bg-[#f5f3ff] transition-all"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#c4b5fd] text-[#7c3aed] bg-white hover:bg-[#f5f3ff] transition-all cursor-pointer"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -217,7 +245,7 @@ export default function Dashboard() {
             )}
             <button
               onClick={() => navigate("/escalas")}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-95 shadow-sm"
               style={{ backgroundColor: "var(--color-primary)" }}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -228,6 +256,9 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Devocional Diário */}
+      <DevotionalCard />
 
       {isSupported && !pushLoading && !isSubscribed && (
         <div className="rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-500/10 via-indigo-500/10 to-purple-500/10 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">

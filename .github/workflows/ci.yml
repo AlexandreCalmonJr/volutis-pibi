@@ -1,0 +1,41 @@
+name: CI / CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-latest
+    name: Build & Typecheck (Client + Server)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install Root Dependencies
+        run: npm ci || npm install
+
+      - name: Server - Generate Prisma & Build
+        working-directory: ./server
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/volutis"
+        run: |
+          npm ci || npm install
+          npx prisma generate
+          npm run build
+
+      - name: Client - Tests, Typecheck & Build Bundle
+        working-directory: ./client
+        run: |
+          npm ci || npm install
+          npm run test
+          npm run build

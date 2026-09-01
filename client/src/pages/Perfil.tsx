@@ -119,6 +119,52 @@ export default function Perfil() {
   });
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordFeedback, setPasswordFeedback] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+
+  // 2FA / MFA
+  const [twoFaModalOpen, setTwoFaModalOpen] = useState(false);
+  const [twoFaLoading, setTwoFaLoading] = useState(false);
+  const [twoFaData, setTwoFaData] = useState<{ secret: string; qrCodeDataUrl: string } | null>(null);
+  const [twoFaCode, setTwoFaCode] = useState("");
+  const [twoFaVerifying, setTwoFaVerifying] = useState(false);
+  const [twoFaFeedback, setTwoFaFeedback] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [twoFaEnabled, setTwoFaEnabled] = useState(false);
+
+  async function handleStart2Fa() {
+    setTwoFaLoading(true);
+    setTwoFaFeedback(null);
+    setTwoFaCode("");
+    try {
+      const data = await api<{ secret: string; qrCodeDataUrl: string }>("/auth/2fa/setup", {
+        method: "POST",
+      });
+      setTwoFaData(data);
+      setTwoFaModalOpen(true);
+    } catch (err: any) {
+      alert(err?.message || "Não foi possível iniciar configuração do 2FA.");
+    } finally {
+      setTwoFaLoading(false);
+    }
+  }
+
+  async function handleVerify2Fa() {
+    if (!twoFaCode || twoFaCode.length !== 6) return;
+    setTwoFaVerifying(true);
+    setTwoFaFeedback(null);
+    try {
+      const res = await api<{ success: boolean; message: string }>("/auth/2fa/verify", {
+        method: "POST",
+        body: { code: twoFaCode },
+      });
+      setTwoFaFeedback({ type: "ok", text: res.message || "2FA ativado com sucesso!" });
+      setTwoFaEnabled(true);
+      setTimeout(() => setTwoFaModalOpen(false), 2000);
+    } catch (err: any) {
+      setTwoFaFeedback({ type: "error", text: err?.message || "Código inválido. Tente novamente." });
+    } finally {
+      setTwoFaVerifying(false);
+    }
+  }
+
   const [unavailabilityForm, setUnavailabilityForm] = useState({
     date: "",
     reason: "",
@@ -522,6 +568,41 @@ export default function Perfil() {
               </button>
             </form>
           </div>
+
+          {/* Autenticação em Duas Etapas (2FA / MFA) */}
+          <div className="bg-white dark:bg-[var(--color-surface)] rounded-2xl border border-[#e5e0f8] dark:border-[var(--color-border)] p-6 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 flex items-center justify-center text-lg">
+                  🔐
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#1e1b4b] dark:text-[var(--color-ink)]">
+                    Autenticação em 2 Etapas (2FA)
+                  </h3>
+                  <p className="text-xs text-[#7c6ea8] dark:text-[var(--color-muted)]">
+                    Segurança extra com Google Authenticator ou Authy
+                  </p>
+                </div>
+              </div>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${twoFaEnabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                {twoFaEnabled ? "✅ Ativado" : "Inativo"}
+              </span>
+            </div>
+
+            <p className="text-xs text-[#5b5077] dark:text-[var(--color-text-secondary)] leading-relaxed">
+              Proteja sua conta gerando um código temporário de 6 dígitos no seu aplicativo autenticador a cada login.
+            </p>
+
+            <button
+              type="button"
+              onClick={handleStart2Fa}
+              disabled={twoFaLoading}
+              className="px-4 py-2.5 rounded-xl border border-violet-300 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-xs font-bold hover:bg-violet-100 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              {twoFaLoading ? "Gerando QR Code..." : twoFaEnabled ? "Reconfigurar 2FA 📲" : "Configurar 2FA 📲"}
+            </button>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -555,13 +636,53 @@ export default function Perfil() {
           </div>
 
           <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6">
-            <h3 className="text-base font-bold text-[#1e1b4b] mb-4">Minhas próximas escalas</h3>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-base font-bold text-[#1e1b4b]">Minhas próximas escalas</h3>
+              {upcomingItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/my/schedule/calendar.ics", {
+                        headers: {
+                          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+                        },
+                      });
+                      if (!res.ok) throw new Error("Erro ao gerar arquivo .ics");
+                      const blob = await res.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "minhas-escalas-pibi.ics";
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      window.URL.revokeObjectURL(url);
+                    } catch (err: any) {
+                      alert(err?.message || "Não foi possível exportar o calendário.");
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-xs font-bold hover:bg-violet-100 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  title="Exportar todas as suas escalas para Apple Calendar, Outlook ou Google Calendar (.ics)"
+                >
+                  <span>📅</span> Exportar .ics
+                </button>
+              )}
+            </div>
             <div className="space-y-3">
               {upcomingItems.length === 0 ? (
                 <p className="text-sm text-[#7c6ea8]">Nenhuma escala futura encontrada.</p>
               ) : upcomingItems.map((item) => {
                 const isPending = item.status === "PENDING";
                 const statusMeta = getScheduleStatusMeta(item.status);
+
+                const [h, m] = (item.event.startTime || "19:00").split(":").map(Number);
+                const start = new Date(item.event.date);
+                start.setHours(h || 19, m || 0, 0, 0);
+                const end = new Date(start);
+                end.setHours(start.getHours() + 2);
+                const formatGCalDate = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+                const gCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`Escala: ${item.roleName} - ${item.event.title}`)}&dates=${formatGCalDate(start)}/${formatGCalDate(end)}&details=${encodeURIComponent(`Você está escalado como ${item.roleName} no evento ${item.event.title}.\nLocal: Primeira Igreja Batista de Itapuã`)}&location=${encodeURIComponent("Primeira Igreja Batista de Itapuã")}`;
 
                 return (
                   <div key={item.id} className="rounded-2xl border border-[#ede9fe] bg-[#fcfbff] p-4 flex flex-col justify-between gap-3">
@@ -573,9 +694,20 @@ export default function Perfil() {
                         </span>
                       </div>
                       <p className="mt-1 text-sm font-semibold text-[#7c3aed]">{item.roleName}</p>
-                      <p className="mt-1 text-xs text-[#7c6ea8]">
-                        📅 {new Date(item.event.startTime).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                      </p>
+                      <div className="mt-1 flex items-center justify-between gap-2 flex-wrap text-xs text-[#7c6ea8]">
+                        <p>
+                          📅 {new Date(item.event.startTime).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                        <a
+                          href={gCalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-violet-600 hover:text-violet-800 font-semibold hover:underline flex items-center gap-1"
+                          title="Adicionar este culto diretamente no seu Google Agenda"
+                        >
+                          <span>🗓️</span> Google Agenda
+                        </a>
+                      </div>
                     </div>
 
                     {isPending ? (
@@ -807,6 +939,85 @@ export default function Perfil() {
           </div>
         </div>
       </div>
+
+      {/* Modal 2FA / MFA Setup */}
+      {twoFaModalOpen && twoFaData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between border-b border-[var(--color-border)] pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🔐</span>
+                <div>
+                  <h3 className="font-bold text-base text-[var(--color-ink)]">
+                    Configurar Autenticador (2FA)
+                  </h3>
+                  <p className="text-xs text-[var(--color-muted)]">
+                    Google Authenticator, Authy ou Microsoft Authenticator
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setTwoFaModalOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-[var(--color-surface-2)] text-[var(--color-muted)] flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            {twoFaFeedback && (
+              <div className={`rounded-2xl border px-4 py-3 text-xs font-semibold ${twoFaFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
+                {twoFaFeedback.text}
+              </div>
+            )}
+
+            <div className="space-y-3 text-center">
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                1. Escaneie o QR Code abaixo com o aplicativo autenticador no seu celular:
+              </p>
+
+              <div className="flex justify-center p-3 bg-white rounded-2xl border border-[var(--color-border)] shadow-inner w-fit mx-auto">
+                <img
+                  src={twoFaData.qrCodeDataUrl}
+                  alt="QR Code 2FA"
+                  className="w-44 h-44 object-contain"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-center">
+                <p className="text-[10px] uppercase font-bold text-[var(--color-muted)]">
+                  Chave Manual (se preferir digitar):
+                </p>
+                <code className="text-xs font-mono font-bold text-violet-600 select-all">
+                  {twoFaData.secret}
+                </code>
+              </div>
+
+              <div className="space-y-2 pt-1 text-left">
+                <label className="block text-xs font-bold text-[var(--color-ink)]">
+                  2. Digite o código de 6 dígitos gerado:
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={twoFaCode}
+                  onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="000000"
+                  className="w-full text-center tracking-widest text-2xl font-mono font-bold py-2.5 px-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-violet-600"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleVerify2Fa}
+                disabled={twoFaCode.length !== 6 || twoFaVerifying}
+                className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-sm font-bold shadow-lg shadow-violet-500/25 transition-all cursor-pointer"
+              >
+                {twoFaVerifying ? "Verificando..." : "Validar e Ativar 2FA ✅"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

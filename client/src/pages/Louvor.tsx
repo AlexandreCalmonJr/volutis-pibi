@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../store";
+import { Skeleton, ListItemSkeleton } from "../components/Skeleton";
+import { Metronome } from "../components/Metronome";
+import { RehearsalPlayer, RehearsalTrack } from "../components/RehearsalPlayer";
 
 interface Song {
   id: string;
@@ -110,6 +113,12 @@ export default function Louvor() {
   const [notifyingTeam, setNotifyingTeam] = useState(false);
   const [notifyFeedback, setNotifyFeedback] = useState<string | null>(null);
   const [selectedSongDetails, setSelectedSongDetails] = useState<Song | null>(null);
+
+  // Metrônomo e Ensaio Online
+  const [showMetronome, setShowMetronome] = useState(false);
+  const [metronomeBpm, setMetronomeBpm] = useState(120);
+  const [rehearsalPlaylist, setRehearsalPlaylist] = useState<RehearsalTrack[] | null>(null);
+  const [rehearsalIndex, setRehearsalIndex] = useState(0);
 
   useEffect(() => {
     if (canManageHolyrics) {
@@ -363,6 +372,30 @@ export default function Louvor() {
     } finally { setSalvandoSetlist(false); }
   }
 
+  const [draggedSetlistIndex, setDraggedSetlistIndex] = useState<number | null>(null);
+
+  async function reordenarSetlist(newItems: SetlistItem[]) {
+    setSetlistItens(newItems);
+    if (!setlistAberta) return;
+    try {
+      await api(`/events/${setlistAberta}/setlist/reorder`, {
+        method: "PUT",
+        body: { itemIds: newItems.map((i) => i.id) },
+      });
+    } catch (err: any) {
+      alert(err?.message || "Erro ao reordenar setlist.");
+      await carregarSetlist(setlistAberta);
+    }
+  }
+
+  function moverItemSetlist(fromIndex: number, toIndex: number) {
+    if (toIndex < 0 || toIndex >= setlistItens.length) return;
+    const items = [...setlistItens];
+    const [moved] = items.splice(fromIndex, 1);
+    items.splice(toIndex, 0, moved);
+    void reordenarSetlist(items);
+  }
+
   async function removerItemSetlist(id: string) {
     await api(`/setlist-items/${id}`, { method: "DELETE" });
     if (setlistAberta) await carregarSetlist(setlistAberta);
@@ -395,22 +428,24 @@ export default function Louvor() {
               : "Músicas e letras dos cultos em que você está escalado"}
           </p>
         </div>
-        {canManageHolyrics && (
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => setShowHolyricsModal(true)} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-gray-50">
-              Holyrics
-            </button>
-            <button onClick={importarDoHolyrics} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#1e1b4b] text-sm font-semibold hover:bg-gray-50">
-              Importar do Holyrics
-            </button>
-            <button onClick={sincronizarBiblioteca} disabled={syncingLibrary} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#1e1b4b] text-sm font-semibold disabled:opacity-50 hover:bg-gray-50">
-              {syncingLibrary ? "Sincronizando..." : "Sincronizar repertório"}
-            </button>
-            <button onClick={() => setAba("novo")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 shadow-sm" style={{ backgroundColor: "#7c3aed" }}>
-              Nova Setlist
-            </button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {canManageHolyrics && (
+            <>
+              <button onClick={() => setShowHolyricsModal(true)} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-gray-50">
+                Holyrics
+              </button>
+              <button onClick={importarDoHolyrics} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#1e1b4b] text-sm font-semibold hover:bg-gray-50">
+                Importar do Holyrics
+              </button>
+              <button onClick={sincronizarBiblioteca} disabled={syncingLibrary} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#1e1b4b] text-sm font-semibold disabled:opacity-50 hover:bg-gray-50">
+                {syncingLibrary ? "Sincronizando..." : "Sincronizar repertório"}
+              </button>
+              <button onClick={() => setAba("novo")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 shadow-sm" style={{ backgroundColor: "#7c3aed" }}>
+                Nova Setlist
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {notifyFeedback && (
@@ -494,30 +529,56 @@ export default function Louvor() {
                         {ev && new Date(ev.date).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
                       </p>
                     </div>
-                    {canManageHolyrics && (
-                      <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {setlistItens.length > 0 && (
                         <button
-                          onClick={() => notificarEquipe(setlistAberta)}
-                          disabled={notifyingTeam || setlistItens.length === 0}
-                          className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] text-white text-xs font-semibold hover:opacity-90 transition-all shadow-sm disabled:opacity-50 flex items-center gap-1.5"
-                          title="Enviar notificação push com as músicas para todos os voluntários escalados"
+                          onClick={() => {
+                            const tracks: RehearsalTrack[] = setlistItens.map((item) => ({
+                              id: item.song.id,
+                              title: item.song.title,
+                              artist: item.song.artist,
+                              originalKey: item.songKey || item.song.originalKey,
+                              bpm: item.song.bpm,
+                              youtubeUrl: item.song.youtubeUrl,
+                              spotifyUrl: item.song.spotifyUrl,
+                            }));
+                            setRehearsalPlaylist(tracks);
+                            setRehearsalIndex(0);
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-xs font-semibold hover:opacity-90 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95"
+                          title="Ouvir playlist completa do setlist com players de áudio/vídeo"
                         >
-                          <span>📢</span> {notifyingTeam ? "Enviando..." : "Notificar Equipe"}
+                          <span>🎧</span> Ensaio Online
                         </button>
-                        <button
-                          onClick={enviarSetlistHolyrics}
-                          className="px-3.5 py-1.5 rounded-xl bg-[#1e1b4b] text-white text-xs font-semibold hover:opacity-90 transition-all"
-                        >
-                          Publicar no Holyrics
-                        </button>
-                      </div>
-                    )}
+                      )}
+
+                      {canManageHolyrics && (
+                        <>
+                          <button
+                            onClick={() => notificarEquipe(setlistAberta)}
+                            disabled={notifyingTeam || setlistItens.length === 0}
+                            className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] text-white text-xs font-semibold hover:opacity-90 transition-all shadow-sm disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                            title="Enviar notificação push com as músicas para todos os voluntários escalados"
+                          >
+                            <span>📢</span> {notifyingTeam ? "Enviando..." : "Notificar Equipe"}
+                          </button>
+                          <button
+                            onClick={enviarSetlistHolyrics}
+                            className="px-3.5 py-1.5 rounded-xl bg-[#1e1b4b] text-white text-xs font-semibold hover:opacity-90 transition-all cursor-pointer"
+                          >
+                            Publicar no Holyrics
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Lista de Músicas */}
                   {carregandoSetlist ? (
-                    <div className="flex items-center justify-center py-16">
-                      <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#e5e0f8] border-t-[#7c3aed]" />
+                    <div className="p-4 space-y-3">
+                      <ListItemSkeleton />
+                      <ListItemSkeleton />
+                      <ListItemSkeleton />
                     </div>
                   ) : setlistItens.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-[#7c6ea8] space-y-2">
@@ -530,11 +591,62 @@ export default function Louvor() {
                       {setlistItens.map((item, i) => {
                         const tom = item.songKey || item.song.originalKey || "?";
                         const tomColor = tomColors[tom] || "#7c3aed";
+                        const isDragging = draggedSetlistIndex === i;
+
                         return (
-                          <div key={item.id} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#faf9fe] transition-colors">
-                            <div className="flex items-center gap-3.5 min-w-0">
+                          <div
+                            key={item.id}
+                            draggable={canManageHolyrics}
+                            onDragStart={() => setDraggedSetlistIndex(i)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDragEnd={() => setDraggedSetlistIndex(null)}
+                            onDrop={() => {
+                              if (draggedSetlistIndex !== null && draggedSetlistIndex !== i) {
+                                moverItemSetlist(draggedSetlistIndex, i);
+                              }
+                              setDraggedSetlistIndex(null);
+                            }}
+                            className={`px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+                              isDragging
+                                ? "opacity-40 bg-violet-50 scale-[0.98] border border-dashed border-violet-400"
+                                : "hover:bg-[#faf9fe]"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              {/* Reorder controls for leaders */}
+                              {canManageHolyrics && (
+                                <div className="flex items-center gap-1">
+                                  <div
+                                    className="cursor-grab active:cursor-grabbing text-[#7c6ea8] hover:text-[#1e1b4b] p-1 font-bold text-xs"
+                                    title="Arraste para reordenar esta música"
+                                  >
+                                    ⋮⋮
+                                  </div>
+                                  <div className="flex flex-col gap-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => moverItemSetlist(i, i - 1)}
+                                      disabled={i === 0}
+                                      className="w-4 h-4 rounded text-[9px] flex items-center justify-center text-[#7c6ea8] hover:bg-violet-100 disabled:opacity-20"
+                                      title="Mover para cima"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => moverItemSetlist(i, i + 1)}
+                                      disabled={i === setlistItens.length - 1}
+                                      className="w-4 h-4 rounded text-[9px] flex items-center justify-center text-[#7c6ea8] hover:bg-violet-100 disabled:opacity-20"
+                                      title="Mover para baixo"
+                                    >
+                                      ▼
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
                               <span className="text-base font-bold text-[#7c6ea8] w-5 text-center">
-                                {item.order || i + 1}
+                                {i + 1}
                               </span>
 
                               {/* Tom em destaque exclusivo para Louvor / Líder */}
@@ -800,7 +912,11 @@ export default function Louvor() {
             </div>
             <div className="divide-y divide-[#f0eefe] max-h-96 overflow-y-auto">
               {carregandoMusicas ? (
-                <div className="p-8 text-center text-xs text-[#7c6ea8]">Carregando...</div>
+                <div className="p-4 space-y-2">
+                  <ListItemSkeleton />
+                  <ListItemSkeleton />
+                  <ListItemSkeleton />
+                </div>
               ) : (
                 musicas.map((m) => {
                   const selecionada = musicasSelecionadas.includes(m.id);
@@ -866,6 +982,27 @@ export default function Louvor() {
 
             {/* Links rápidos */}
             <div className="flex gap-2 flex-wrap pt-1">
+              {(selectedSongDetails.youtubeUrl || selectedSongDetails.spotifyUrl) && (
+                <button
+                  onClick={() => {
+                    setRehearsalPlaylist([
+                      {
+                        id: selectedSongDetails.id,
+                        title: selectedSongDetails.title,
+                        artist: selectedSongDetails.artist,
+                        originalKey: selectedSongDetails.originalKey,
+                        bpm: selectedSongDetails.bpm,
+                        youtubeUrl: selectedSongDetails.youtubeUrl,
+                        spotifyUrl: selectedSongDetails.spotifyUrl,
+                      },
+                    ]);
+                    setRehearsalIndex(0);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-xs font-bold flex items-center gap-1.5 hover:opacity-90 transition-all cursor-pointer shadow-sm"
+                >
+                  🎧 Ouvir no Ensaio Online
+                </button>
+              )}
               {isLouvorVolunteer && selectedSongDetails.cifraClubUrl && (
                 <a href={selectedSongDetails.cifraClubUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100">
                   🎸 Abrir no Cifra Club ↗
@@ -887,7 +1024,7 @@ export default function Louvor() {
             {selectedSongDetails.lyrics ? (
               <div className="space-y-1.5 pt-2">
                 <p className="text-xs font-bold text-[#5b5077] uppercase tracking-wider">Letra da Música</p>
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl whitespace-pre-wrap font-sans text-sm text-[#1e1b4b] leading-relaxed max-h-60 overflow-y-auto">
+                <div className="p-4 bg-slate-50 dark:bg-[var(--color-surface-2)] border border-slate-200 dark:border-[var(--color-border)] rounded-2xl whitespace-pre-wrap font-sans text-sm text-[#1e1b4b] dark:text-[var(--color-ink)] leading-relaxed max-h-60 overflow-y-auto">
                   {selectedSongDetails.lyrics}
                 </div>
               </div>
@@ -975,6 +1112,29 @@ export default function Louvor() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating Metronome */}
+      {showMetronome && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <Metronome
+            initialBpm={metronomeBpm}
+            onClose={() => setShowMetronome(false)}
+          />
+        </div>
+      )}
+
+      {/* Ensaio Online Player */}
+      {rehearsalPlaylist && (
+        <RehearsalPlayer
+          playlist={rehearsalPlaylist}
+          initialIndex={rehearsalIndex}
+          onClose={() => setRehearsalPlaylist(null)}
+          onSelectTrack={(track) => {
+            const found = musicas.find((m) => m.id === track.id);
+            if (found) setSelectedSongDetails(found);
+          }}
+        />
       )}
     </div>
   );

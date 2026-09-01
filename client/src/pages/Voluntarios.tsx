@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { MINISTERIO_COLORS, MINISTERIOS } from "../lib/constants";
 import { Avatar } from "../components/Avatar";
+import { MetricCardSkeleton, TableSkeleton } from "../components/Skeleton";
 
 interface Ministry {
   id: number;
@@ -276,8 +277,14 @@ export default function Voluntarios() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-32">
-        <div className="animate-spin w-8 h-8 border-2 border-[#e5e0f8] border-t-[#7c3aed] rounded-full" />
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <MetricCardSkeleton />
+          <MetricCardSkeleton />
+          <MetricCardSkeleton />
+          <MetricCardSkeleton />
+        </div>
+        <TableSkeleton rows={8} cols={4} />
       </div>
     );
   }
