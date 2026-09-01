@@ -164,6 +164,10 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
+
+        <p className="text-center text-xs text-[#7c6ea8] mt-6">
+          Desenvolvido com dedicação por <strong className="text-[#1e1b4b]">Alexandre Calmon Jr.</strong> para a PIBI
+        </p>
       </div>
     </div>
   );

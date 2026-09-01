@@ -156,6 +156,9 @@ export default function Sidebar({ currentPage, onNavigate, mobileOpen, onMobileC
               </svg>
             </button>
           </div>
+          <div className="mt-3 pt-2 text-center text-[10px] text-indigo-300/60 border-t border-white/5">
+            Desenvolvido por <span className="text-indigo-200 font-semibold">Alexandre Calmon Jr.</span>
+          </div>
         </div>
       </aside>
     </>

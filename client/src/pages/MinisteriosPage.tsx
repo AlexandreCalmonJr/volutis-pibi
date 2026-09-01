@@ -100,10 +100,18 @@ export default function MinisteriosPage() {
         api<MemberLite[]>("/members"),
         canManage ? api<TransferRequest[]>("/transfer-requests") : Promise.resolve([]),
       ]);
-      setMinistries(ministriesData);
+
+      // Se for líder de ministério, exibe apenas os ministérios que ele lidera
+      const filteredMinistries = isAdmin
+        ? ministriesData
+        : ministriesData.filter((m) =>
+            m.members.some((mm) => mm.memberId === user?.memberId && mm.isLeader)
+          );
+
+      setMinistries(filteredMinistries);
       setMembers(membersData);
       setRequests(requestsData);
-      setSelectedMinistryId((current) => current || ministriesData[0]?.id || "");
+      setSelectedMinistryId((current) => current || filteredMinistries[0]?.id || "");
     } catch (err: any) {
       setFeedback({ type: "error", text: err?.message || "Não foi possível carregar ministérios." });
     } finally {
@@ -400,7 +408,15 @@ export default function MinisteriosPage() {
                             <option value="">Selecione um membro ativo</option>
                             {availableMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
                           </select>
-                          <label className="flex items-center gap-2 text-sm text-[#5b5077]"><input type="checkbox" checked={memberForm.isLeader} onChange={(e) => setMemberForm((prev) => ({ ...prev, isLeader: e.target.checked }))} /> Líder</label>
+                          <label className="flex items-center gap-1.5 text-xs text-[#5b5077]">
+                            <input
+                              type="checkbox"
+                              disabled={!isAdmin}
+                              checked={memberForm.isLeader}
+                              onChange={(e) => setMemberForm((prev) => ({ ...prev, isLeader: e.target.checked }))}
+                            />
+                            Líder {!isAdmin && <span className="text-[10px] text-amber-600 font-semibold">(Apenas Admin)</span>}
+                          </label>
                           <input value={memberForm.rolesText} onChange={(e) => setMemberForm((prev) => ({ ...prev, rolesText: e.target.value }))} placeholder="Funções (vírgula)" className="px-3 py-2.5 rounded-xl border border-[#e5e0f8] text-sm" />
                           <button onClick={() => saveMemberLink()} disabled={saving} className="px-4 py-2.5 rounded-xl bg-[#7c3aed] text-white text-sm font-semibold disabled:opacity-50">Vincular</button>
                         </div>
@@ -418,7 +434,15 @@ export default function MinisteriosPage() {
                                 </div>
                               </div>
                               <div className="flex flex-col sm:flex-row gap-2 lg:items-center">
-                                <label className="flex items-center gap-2 text-sm text-[#5b5077]"><input type="checkbox" checked={link.isLeader} onChange={(e) => saveMemberLink(link.memberId, { isLeader: e.target.checked, roles: link.roles })} /> Liderança</label>
+                                <label className="flex items-center gap-1.5 text-xs text-[#5b5077]">
+                                  <input
+                                    type="checkbox"
+                                    disabled={!isAdmin}
+                                    checked={link.isLeader}
+                                    onChange={(e) => saveMemberLink(link.memberId, { isLeader: e.target.checked, roles: link.roles })}
+                                  />
+                                  Liderança {!isAdmin && <span className="text-[10px] text-amber-600 font-semibold">(Apenas Admin)</span>}
+                                </label>
                                 <input defaultValue={link.roles.join(", ")} onBlur={(e) => saveMemberLink(link.memberId, { isLeader: link.isLeader, roles: e.target.value.split(",").map((item) => item.trim()).filter(Boolean) })} className="px-3 py-2 rounded-xl border border-[#e5e0f8] text-sm min-w-[220px]" />
                                 <button onClick={() => removeMember(link.memberId)} className="px-3 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold">Remover</button>
                               </div>

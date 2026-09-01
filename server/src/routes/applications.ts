@@ -504,23 +504,51 @@ export async function applicationRoutes(app: FastifyInstance) {
     };
   });
 
-  /** DELETE /applications/:id — remover candidato (apenas pendentes) */
+  /** DELETE /applications/:id — remover candidato */
   app.delete("/applications/:id", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
 
-    const application = await prisma.application.findUnique({ where: { id }, select: { churchId: true, status: true } });
+    const application = await prisma.application.findUnique({ where: { id }, select: { churchId: true } });
     if (!application || application.churchId !== auth.churchId) {
       return reply.code(404).send({ error: "Candidato não encontrado" });
-    }
-    if (application.status === "APPROVED") {
-      return reply.code(409).send({ error: "Não é possível excluir candidato já aprovado" });
     }
 
     await prisma.applicationPreference.deleteMany({ where: { applicationId: id } });
     await prisma.application.delete({ where: { id } });
-    return reply.code(204).send();
+    return reply.code(200).send({ success: true, message: "Inscrição excluída com sucesso." });
+  });
+
+  /** POST /applications/cleanup-test — excluir todas as inscrições de teste em massa */
+  app.post("/applications/cleanup-test", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+
+    const testApplications = await prisma.application.findMany({
+      where: {
+        churchId: auth.churchId,
+        OR: [
+          { name: { contains: "Teste", mode: "insensitive" } },
+          { name: { contains: "Nuvem", mode: "insensitive" } },
+          { name: { contains: "Voluntário Teste", mode: "insensitive" } },
+          { email: { contains: "@volutis.local", mode: "insensitive" } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    const ids = testApplications.map((a) => a.id);
+    if (ids.length > 0) {
+      await prisma.applicationPreference.deleteMany({ where: { applicationId: { in: ids } } });
+      await prisma.application.deleteMany({ where: { id: { in: ids } } });
+    }
+
+    return {
+      success: true,
+      deletedCount: ids.length,
+      message: `${ids.length} inscrição(ões) de teste foram excluídas com sucesso.`,
+    };
   });
 
   // ─── ROTAS PARA DEFINIR SENHA (sem autenticação) ────────────────

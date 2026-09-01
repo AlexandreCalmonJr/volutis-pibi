@@ -205,10 +205,14 @@ export async function ministryRoutes(app: FastifyInstance) {
       return reply.code(403).send({ error: "Sem permissão para gerenciar este ministério" });
     if (!(await belongsToChurch("member", body.memberId, auth.churchId)))
       return reply.code(404).send({ error: "Membro não encontrado" });
+
+    // Apenas Administrador pode promover a Líder
+    const isLeader = auth.role === "ADMIN" ? body.isLeader : false;
+
     const link = await prisma.ministryMember.upsert({
       where: { memberId_ministryId: { memberId: body.memberId, ministryId: id } },
-      create: { memberId: body.memberId, ministryId: id, isLeader: body.isLeader, roles: toJson(body.roles) },
-      update: { isLeader: body.isLeader, roles: toJson(body.roles) },
+      create: { memberId: body.memberId, ministryId: id, isLeader, roles: toJson(body.roles) },
+      update: { ...(auth.role === "ADMIN" ? { isLeader } : {}), roles: toJson(body.roles) },
     });
     return reply.code(201).send({ ...link, roles: fromJson(link.roles) });
   });
@@ -245,10 +249,15 @@ export async function ministryRoutes(app: FastifyInstance) {
     if (!link) return reply.code(404).send({ error: "Vínculo não encontrado" });
 
     const body = memberLinkSchema.partial().parse(req.body);
+
+    if (body.isLeader !== undefined && body.isLeader !== link.isLeader && auth.role !== "ADMIN") {
+      return reply.code(403).send({ error: "Apenas o Administrador pode aprovar ou alterar a liderança do ministério." });
+    }
+
     const updated = await prisma.ministryMember.update({
       where: { memberId_ministryId: { memberId, ministryId: id } },
       data: {
-        isLeader: body.isLeader ?? undefined,
+        isLeader: auth.role === "ADMIN" ? body.isLeader : undefined,
         roles: body.roles ? toJson(body.roles) : undefined,
       },
     });

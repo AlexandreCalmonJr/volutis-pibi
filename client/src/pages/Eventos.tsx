@@ -3,9 +3,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../store";
 import { CULTO_TEMPLATES } from "../data/templates";
+import { EventMediaModal } from "../components/EventMediaModal";
 
 interface Evento {
-  id: number;
+  id: string | number;
   title: string;
   type: string;
   date: string;
@@ -13,6 +14,11 @@ interface Evento {
   endTime: string | null;
   isRecurrent: boolean;
   recurrence: string | null;
+  bannerUrl?: string | null;
+  theme?: string | null;
+  preacher?: string | null;
+  youtubeBroadcastUrl?: string | null;
+  youtubeStatus?: string | null;
   scheduleItems: any[];
 }
 
@@ -43,6 +49,9 @@ export default function Eventos() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+
+  // Modal de Mídias
+  const [selectedMediaEvent, setSelectedMediaEvent] = useState<Evento | null>(null);
 
   const [novoEvento, setNovoEvento] = useState({
     titulo: "",
@@ -211,19 +220,28 @@ export default function Eventos() {
                 key={evento.id}
                 className={`bg-white rounded-2xl border p-5 hover:shadow-md transition-all hover:border-[#c4b5fd] ${String(evento.id) === focusedEventId ? "border-[#7c3aed] ring-2 ring-[#ddd6fe]" : "border-[#e5e0f8]"}`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                  {/* Data */}
-                  <div
-                    className="w-14 h-14 rounded-xl flex flex-col items-center justify-center flex-shrink-0 text-white"
-                    style={{ backgroundColor: tag.text }}
-                  >
-                    <p className="text-xs font-semibold opacity-80">
-                      {new Date(evento.date).toLocaleDateString("pt-BR", { month: "short" }).toUpperCase()}
-                    </p>
-                    <p className="text-xl font-bold leading-tight">
-                      {new Date(evento.date).getDate()}
-                    </p>
-                  </div>
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  {/* Banner Preview ou Data */}
+                  {evento.bannerUrl ? (
+                    <div className="w-24 h-16 rounded-xl overflow-hidden bg-slate-900 flex-shrink-0 border border-[#e5e0f8] relative group cursor-pointer" onClick={() => setSelectedMediaEvent(evento)}>
+                      <img src={evento.bannerUrl} alt={evento.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-white text-xs font-bold">Ver Arte</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="w-14 h-14 rounded-xl flex flex-col items-center justify-center flex-shrink-0 text-white shadow-sm"
+                      style={{ backgroundColor: tag.text }}
+                    >
+                      <p className="text-xs font-semibold opacity-80">
+                        {new Date(evento.date).toLocaleDateString("pt-BR", { month: "short" }).toUpperCase()}
+                      </p>
+                      <p className="text-xl font-bold leading-tight">
+                        {new Date(evento.date).getDate()}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
@@ -232,6 +250,16 @@ export default function Eventos() {
                       <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: tag.bg, color: tag.text }}>
                         {label}
                       </span>
+                      {evento.youtubeBroadcastUrl && (
+                        <a
+                          href={evento.youtubeBroadcastUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold flex items-center gap-1 hover:bg-red-200"
+                        >
+                          <span>🔴</span> Live no YouTube
+                        </a>
+                      )}
                       {evento.isRecurrent && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium flex items-center gap-1">
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -241,13 +269,22 @@ export default function Eventos() {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-[#7c6ea8]">
-                      {horario}
-                    </p>
+                    <div className="flex items-center gap-3 text-sm text-[#7c6ea8] flex-wrap">
+                      <span>🕒 {horario}</span>
+                      {evento.theme && <span className="text-indigo-600 font-medium">📖 Tema: {evento.theme}</span>}
+                      {evento.preacher && <span className="text-[#5b5077]">🎙️ {evento.preacher}</span>}
+                    </div>
                   </div>
 
                   {/* Ações */}
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMediaEvent(evento)}
+                      className="text-xs px-3.5 py-1.5 rounded-lg border border-[#d4c7f7] bg-[#faf8ff] text-[#7c3aed] hover:bg-[#7c3aed] hover:text-white font-medium transition-all flex items-center gap-1.5 shadow-sm"
+                    >
+                      <span>🎨</span> Mídias & Telão
+                    </button>
                     <button
                       className="text-xs px-3.5 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-[#f5f3ff] hover:text-[#7c3aed] hover:border-[#c4b5fd] font-medium transition-colors"
                       onClick={() => navigate(`/escalas?eventId=${encodeURIComponent(String(evento.id))}`)}
@@ -471,6 +508,22 @@ export default function Eventos() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Mídias e Artes do Culto */}
+      {selectedMediaEvent && (
+        <EventMediaModal
+          eventId={String(selectedMediaEvent.id)}
+          eventTitle={selectedMediaEvent.title}
+          eventDate={selectedMediaEvent.date}
+          bannerUrl={selectedMediaEvent.bannerUrl}
+          youtubeBroadcastUrl={selectedMediaEvent.youtubeBroadcastUrl}
+          youtubeStatus={selectedMediaEvent.youtubeStatus}
+          onClose={() => setSelectedMediaEvent(null)}
+          onMediaUpdated={() => {
+            carregarEventos();
+          }}
+        />
       )}
     </div>
   );

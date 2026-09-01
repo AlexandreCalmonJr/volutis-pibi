@@ -536,4 +536,96 @@ export async function adminRoutes(app: FastifyInstance) {
       preview,
     };
   });
+
+  // ── Limpeza Completa para Produção ──────────────────────────────
+  app.post("/admin/production-reset", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
+    const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+
+    const body = z.object({
+      clearSchedules: z.boolean().default(true),
+      clearEvents: z.boolean().default(false),
+      clearSongs: z.boolean().default(false),
+      clearApplications: z.boolean().default(true),
+      clearChat: z.boolean().default(true),
+      clearMembers: z.boolean().default(false),
+    }).parse(req.body ?? {});
+
+    const churchId = auth.churchId;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const summary: Record<string, number> = {};
+
+      if (body.clearChat) {
+        const deleted = await tx.chatMessage.deleteMany({
+          where: { event: { churchId } },
+        });
+        summary.chatMessages = deleted.count;
+      }
+
+      if (body.clearSchedules) {
+        await tx.swapRequest.deleteMany({
+          where: { scheduleItem: { event: { churchId } } },
+        });
+        await tx.checkIn.deleteMany({
+          where: { scheduleItem: { event: { churchId } } },
+        });
+        const deleted = await tx.scheduleItem.deleteMany({
+          where: { event: { churchId } },
+        });
+        summary.schedules = deleted.count;
+      }
+
+      if (body.clearApplications) {
+        const deleted = await tx.application.deleteMany({
+          where: { churchId },
+        });
+        summary.applications = deleted.count;
+      }
+
+      if (body.clearEvents) {
+        const deleted = await tx.event.deleteMany({
+          where: { churchId },
+        });
+        summary.events = deleted.count;
+      }
+
+      if (body.clearSongs) {
+        const deleted = await tx.song.deleteMany({
+          where: { churchId },
+        });
+        summary.songs = deleted.count;
+      }
+
+      if (body.clearMembers) {
+        // Exclui membros que NÃO sejam o administrador logado
+        const nonAdminUsers = await tx.user.findMany({
+          where: {
+            id: { not: auth.sub },
+            member: { churchId },
+            role: { not: "ADMIN" },
+          },
+          select: { id: true, member: { select: { id: true } } },
+        });
+        const memberIds = nonAdminUsers.map((u) => u.member?.id).filter(Boolean) as string[];
+        const userIds = nonAdminUsers.map((u) => u.id);
+
+        if (memberIds.length > 0) {
+          await tx.member.deleteMany({ where: { id: { in: memberIds } } });
+        }
+        if (userIds.length > 0) {
+          await tx.user.deleteMany({ where: { id: { in: userIds } } });
+        }
+        summary.members = memberIds.length;
+      }
+
+      return summary;
+    });
+
+    return {
+      success: true,
+      message: "Banco de dados limpo para produção com sucesso.",
+      summary: result,
+    };
+  });
 }

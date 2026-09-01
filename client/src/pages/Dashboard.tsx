@@ -158,7 +158,7 @@ export default function Dashboard() {
       setSeedPreview(result.preview);
       setSeedFeedback({
         type: "ok",
-        text: `${result.message} Removidos: ${result.removedVolunteers} voluntário(s), ${result.removedEvents} evento(s), ${result.removedSongs} música(s), ${result.removedMinistries} ministério(s).${result.skippedMinistries ? ` ${result.skippedMinistries} ministério(s) foram mantidos por ainda terem membros.` : ""}`,
+        text: `${result.message} Removidos: ${result.removedVolunteers} membro(s), ${result.removedEvents} evento(s), ${result.removedSongs} música(s), ${result.removedMinistries} ministério(s).${result.skippedMinistries ? ` ${result.skippedMinistries} ministério(s) foram mantidos por ainda terem membros.` : ""}`,
       });
       fetchDashboard();
     } catch (e: any) {
@@ -445,8 +445,8 @@ export default function Dashboard() {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
             <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-[var(--color-text)]">Limpeza de dados de seed</h2>
-                <p className="text-sm text-[var(--color-text-secondary)] mt-1">Remove somente registros conhecidos do seed, sem mexer no administrador.</p>
+                <h2 className="text-lg font-bold text-[var(--color-text)]">Limpeza de dados para Produção</h2>
+                <p className="text-sm text-[var(--color-text-secondary)] mt-1">Remove registros de teste e seed, sem mexer na conta do administrador.</p>
               </div>
               <button onClick={() => setSeedOpen(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200">×</button>
             </div>
@@ -466,7 +466,7 @@ export default function Dashboard() {
                     <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
                       <input type="checkbox" checked={seedOptions.removeVolunteers} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeVolunteers: e.target.checked }))} />
                       <div>
-                        <p className="font-semibold text-[var(--color-text)]">Voluntários demo</p>
+                        <p className="font-semibold text-[var(--color-text)]">Membros demo/teste</p>
                         <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontrados: {seedPreview?.counts.volunteers ?? 0}</p>
                       </div>
                     </label>
