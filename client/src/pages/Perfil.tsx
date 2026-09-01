@@ -331,6 +331,23 @@ export default function Perfil() {
     }
   }
 
+  async function handleRespondSchedule(scheduleItemId: string, action: "CONFIRM" | "DECLINE") {
+    setFeedback(null);
+    try {
+      await api(`/schedule-items/${scheduleItemId}/respond`, {
+        method: "POST",
+        body: { action },
+      });
+      await loadProfileData();
+      setFeedback({
+        type: "ok",
+        text: action === "CONFIRM" ? "Escala confirmada com sucesso! 🙌" : "Escala recusada.",
+      });
+    } catch (err: any) {
+      setFeedback({ type: "error", text: err?.message || "Não foi possível responder à escala." });
+    }
+  }
+
   const initials = getInitials(profile?.name || user?.memberName || user?.email || "Usuário");
 
   if (loading) {
@@ -537,20 +554,53 @@ export default function Perfil() {
           </div>
 
           <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6">
-            <h3 className="text-base font-bold text-[#1e1b4b] mb-4">Próximas escalas</h3>
+            <h3 className="text-base font-bold text-[#1e1b4b] mb-4">Minhas próximas escalas</h3>
             <div className="space-y-3">
               {upcomingItems.length === 0 ? (
                 <p className="text-sm text-[#7c6ea8]">Nenhuma escala futura encontrada.</p>
-              ) : upcomingItems.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-[#ede9fe] p-4">
-                  <p className="font-semibold text-[#1e1b4b]">{item.event.title}</p>
-                  <p className="mt-1 text-sm text-[#6d5fa1]">{item.roleName}</p>
-                  <p className="mt-2 text-xs text-[#7c6ea8]">
-                    {new Date(item.event.startTime).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                  <span className={`mt-3 inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${getScheduleStatusMeta(item.status).className}`}>{getScheduleStatusMeta(item.status).label}</span>
-                </div>
-              ))}
+              ) : upcomingItems.map((item) => {
+                const isPending = item.status === "PENDING";
+                const statusMeta = getScheduleStatusMeta(item.status);
+
+                return (
+                  <div key={item.id} className="rounded-2xl border border-[#ede9fe] bg-[#fcfbff] p-4 flex flex-col justify-between gap-3">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-bold text-[#1e1b4b]">{item.event.title}</p>
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${statusMeta.className}`}>
+                          {statusMeta.label}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm font-semibold text-[#7c3aed]">{item.roleName}</p>
+                      <p className="mt-1 text-xs text-[#7c6ea8]">
+                        📅 {new Date(item.event.startTime).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+
+                    {isPending ? (
+                      <div className="pt-2 border-t border-[#ede9fe] flex flex-col sm:flex-row gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleRespondSchedule(item.id, "CONFIRM")}
+                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all shadow-sm flex items-center justify-center gap-1.5"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Confirmar Presença
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRespondSchedule(item.id, "DECLINE")}
+                          className="py-2 px-3 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-all"
+                        >
+                          Recusar
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

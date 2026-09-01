@@ -105,25 +105,51 @@ export default function Comunicacao() {
   }, [requestedTab]);
 
   useEffect(() => {
-    api<Event[]>("/events")
-      .then((data) => {
-        setEvents(data);
-        if (requestedEventId && data.some((event) => event.id === requestedEventId)) {
-          setEventId(requestedEventId);
-        } else if (data.length > 0) {
-          setEventId(data[0].id);
+    async function loadChatEvents() {
+      setLoadingEvents(true);
+      try {
+        if (isLeaderOrAdmin) {
+          const data = await api<Event[]>("/events");
+          setEvents(data);
+          if (requestedEventId && data.some((event) => event.id === requestedEventId)) {
+            setEventId(requestedEventId);
+          } else if (data.length > 0) {
+            setEventId(data[0].id);
+          }
+        } else {
+          const mySchedule = await api<{ items: Array<{ event: Event }> }>("/my/schedule?scope=all");
+          const uniqueEventsMap = new Map<string, Event>();
+          for (const item of mySchedule.items ?? []) {
+            if (item.event && !uniqueEventsMap.has(item.event.id)) {
+              uniqueEventsMap.set(item.event.id, item.event);
+            }
+          }
+          const userEvents = Array.from(uniqueEventsMap.values());
+          setEvents(userEvents);
+          if (requestedEventId && userEvents.some((event) => event.id === requestedEventId)) {
+            setEventId(requestedEventId);
+          } else if (userEvents.length > 0) {
+            setEventId(userEvents[0].id);
+          }
         }
-      })
-      .catch(() => setEvents([]))
-      .finally(() => setLoadingEvents(false));
+      } catch {
+        setEvents([]);
+      } finally {
+        setLoadingEvents(false);
+      }
+    }
 
-    api<Ministry[]>("/ministries")
-      .then((data) => {
-        setMinistries(data);
-        if (data.length > 0) setSelectedMinistryId(data[0].id);
-      })
-      .catch(() => setMinistries([]));
-  }, [requestedEventId]);
+    loadChatEvents();
+
+    if (isLeaderOrAdmin) {
+      api<Ministry[]>("/ministries")
+        .then((data) => {
+          setMinistries(data);
+          if (data.length > 0) setSelectedMinistryId(data[0].id);
+        })
+        .catch(() => setMinistries([]));
+    }
+  }, [requestedEventId, isLeaderOrAdmin]);
 
   const fetchWhatsAppStatus = useCallback(async () => {
     setLoadingStatus(true);

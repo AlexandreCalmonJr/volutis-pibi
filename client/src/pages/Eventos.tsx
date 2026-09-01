@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
+import { useAuth } from "../store";
+import { CULTO_TEMPLATES } from "../data/templates";
 
 interface Evento {
   id: number;
@@ -31,6 +33,8 @@ const tipoColors: Record<string, { bg: string; text: string }> = {
 };
 
 export default function Eventos() {
+  const user = useAuth((s) => s.user);
+  const canManageEvents = user?.role === "ADMIN" || user?.role === "MINISTRY_LEADER";
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [aba, setAba] = useState<"lista" | "templates" | "novo">("lista");
@@ -146,31 +150,35 @@ export default function Eventos() {
             {eventos.length} eventos · {eventosRecorrentes} recorrentes
           </p>
         </div>
-        <button
-          onClick={() => { resetFormulario(); setAba("novo"); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-          style={{ backgroundColor: "#7c3aed" }}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Novo Evento
-        </button>
+        {canManageEvents && (
+          <button
+            onClick={() => { resetFormulario(); setAba("novo"); }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 shadow-sm"
+            style={{ backgroundColor: "#7c3aed" }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Novo Evento
+          </button>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-white border border-[#e5e0f8] rounded-xl p-1 w-fit">
-        {(["lista", "templates", "novo"] as const).map((a) => (
-          <button
-            key={a}
-            onClick={() => { if (a === "novo" && !editingEventId) resetFormulario(); setAba(a); }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${aba === a ? "text-white" : "text-[#7c6ea8] hover:bg-gray-50"}`}
-            style={aba === a ? { backgroundColor: "#7c3aed" } : {}}
-          >
-            {a === "lista" ? "Lista de Eventos" : a === "templates" ? "Templates" : "Novo Evento"}
-          </button>
-        ))}
-      </div>
+      {/* Tabs (somente líderes/admins vêem abas extras) */}
+      {canManageEvents && (
+        <div className="flex gap-1 bg-white border border-[#e5e0f8] rounded-xl p-1 w-fit">
+          {(["lista", "templates", "novo"] as const).map((a) => (
+            <button
+              key={a}
+              onClick={() => { if (a === "novo" && !editingEventId) resetFormulario(); setAba(a); }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${aba === a ? "text-white" : "text-[#7c6ea8] hover:bg-gray-50"}`}
+              style={aba === a ? { backgroundColor: "#7c3aed" } : {}}
+            >
+              {a === "lista" ? "Lista de Eventos" : a === "templates" ? "Templates" : "Novo Evento"}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Erro */}
       {erro && (
@@ -180,14 +188,14 @@ export default function Eventos() {
       )}
 
       {/* Loading */}
-      {aba === "lista" && carregando && (
+      {(aba === "lista" || !canManageEvents) && carregando && (
         <div className="flex items-center justify-center py-16">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#e5e0f8] border-t-[#7c3aed]" />
         </div>
       )}
 
       {/* Lista de Eventos */}
-      {aba === "lista" && !carregando && (
+      {(aba === "lista" || !canManageEvents) && !carregando && (
         <div className="space-y-3">
           {eventos.length === 0 && (
             <p className="text-center text-[#7c6ea8] py-16">Nenhum evento encontrado.</p>
@@ -241,23 +249,27 @@ export default function Eventos() {
                   {/* Ações */}
                   <div className="flex gap-2 flex-shrink-0">
                     <button
-                      className="text-xs px-3 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-gray-50 transition-colors"
+                      className="text-xs px-3.5 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-[#f5f3ff] hover:text-[#7c3aed] hover:border-[#c4b5fd] font-medium transition-colors"
                       onClick={() => navigate(`/escalas?eventId=${encodeURIComponent(String(evento.id))}`)}
                     >
-                      Escala
+                      Ver Escala
                     </button>
-                    <button
-                      className="text-xs px-3 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-gray-50 transition-colors"
-                      onClick={() => editarEvento(evento)}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                      onClick={() => excluirEvento(String(evento.id))}
-                    >
-                      Excluir
-                    </button>
+                    {canManageEvents && (
+                      <>
+                        <button
+                          className="text-xs px-3 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-gray-50 transition-colors"
+                          onClick={() => editarEvento(evento)}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                          onClick={() => excluirEvento(String(evento.id))}
+                        >
+                          Excluir
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -268,26 +280,88 @@ export default function Eventos() {
 
       {/* Templates */}
       {aba === "templates" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            { title: "Culto Domingo Manhã", type: "SUNDAY_MORNING", recorrente: true, frequencia: "semanal", horario: "09:00" },
-            { title: "Culto Domingo Noite", type: "SUNDAY_EVENING", recorrente: true, frequencia: "semanal", horario: "18:00" },
-            { title: "Ensaio de Louvor", type: "REHEARSAL", recorrente: true, frequencia: "semanal", horario: "19:30" },
-          ].map((template) => (
-            <button
-              key={template.title}
-              onClick={() => {
-                resetFormulario();
-                setNovoEvento((prev) => ({ ...prev, ...template }));
-                setAba("novo");
-              }}
-              className="bg-white rounded-2xl border border-[#e5e0f8] p-5 text-left hover:shadow-md hover:border-[#c4b5fd] transition-all"
-            >
-              <p className="font-semibold text-[#1e1b4b]">{template.title}</p>
-              <p className="text-sm text-[#7c6ea8] mt-1">{template.recorrente ? `Recorrente · ${template.frequencia}` : "Evento único"}</p>
-              <p className="text-xs text-[#7c3aed] mt-3">Usar template</p>
-            </button>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {CULTO_TEMPLATES.map((template) => {
+            const tag = tipoColors[template.type] || { bg: "#f5f3ff", text: "#7c3aed" };
+            return (
+              <div
+                key={template.id}
+                className="bg-white rounded-2xl border border-[#e5e0f8] p-5 flex flex-col justify-between hover:shadow-lg hover:border-[#c4b5fd] transition-all"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#f5f3ff] flex items-center justify-center text-xl flex-shrink-0">
+                      {template.icon}
+                    </div>
+                    <span
+                      className="text-xs px-2.5 py-0.5 rounded-full font-medium"
+                      style={{ backgroundColor: tag.bg, color: tag.text }}
+                    >
+                      {template.tag}
+                    </span>
+                  </div>
+
+                  <h3 className="font-bold text-[#1e1b4b] text-base mb-1">
+                    {template.title}
+                  </h3>
+
+                  <p className="text-xs text-[#7c6ea8] leading-relaxed mb-3">
+                    {template.descricao}
+                  </p>
+
+                  <div className="flex flex-wrap gap-2 text-[11px] text-[#5b5077] mb-4">
+                    <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md font-medium">
+                      ⏰ Início: {template.horario} ({template.duracaoMin} min)
+                    </span>
+                    <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-medium">
+                      🔄 {template.recorrente ? `Recorrente · ${template.frequencia}` : "Evento Único"}
+                    </span>
+                  </div>
+
+                  {template.funcoesSugeridas && (
+                    <div className="border-t border-[#f0eefe] pt-2.5 mb-4">
+                      <p className="text-[10px] font-bold text-[#7c6ea8] uppercase tracking-wider mb-1.5">
+                        Equipes envolvidas:
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {template.funcoesSugeridas.slice(0, 4).map((f) => (
+                          <span key={f} className="text-[10px] bg-[#f8f7fe] text-[#6d5fa1] px-1.5 py-0.5 rounded border border-[#ede9fe]">
+                            {f}
+                          </span>
+                        ))}
+                        {template.funcoesSugeridas.length > 4 && (
+                          <span className="text-[10px] text-[#7c6ea8] px-1 py-0.5">
+                            +{template.funcoesSugeridas.length - 4} mais
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => {
+                    resetFormulario();
+                    setNovoEvento((prev) => ({
+                      ...prev,
+                      titulo: template.title,
+                      tipo: template.type,
+                      horario: template.horario,
+                      recorrente: template.recorrente,
+                      frequencia: template.frequencia,
+                    }));
+                    setAba("novo");
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Usar este template
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
