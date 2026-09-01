@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api, ApiError } from "../api";
+import { useAuth } from "../store";
 import { AVATAR_OPTIONS, Avatar } from "../components/Avatar";
 
 interface Ministry {
@@ -57,6 +58,8 @@ export default function TriagemPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionResult, setActionResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [draftAvatarKey, setDraftAvatarKey] = useState<string>("violet");
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -211,15 +214,26 @@ export default function TriagemPage() {
             {stats ? `${stats.pending} pendente(s) · ${stats.approved} aprovado(s) este mês` : "Carregando..."}
           </p>
         </div>
-        <button
-          onClick={fetchData}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c3aed] hover:bg-[#f5f3ff] transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Atualizar
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowQrModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[#7c3aed] text-white hover:opacity-90 shadow-sm transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+            </svg>
+            Link da Igreja & QR Code 📲
+          </button>
+          <button
+            onClick={fetchData}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c3aed] hover:bg-[#f5f3ff] transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Atualizar
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -674,6 +688,103 @@ export default function TriagemPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de QR Code e Link de Inscrição */}
+      {showQrModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-xl">
+                  📲
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-[#1e1b4b]">Inscrição de Voluntários & Membros</h3>
+                  <p className="text-xs text-[#7c6ea8]">Divulgue para a igreja se cadastrar nos ministérios</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowQrModal(false)}
+                className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* QR Code centralizado */}
+            <div className="flex flex-col items-center justify-center p-6 bg-gradient-to-b from-[#faf8ff] to-[#f5f0ff] rounded-2xl border border-[#ede9fe] text-center">
+              <div className="p-3 bg-white rounded-2xl shadow-md border border-[#e5e0f8]">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(`${window.location.origin}/cadastro/pibi`)}&color=7c3aed`}
+                  alt="QR Code de Inscrição Volutis"
+                  className="w-48 h-48 rounded-lg"
+                />
+              </div>
+              <p className="font-bold text-[#1e1b4b] mt-4 text-sm">Escaneie com a câmera do celular</p>
+              <p className="text-xs text-[#7c6ea8] mt-1 max-w-xs">
+                Aponte a câmera para preencher a ficha de voluntário e escolher os ministérios desejados.
+              </p>
+            </div>
+
+            {/* Link direto com cópia rápida */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider">
+                Link público de cadastro
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/cadastro/pibi`}
+                  className="flex-1 px-3.5 py-2.5 text-xs bg-slate-50 border border-[#e5e0f8] rounded-xl text-[#1e1b4b] select-all font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/cadastro/pibi`);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 2500);
+                  }}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 ${
+                    copiedLink ? "bg-emerald-600 text-white" : "bg-[#7c3aed] text-white hover:opacity-90"
+                  }`}
+                >
+                  {copiedLink ? "Copiado! ✓" : "Copiar"}
+                </button>
+              </div>
+            </div>
+
+            {/* Ações e Dicas */}
+            <div className="p-3 bg-violet-50 border border-violet-100 rounded-xl text-[11px] text-[#5b5077] leading-relaxed">
+              💡 <strong>Dica para os Cultos:</strong> Projete esta imagem no telão nos avisos de domingo ou envie o link nos grupos de WhatsApp da igreja para captar voluntários.
+            </div>
+
+            <div className="pt-2 flex items-center justify-between border-t border-[#f0eefe]">
+              <a
+                href={`${window.location.origin}/cadastro/pibi`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-semibold text-[#7c3aed] hover:underline flex items-center gap-1"
+              >
+                Abrir formulário ↗
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(`${window.location.origin}/cadastro/pibi`)}&color=7c3aed`;
+                  link.download = "qrcode-voluntarios-igreja.png";
+                  link.target = "_blank";
+                  link.click();
+                }}
+                className="px-4 py-2 text-xs font-semibold border border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] rounded-xl transition-all"
+              >
+                Baixar Imagem do QR Code 📥
+              </button>
+            </div>
           </div>
         </div>
       )}

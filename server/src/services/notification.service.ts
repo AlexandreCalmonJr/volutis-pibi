@@ -19,6 +19,7 @@ export type NotificationType =
   | "CHECKIN_DONE"
   | "CHAT_MESSAGE"
   | "BADGE_EARNED"
+  | "SETLIST_UPDATED"
   | "ANNOUNCEMENT";
 
 export interface Notification {

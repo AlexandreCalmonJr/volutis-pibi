@@ -4,7 +4,6 @@ import { api } from "../api";
 import { useAuth } from "../store";
 import { MINISTERIO_COLORS, MINISTERIOS } from "../lib/constants";
 import { Avatar } from "../components/Avatar";
-import { CULTO_TEMPLATES } from "../data/templates";
 
 const dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -175,19 +174,16 @@ export default function Escalas() {
   const [filtroMinisterio, setFiltroMinisterio] = useState("Todos");
   const [respondingId, setRespondingId] = useState<string | null>(null);
 
-  function handleTemplateSelect(templateTitle: string, templateType: string) {
-    // Procura evento do tipo ou título do template no mês
-    const match = events.find(
-      (e) => e.type === templateType || e.title.toLowerCase().includes(templateTitle.toLowerCase())
-    );
-    if (match) {
-      const day = new Date(match.date).getDate();
-      setDiaSelecionado(day);
-    } else {
-      // Se não encontrar evento cadastrado, direciona para criar evento a partir desse template
-      navigate(`/eventos`);
-    }
-  }
+  // Troca de Escala
+  const [swapModalOpen, setSwapModalOpen] = useState(false);
+  const [swapItem, setSwapItem] = useState<DayScheduleItem | null>(null);
+  const [swapTargetMemberId, setSwapTargetMemberId] = useState("");
+  const [swapMessage, setSwapMessage] = useState("");
+  const [swapSubmitting, setSwapSubmitting] = useState(false);
+  const [swapError, setSwapError] = useState<string | null>(null);
+  const [swapSuccess, setSwapSuccess] = useState<string | null>(null);
+  const [swapCandidates, setSwapCandidates] = useState<Array<{ id: string; name: string }>>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
 
   // Auto Gerar Escala
   const [modalAutoOpen, setModalAutoOpen] = useState(false);
@@ -448,6 +444,59 @@ export default function Escalas() {
       alert(err?.message || "Não foi possível responder à escala.");
     } finally {
       setRespondingId(null);
+    }
+  }
+
+  async function openSwapModal(item: DayScheduleItem) {
+    setSwapItem(item);
+    setSwapTargetMemberId("");
+    setSwapMessage("");
+    setSwapError(null);
+    setSwapSuccess(null);
+    setSwapModalOpen(true);
+    setLoadingCandidates(true);
+    try {
+      const inferredMinistry = ministriesList.find((m) => m.roles.some((r) => r.name === item.roleName));
+      if (inferredMinistry) {
+        const candidates = await api<Array<{ memberId: string; name: string }>>(
+          `/events/${item.eventId}/suggestions?ministryId=${inferredMinistry.id}&role=${encodeURIComponent(item.roleName)}`
+        );
+        const filtered = candidates
+          .map((c) => ({ id: c.memberId, name: c.name }))
+          .filter((c) => c.id !== user?.memberId && c.id !== item.member.id);
+        setSwapCandidates(filtered);
+      } else {
+        setSwapCandidates(membersList.filter((m) => m.id !== user?.memberId && m.id !== item.member.id).map((m) => ({ id: m.id, name: m.name })));
+      }
+    } catch {
+      setSwapCandidates(membersList.filter((m) => m.id !== user?.memberId && m.id !== item.member.id).map((m) => ({ id: m.id, name: m.name })));
+    } finally {
+      setLoadingCandidates(false);
+    }
+  }
+
+  async function handleSendSwapRequest() {
+    if (!swapItem || !swapTargetMemberId) return;
+    setSwapSubmitting(true);
+    setSwapError(null);
+    try {
+      await api(`/schedule-items/${swapItem.id}/swap`, {
+        method: "POST",
+        body: {
+          targetMemberId: swapTargetMemberId,
+          message: swapMessage.trim() || undefined,
+        },
+      });
+      setSwapSuccess("Pedido de troca enviado com sucesso! O voluntário e a liderança foram notificados.");
+      await fetchEvents();
+      setTimeout(() => {
+        setSwapModalOpen(false);
+        setSwapSuccess(null);
+      }, 2200);
+    } catch (err: any) {
+      setSwapError(err?.message || "Não foi possível enviar o pedido de troca.");
+    } finally {
+      setSwapSubmitting(false);
     }
   }
 
@@ -746,40 +795,6 @@ export default function Escalas() {
               </div>
             )}
           </div>
-
-          {/* Templates */}
-          <div className="px-6 py-4 border-t border-[#f0eefe]">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider">
-                Templates de Culto
-              </p>
-              <button
-                onClick={() => navigate("/eventos")}
-                className="text-xs text-[#7c3aed] font-medium hover:underline flex items-center gap-1"
-              >
-                Gerenciar Templates →
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {CULTO_TEMPLATES.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => handleTemplateSelect(t.title, t.type)}
-                  className="text-xs px-3 py-1.5 rounded-full border border-[#e5e0f8] text-[#5b5077] hover:bg-[#f5f3ff] hover:text-[#7c3aed] hover:border-[#c4b5fd] transition-all flex items-center gap-1.5 shadow-sm"
-                  title={`Filtrar ou agendar escala para ${t.title}`}
-                >
-                  <span>{t.icon}</span>
-                  <span>{t.title}</span>
-                </button>
-              ))}
-              <button
-                onClick={() => navigate("/eventos")}
-                className="text-xs px-3 py-1.5 rounded-full border border-dashed border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] transition-all font-medium"
-              >
-                + Novo Template
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Escala do dia */}
@@ -888,24 +903,37 @@ export default function Escalas() {
                         </span>
 
                         {/* Botões de Ação para o voluntário logado */}
-                        {isMyItem && isPending && (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleRespondSchedule(item.id, "CONFIRM")}
-                              disabled={respondingId === item.id}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
-                              title="Confirmar presença nesta escala"
-                            >
-                              {respondingId === item.id ? "Confirmando..." : "Confirmar"}
-                            </button>
-                            <button
-                              onClick={() => handleRespondSchedule(item.id, "DECLINE")}
-                              disabled={respondingId === item.id}
-                              className="px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-all disabled:opacity-50"
-                              title="Recusar esta escala"
-                            >
-                              Recusar
-                            </button>
+                        {isMyItem && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {isPending && (
+                              <>
+                                <button
+                                  onClick={() => handleRespondSchedule(item.id, "CONFIRM")}
+                                  disabled={respondingId === item.id}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
+                                  title="Confirmar presença nesta escala"
+                                >
+                                  {respondingId === item.id ? "Confirmando..." : "Confirmar"}
+                                </button>
+                                <button
+                                  onClick={() => handleRespondSchedule(item.id, "DECLINE")}
+                                  disabled={respondingId === item.id}
+                                  className="px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-all disabled:opacity-50"
+                                  title="Recusar esta escala"
+                                >
+                                  Recusar
+                                </button>
+                              </>
+                            )}
+                            {!isDeclined && !isSwap && (
+                              <button
+                                onClick={() => openSwapModal(item)}
+                                className="px-2.5 py-1 rounded-lg border border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] text-xs font-semibold transition-all flex items-center gap-1"
+                                title="Solicitar troca com outro voluntário"
+                              >
+                                <span>🔄</span> Pedir Troca
+                              </button>
+                            )}
                           </div>
                         )}
 
@@ -1177,6 +1205,122 @@ export default function Escalas() {
                         Confirmar e Gerar
                       </>
                     )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Solicitar Troca de Escala */}
+      {swapModalOpen && swapItem && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-xl">
+                  🔄
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-[#1e1b4b]">Solicitar Troca de Escala</h3>
+                  <p className="text-xs text-[#7c6ea8]">Envie um pedido para outro voluntário assumir sua vaga</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSwapModalOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Resumo da vaga */}
+            <div className="p-3.5 bg-[#f8f7ff] border border-[#ede9fe] rounded-xl flex items-center justify-between">
+              <div>
+                <p className="font-bold text-sm text-[#1e1b4b]">{swapItem.eventTitle}</p>
+                <p className="text-xs text-[#7c6ea8] mt-0.5">
+                  Função: <strong className="text-[#7c3aed]">{swapItem.roleName}</strong>
+                </p>
+              </div>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 font-semibold">
+                Sua Vaga
+              </span>
+            </div>
+
+            {swapSuccess && (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                <span>✅</span> {swapSuccess}
+              </div>
+            )}
+
+            {swapError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
+                <span>⚠️</span> {swapError}
+              </div>
+            )}
+
+            {!swapSuccess && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">
+                    Trocar com qual voluntário? *
+                  </label>
+                  {loadingCandidates ? (
+                    <div className="py-3 text-center text-xs text-[#7c6ea8]">Buscando voluntários disponíveis...</div>
+                  ) : (
+                    <select
+                      value={swapTargetMemberId}
+                      onChange={(e) => setSwapTargetMemberId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]"
+                    >
+                      <option value="">Selecione um voluntário...</option>
+                      {swapCandidates.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="text-[11px] text-[#7c6ea8] mt-1">
+                    Mostrando voluntários habilitados para esta função sem conflito de horário.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">
+                    Mensagem / Motivo (opcional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={swapMessage}
+                    onChange={(e) => setSwapMessage(e.target.value)}
+                    placeholder="Ex: Não poderei neste dia por motivo de viagem. Consegue cobrir minha vaga?"
+                    className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]"
+                  />
+                </div>
+
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 leading-relaxed">
+                  ℹ️ <strong>Como funciona a troca:</strong> O voluntário convidado receberá uma notificação no app e celular. O líder do ministério também será notificado. Assim que o voluntário aceitar, a escala será transferida para ele automaticamente.
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#f0eefe]">
+                  <button
+                    type="button"
+                    onClick={() => setSwapModalOpen(false)}
+                    disabled={swapSubmitting}
+                    className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendSwapRequest}
+                    disabled={swapSubmitting || !swapTargetMemberId}
+                    className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+                    style={{ backgroundColor: "#7c3aed" }}
+                  >
+                    {swapSubmitting ? "Enviando pedido..." : "Enviar Pedido de Troca 🔄"}
                   </button>
                 </div>
               </div>

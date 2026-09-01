@@ -304,12 +304,12 @@ function AppLayout() {
               <Route path="/voluntarios" element={<Voluntarios />} />
               <Route path="/comunicacao" element={<Comunicacao />} />
               <Route path="/perfil" element={<Perfil />} />
-              <Route path="/louvor" element={<LeaderRoute><Louvor /></LeaderRoute>} />
+              <Route path="/louvor" element={<Louvor />} />
               <Route path="/relatorios" element={<LeaderRoute><Relatorios /></LeaderRoute>} />
-              <Route path="/triagem" element={<Triagem />} />
-              <Route path="/usuarios" element={<UsuariosAdmin />} />
-              <Route path="/convites" element={<Convites />} />
-              <Route path="/ministerios" element={<Ministerios />} />
+              <Route path="/triagem" element={<LeaderRoute><Triagem /></LeaderRoute>} />
+              <Route path="/usuarios" element={<LeaderRoute><UsuariosAdmin /></LeaderRoute>} />
+              <Route path="/convites" element={<LeaderRoute><Convites /></LeaderRoute>} />
+              <Route path="/ministerios" element={<LeaderRoute><Ministerios /></LeaderRoute>} />
               <Route path="/escala/:id" element={<EscalaDeepLink />} />
               <Route path="*" element={<div className="text-center py-20"><p className="text-lg font-semibold text-[var(--color-text)]">Página não encontrada</p><p className="text-sm text-[var(--color-muted)] mt-2">O endpoint que você procura não existe.</p></div>} />
             </Routes>
@@ -327,6 +327,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/cadastro" element={<CadastroPage />} />
         <Route path="/cadastro/:slug" element={<CadastroPage />} />
         <Route path="/definir-senha" element={<DefinirSenhaPage />} />
         <Route

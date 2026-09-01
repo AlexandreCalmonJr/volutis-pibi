@@ -223,7 +223,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
   // ── Sugestões inteligentes ───────────────────────────────────────────
   app.get(
     "/events/:eventId/suggestions",
-    { preHandler: [requireRole("MINISTRY_LEADER")] },
+    { preHandler: [requireAuth] },
     async (req, reply) => {
       const { eventId } = req.params as { eventId: string };
       const auth = req.user as AuthUser;
@@ -596,12 +596,32 @@ export async function scheduleRoutes(app: FastifyInstance) {
       prisma.scheduleItem.update({ where: { id }, data: { status: "SWAP_REQUESTED" } }),
     ]);
 
+    // Notifica o voluntário convidado
     await notifyMember(body.targetMemberId, {
       type: "SWAP_REQUESTED",
       title: "Pedido de troca de escala 🔄",
       body: `${item.member.name} pediu para você assumir ${item.roleName} em ${item.event.title}`,
       data: { swapRequestId: swap.id, scheduleItemId: id, eventId: item.eventId },
     });
+
+    // Notifica líderes do ministério e admins
+    const targetMember = await prisma.member.findUnique({ where: { id: body.targetMemberId }, select: { name: true } });
+    const ministryRoles = await prisma.ministryRole.findFirst({
+      where: { name: item.roleName, ministry: { churchId: auth.churchId } },
+      include: { ministry: { include: { members: { where: { isLeader: true } } } } },
+    });
+    if (ministryRoles?.ministry?.members) {
+      for (const leader of ministryRoles.ministry.members) {
+        if (leader.memberId !== auth.memberId && leader.memberId !== body.targetMemberId) {
+          await notifyMember(leader.memberId, {
+            type: "SWAP_REQUESTED",
+            title: "Solicitação de troca de escala 🔄",
+            body: `${item.member.name} pediu troca com ${targetMember?.name ?? "outro membro"} (${item.roleName} em ${item.event.title})`,
+            data: { swapRequestId: swap.id, scheduleItemId: id, eventId: item.eventId },
+          }).catch(() => {});
+        }
+      }
+    }
 
     return reply.code(201).send(swap);
   });
@@ -639,9 +659,27 @@ export async function scheduleRoutes(app: FastifyInstance) {
       await notifyMember(original.memberId, {
         type: "SWAP_ACCEPTED",
         title: "Troca aceita ✅",
-        body: `Sua vaga de ${original.roleName} em ${original.event.title} foi assumida`,
+        body: `Sua vaga de ${original.roleName} em ${original.event.title} foi assumida com sucesso`,
         data: { swapRequestId: id, scheduleItemId: original.id, eventId: original.eventId },
       });
+
+      // Notifica líderes do ministério
+      const ministryRoles = await prisma.ministryRole.findFirst({
+        where: { name: original.roleName, ministry: { churchId: auth.churchId } },
+        include: { ministry: { include: { members: { where: { isLeader: true } } } } },
+      });
+      if (ministryRoles?.ministry?.members) {
+        for (const leader of ministryRoles.ministry.members) {
+          if (leader.memberId !== original.memberId && leader.memberId !== swap.targetMemberId) {
+            await notifyMember(leader.memberId, {
+              type: "SWAP_ACCEPTED",
+              title: "Troca de escala confirmada ✅",
+              body: `A troca de ${original.roleName} em ${original.event.title} foi confirmada e a escala atualizada`,
+              data: { swapRequestId: id, scheduleItemId: original.id, eventId: original.eventId },
+            }).catch(() => {});
+          }
+        }
+      }
     } else {
       await prisma.$transaction([
         prisma.swapRequest.update({

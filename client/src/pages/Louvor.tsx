@@ -33,6 +33,7 @@ interface Event {
   title: string;
   date: string;
   startTime: string;
+  roleName?: string;
 }
 
 interface HolyricsConfig {
@@ -61,6 +62,19 @@ const tomColors: Record<string, string> = {
   D: "#059669", E: "#4338ca", F: "#dc2626", "F#": "#0891b2",
   G: "#65a30d", Ab: "#9333ea",
 };
+
+const LOUVOR_ROLES = [
+  "vocal", "ministro", "bateria", "baterista", "baixo", "baixista",
+  "guitarra", "guitarrista", "violão", "violonista", "teclado",
+  "tecladista", "teclas", "backing vocal", "backing", "voz",
+  "sax", "saxofone", "flauta", "percussão", "louvor", "música", "músico"
+];
+
+function checkIsLouvorRole(roleName?: string) {
+  if (!roleName) return false;
+  const lower = roleName.toLowerCase();
+  return LOUVOR_ROLES.some((r) => lower.includes(r));
+}
 
 export default function Louvor() {
   const user = useAuth((s) => s.user);
@@ -91,15 +105,35 @@ export default function Louvor() {
   const [syncingSongId, setSyncingSongId] = useState<string | null>(null);
   const [syncingLibrary, setSyncingLibrary] = useState(false);
 
+  // Perfil e Ministérios do usuário
+  const [userMinistries, setUserMinistries] = useState<string[]>([]);
+  const [notifyingTeam, setNotifyingTeam] = useState(false);
+  const [notifyFeedback, setNotifyFeedback] = useState<string | null>(null);
+  const [selectedSongDetails, setSelectedSongDetails] = useState<Song | null>(null);
+
   useEffect(() => {
-    void carregarMusicas();
-    void carregarEventos();
-    if (canManageHolyrics) void carregarHolyrics();
+    if (canManageHolyrics) {
+      void carregarMusicas();
+      void carregarEventos();
+      void carregarHolyrics();
+    } else {
+      void carregarMeusEventosEscalados();
+      void carregarPerfilMembro();
+    }
   }, [canManageHolyrics]);
 
   useEffect(() => {
     if (setlistAberta) void carregarSetlist(setlistAberta);
   }, [setlistAberta]);
+
+  async function carregarPerfilMembro() {
+    try {
+      const profile = await api<{ ministries?: Array<{ ministry: { name: string } }> }>("/members/me");
+      if (profile.ministries) {
+        setUserMinistries(profile.ministries.map((m) => m.ministry.name.toLowerCase()));
+      }
+    } catch {}
+  }
 
   async function carregarMusicas() {
     setCarregandoMusicas(true);
@@ -108,12 +142,64 @@ export default function Louvor() {
 
   async function carregarEventos() {
     setCarregandoEventos(true);
-    try { setEventos(await api<Event[]>("/events")); } finally { setCarregandoEventos(false); }
+    try {
+      const data = await api<Event[]>("/events");
+      setEventos(data);
+      if (data.length > 0 && !setlistAberta) {
+        setSetlistAberta(data[0].id);
+      }
+    } finally {
+      setCarregandoEventos(false);
+    }
+  }
+
+  async function carregarMeusEventosEscalados() {
+    setCarregandoEventos(true);
+    try {
+      const mySchedule = await api<{ items: Array<{ event: Event; roleName: string }> }>("/my/schedule?scope=all");
+      const uniqueEventsMap = new Map<string, Event>();
+      for (const item of mySchedule.items ?? []) {
+        if (item.event && !uniqueEventsMap.has(item.event.id)) {
+          uniqueEventsMap.set(item.event.id, { ...item.event, roleName: item.roleName });
+        }
+      }
+      const list = Array.from(uniqueEventsMap.values());
+      setEventos(list);
+      if (list.length > 0) {
+        setSetlistAberta(list[0].id);
+      }
+    } catch {
+      setEventos([]);
+    } finally {
+      setCarregandoEventos(false);
+    }
   }
 
   async function carregarSetlist(eventId: string) {
     setCarregandoSetlist(true);
-    try { setSetlistItens(await api<SetlistItem[]>(`/events/${eventId}/setlist`)); } catch { setSetlistItens([]); } finally { setCarregandoSetlist(false); }
+    try {
+      setSetlistItens(await api<SetlistItem[]>(`/events/${eventId}/setlist`));
+    } catch {
+      setSetlistItens([]);
+    } finally {
+      setCarregandoSetlist(false);
+    }
+  }
+
+  async function notificarEquipe(eventId: string) {
+    setNotifyingTeam(true);
+    setNotifyFeedback(null);
+    try {
+      const res = await api<{ success: boolean; notifiedCount: number; songsCount: number }>(`/events/${eventId}/setlist/notify`, {
+        method: "POST",
+      });
+      setNotifyFeedback(`Notificação enviada com sucesso para ${res.notifiedCount} voluntário(s) escalado(s)! 📢`);
+      setTimeout(() => setNotifyFeedback(null), 4000);
+    } catch (err: any) {
+      alert(err?.message || "Não foi possível enviar a notificação.");
+    } finally {
+      setNotifyingTeam(false);
+    }
   }
 
   async function carregarHolyrics() {
@@ -151,20 +237,19 @@ export default function Louvor() {
     setHolyricsSaving(true);
     setHolyricsFeedback(null);
     try {
-      await api("/holyrics/config", {
-        method: "PUT",
-        body: {
-          mode: holyricsForm.mode,
-          localIp: holyricsForm.mode === "local" ? holyricsForm.localIp.trim() : undefined,
-          localPort: holyricsForm.mode === "local" ? Number(holyricsForm.localPort) : undefined,
-          token: holyricsForm.token.trim() || undefined,
-          apiKey: holyricsForm.mode === "online" ? holyricsForm.apiKey.trim() || undefined : undefined,
-        },
-      });
+      const payload: any = {
+        mode: holyricsForm.mode,
+        localIp: holyricsForm.localIp || undefined,
+        localPort: holyricsForm.localPort ? Number(holyricsForm.localPort) : undefined,
+      };
+      if (holyricsForm.token) payload.token = holyricsForm.token;
+      if (holyricsForm.apiKey) payload.apiKey = holyricsForm.apiKey;
+      await api("/holyrics/config", { method: "PUT", body: payload });
       await carregarHolyrics();
-      setHolyricsFeedback({ type: "ok", text: "Configuração do Holyrics salva." });
+      setHolyricsFeedback({ type: "ok", text: "Configuração do Holyrics salva com sucesso." });
+      setShowHolyricsModal(false);
     } catch (err: any) {
-      setHolyricsFeedback({ type: "error", text: err?.message || "Não foi possível salvar a configuração do Holyrics." });
+      setHolyricsFeedback({ type: "error", text: err?.message || "Erro ao salvar configuração." });
     } finally {
       setHolyricsSaving(false);
     }
@@ -173,26 +258,11 @@ export default function Louvor() {
   async function importarDoHolyrics() {
     setHolyricsFeedback(null);
     try {
-      const result = await api<{ imported: number; updated: number; total: number }>("/holyrics/import-songs", { method: "POST", body: {} });
+      const res = await api<{ imported: number; totalInHolyrics: number }>("/holyrics/import-songs", { method: "POST" });
+      setHolyricsFeedback({ type: "ok", text: `Importação concluída: ${res.imported} novas músicas importadas.` });
       await carregarMusicas();
-      setHolyricsFeedback({ type: "ok", text: `Importação concluída: ${result.imported} novas e ${result.updated} atualizadas.` });
     } catch (err: any) {
-      setHolyricsFeedback({ type: "error", text: err?.message || "Falha ao importar músicas do Holyrics." });
-    }
-  }
-
-  async function sincronizarMusica(songId: string) {
-    setSyncingSongId(songId);
-    setHolyricsFeedback(null);
-    try {
-      const result = await api<{ song: Song; result: string }>(`/holyrics/sync-song/${songId}`, { method: "POST", body: {} });
-      setMusicas((current) => current.map((song) => (song.id === songId ? result.song : song)));
-      setHolyricsFeedback({ type: "ok", text: result.result === "linked" ? "Música vinculada ao item já existente no Holyrics." : "Música sincronizada com o Holyrics." });
-    } catch (err: any) {
-      setHolyricsFeedback({ type: "error", text: err?.message || "Falha ao sincronizar música com Holyrics." });
-      await carregarMusicas();
-    } finally {
-      setSyncingSongId(null);
+      setHolyricsFeedback({ type: "error", text: err?.message || "Erro ao importar do Holyrics." });
     }
   }
 
@@ -200,16 +270,27 @@ export default function Louvor() {
     setSyncingLibrary(true);
     setHolyricsFeedback(null);
     try {
-      const result = await api<{ synced: number; linked: number; failed: number; errors: Array<{ song: string; error: string }> }>("/holyrics/sync-library", { method: "POST", body: {} });
+      const res = await api<{ sentCount: number; updatedCount: number; errorCount: number; errors: any[] }>("/holyrics/sync-library", { method: "POST" });
+      setHolyricsFeedback({ type: res.errorCount === 0 ? "ok" : "error", text: `Sincronização: ${res.sentCount} enviadas, ${res.updatedCount} atualizadas.` });
       await carregarMusicas();
-      setHolyricsFeedback({
-        type: result.failed > 0 ? "error" : "ok",
-        text: `Biblioteca sincronizada: ${result.synced} criada(s)/atualizada(s), ${result.linked} vinculada(s), ${result.failed} falha(s).${result.errors[0] ? ` Primeira falha: ${result.errors[0].song} — ${result.errors[0].error}` : ""}`,
-      });
     } catch (err: any) {
-      setHolyricsFeedback({ type: "error", text: err?.message || "Falha ao sincronizar biblioteca com Holyrics." });
+      setHolyricsFeedback({ type: "error", text: err?.message || "Erro ao sincronizar repertório com o Holyrics." });
     } finally {
       setSyncingLibrary(false);
+    }
+  }
+
+  async function sincronizarMusica(songId: string) {
+    setSyncingSongId(songId);
+    setHolyricsFeedback(null);
+    try {
+      const res = await api<any>(`/songs/${songId}/holyrics/send`, { method: "POST" });
+      setHolyricsFeedback({ type: "ok", text: `Música "${res.title}" sincronizada no Holyrics.` });
+      await carregarMusicas();
+    } catch (err: any) {
+      setHolyricsFeedback({ type: "error", text: err?.message || "Erro ao sincronizar música com Holyrics." });
+    } finally {
+      setSyncingSongId(null);
     }
   }
 
@@ -217,11 +298,10 @@ export default function Louvor() {
     if (!setlistAberta) return;
     setHolyricsFeedback(null);
     try {
-      const result = await api<{ sent: number; skipped: string[]; liturgyItems: number }>(`/events/${setlistAberta}/holyrics/send-setlist`, { method: "POST", body: { clear: true } });
-      await carregarMusicas();
-      setHolyricsFeedback({ type: "ok", text: `Setlist publicada no Holyrics (${result.sent} música(s) e ${result.liturgyItems} item(ns) de liturgia no painel).${result.skipped.length ? ` Sem vínculo: ${result.skipped.join(", ")}` : ""}` });
+      const res = await api<any>(`/events/${setlistAberta}/holyrics/send-setlist`, { method: "POST", body: { clear: true } });
+      setHolyricsFeedback({ type: "ok", text: `Setlist publicada no Holyrics (${res.sent} músicas adicionadas à playlist).` });
     } catch (err: any) {
-      setHolyricsFeedback({ type: "error", text: err?.message || "Falha ao enviar setlist ao Holyrics." });
+      setHolyricsFeedback({ type: "error", text: err?.message || "Erro ao enviar setlist para o Holyrics." });
     }
   }
 
@@ -246,17 +326,25 @@ export default function Louvor() {
       });
       if (syncAfterCreate && canManageHolyrics && holyricsStatus?.configured) {
         await sincronizarMusica(created.id);
-      } else {
-        await carregarMusicas();
       }
       setNovaMusica({ title: "", artist: "", originalKey: "", bpm: "", structure: "", youtubeUrl: "", spotifyUrl: "", cifraClubUrl: "", lyrics: "", chords: "" });
       setShowAddModal(false);
-    } finally { setAdicionandoMusica(false); }
+      await carregarMusicas();
+    } catch (err: any) {
+      alert(err?.message || "Não foi possível cadastrar a música.");
+    } finally {
+      setAdicionandoMusica(false);
+    }
   }
 
   async function removerMusica(id: string) {
-    await api(`/songs/${id}`, { method: "DELETE" });
-    await carregarMusicas();
+    if (!confirm("Deseja realmente excluir esta música do repertório?")) return;
+    try {
+      await api(`/songs/${id}`, { method: "DELETE" });
+      await carregarMusicas();
+    } catch (err: any) {
+      alert(err?.message || "Não foi possível excluir a música.");
+    }
   }
 
   async function salvarSetlist() {
@@ -286,123 +374,605 @@ export default function Louvor() {
   );
   const toggleMusica = (id: string) => setMusicasSelecionadas((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
+  const eventoAtual = eventos.find((e) => e.id === setlistAberta);
+  const isLouvorVolunteer = canManageHolyrics || 
+    userMinistries.some((m) => m.includes("louvor") || m.includes("música") || m.includes("musica")) ||
+    checkIsLouvorRole(eventoAtual?.roleName);
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>Ministério de Louvor</h1>
-          <p className="text-[#5b5077] text-sm mt-1">{musicas.length} músicas no repertório · {eventos.length} eventos</p>
+          <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>
+            {canManageHolyrics ? "Ministério de Louvor" : "Repertório de Louvor 🎵"}
+          </h1>
+          <p className="text-[#5b5077] text-sm mt-1">
+            {canManageHolyrics
+              ? `${musicas.length} músicas no catálogo · ${eventos.length} cultos`
+              : isLouvorVolunteer
+              ? "Músicas e cifras dos cultos em que você está escalado para tocar e cantar"
+              : "Músicas e letras dos cultos em que você está escalado"}
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {canManageHolyrics && <button onClick={() => setShowHolyricsModal(true)} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold">Holyrics</button>}
-          {canManageHolyrics && <button onClick={importarDoHolyrics} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#1e1b4b] text-sm font-semibold">Importar do Holyrics</button>}
-          {canManageHolyrics && <button onClick={sincronizarBiblioteca} disabled={syncingLibrary} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#1e1b4b] text-sm font-semibold disabled:opacity-50">{syncingLibrary ? "Sincronizando..." : "Sincronizar repertório"}</button>}
-          <button onClick={() => setAba("novo")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold" style={{ backgroundColor: "#7c3aed" }}>Nova Setlist</button>
-        </div>
+        {canManageHolyrics && (
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setShowHolyricsModal(true)} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-gray-50">
+              Holyrics
+            </button>
+            <button onClick={importarDoHolyrics} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#1e1b4b] text-sm font-semibold hover:bg-gray-50">
+              Importar do Holyrics
+            </button>
+            <button onClick={sincronizarBiblioteca} disabled={syncingLibrary} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#1e1b4b] text-sm font-semibold disabled:opacity-50 hover:bg-gray-50">
+              {syncingLibrary ? "Sincronizando..." : "Sincronizar repertório"}
+            </button>
+            <button onClick={() => setAba("novo")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 shadow-sm" style={{ backgroundColor: "#7c3aed" }}>
+              Nova Setlist
+            </button>
+          </div>
+        )}
       </div>
 
-      {holyricsFeedback && <div className={`rounded-2xl border px-4 py-3 text-sm ${holyricsFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>{holyricsFeedback.text}</div>}
-
-      {canManageHolyrics && (
-        <div className="bg-white rounded-2xl border border-[#e5e0f8] p-5 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-[#1e1b4b]">Status Holyrics</p>
-            <p className="text-xs text-[#7c6ea8] mt-1">{holyricsLoading ? "Carregando status..." : holyricsStatus?.connected ? `Conectado${holyricsStatus?.version ? ` · versão ${holyricsStatus.version}` : ""}` : holyricsStatus?.configured ? (holyricsStatus.error || "Configurado, porém sem conexão") : "Ainda não configurado"}</p>
-            {holyricsStatus?.permissionsError && <p className="text-[11px] text-amber-700 mt-1">Permissões do token: {holyricsStatus.permissionsError}</p>}
-            {holyricsStatus?.help && <p className="text-[11px] text-[#7c6ea8] mt-1">{holyricsStatus.help}</p>}
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${holyricsStatus?.connected ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{holyricsStatus?.connected ? "Conectado" : holyricsStatus?.configured ? "Sem conexão" : "Não configurado"}</span>
-            {holyricsStatus?.permissionsHealthy !== undefined && <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${holyricsStatus.permissionsHealthy ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>{holyricsStatus.permissionsHealthy ? "Permissões OK" : "Permissões pendentes"}</span>}
-            <button onClick={carregarHolyrics} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-sm font-semibold text-[#7c3aed]">Atualizar status</button>
-          </div>
+      {notifyFeedback && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 font-semibold flex items-center gap-2">
+          <span>📢</span> {notifyFeedback}
         </div>
       )}
 
-      <div className="flex gap-1 bg-white border border-[#e5e0f8] rounded-xl p-1 w-fit">
-        {(["setlists", "repertorio", "novo"] as const).map((a) => (
-          <button key={a} onClick={() => setAba(a)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${aba === a ? "text-white" : "text-[#7c6ea8] hover:bg-gray-50"}`} style={aba === a ? { backgroundColor: "#7c3aed" } : {}}>{a === "setlists" ? "Setlists" : a === "repertorio" ? "Repertório" : "Nova Setlist"}</button>
-        ))}
-      </div>
+      {holyricsFeedback && (
+        <div className={`rounded-2xl border px-4 py-3 text-sm ${holyricsFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+          {holyricsFeedback.text}
+        </div>
+      )}
 
-      {aba === "setlists" && (
+      {/* Tabs para Líder/Admin */}
+      {canManageHolyrics && (
+        <div className="flex gap-1 bg-white border border-[#e5e0f8] rounded-xl p-1 w-fit">
+          {(["setlists", "repertorio", "novo"] as const).map((a) => (
+            <button key={a} onClick={() => setAba(a)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${aba === a ? "text-white" : "text-[#7c6ea8] hover:bg-gray-50"}`} style={aba === a ? { backgroundColor: "#7c3aed" } : {}}>
+              {a === "setlists" ? "Setlists dos Cultos" : a === "repertorio" ? "Catálogo de Músicas" : "Nova Setlist"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Visão de Setlists (Tanto para voluntários quanto para líderes) */}
+      {(aba === "setlists" || !canManageHolyrics) && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Lista de Eventos */}
           <div className="space-y-3">
-            {carregandoEventos ? <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8 text-center"><p className="text-sm text-[#7c6ea8]">Carregando eventos...</p></div> : eventos.map((e) => (
-              <button key={e.id} onClick={() => setSetlistAberta(e.id)} className={`w-full text-left bg-white rounded-2xl border p-4 ${setlistAberta === e.id ? "border-[#a78bfa] shadow-md" : "border-[#e5e0f8]"}`}>
-                <p className="font-semibold text-[#1e1b4b] text-sm">{e.title}</p>
-                <p className="text-xs text-[#7c6ea8] mt-0.5">{new Date(e.date).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</p>
-              </button>
-            ))}
+            <h3 className="font-semibold text-xs text-[#7c6ea8] uppercase tracking-wider px-1">
+              {canManageHolyrics ? "Cultos com Setlist" : "Meus Cultos Escalados"}
+            </h3>
+            {carregandoEventos ? (
+              <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8 text-center">
+                <p className="text-sm text-[#7c6ea8]">Carregando eventos...</p>
+              </div>
+            ) : eventos.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8 text-center space-y-2">
+                <p className="text-sm font-semibold text-[#1e1b4b]">Nenhum culto encontrado</p>
+                <p className="text-xs text-[#7c6ea8]">
+                  {canManageHolyrics ? "Crie um evento na aba Eventos primeiro." : "Você não possui escalas ativas no momento."}
+                </p>
+              </div>
+            ) : (
+              eventos.map((e) => (
+                <button
+                  key={e.id}
+                  onClick={() => setSetlistAberta(e.id)}
+                  className={`w-full text-left bg-white rounded-2xl border p-4 transition-all ${
+                    setlistAberta === e.id
+                      ? "border-[#7c3aed] ring-2 ring-[#ddd6fe] shadow-sm"
+                      : "border-[#e5e0f8] hover:border-[#c4b5fd]"
+                  }`}
+                >
+                  <p className="font-bold text-[#1e1b4b] text-sm">{e.title}</p>
+                  <p className="text-xs text-[#7c6ea8] mt-1">
+                    📅 {new Date(e.date).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}
+                  </p>
+                  {e.roleName && (
+                    <span className="inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                      Sua função: {e.roleName}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
           </div>
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-[#e5e0f8] overflow-hidden">
+
+          {/* Músicas do Culto Selecionado */}
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-[#e5e0f8] overflow-hidden flex flex-col justify-between">
             {setlistAberta ? (() => {
               const ev = eventos.find((e) => e.id === setlistAberta);
-              return <>
-                <div className="px-6 py-4 border-b border-[#f0eefe] flex items-center justify-between gap-3" style={{ background: "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)" }}>
-                  <div>
-                    <h2 className="font-bold text-[#1e1b4b]">{ev?.title || "Evento"}</h2>
-                    <p className="text-sm text-[#7c6ea8]">{ev && new Date(ev.date).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+              return (
+                <div>
+                  {/* Cabeçalho do Culto */}
+                  <div className="px-6 py-4 border-b border-[#f0eefe] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-[#f5f3ff] to-[#ede9fe]">
+                    <div>
+                      <h2 className="font-bold text-[#1e1b4b] text-base">{ev?.title || "Culto"}</h2>
+                      <p className="text-xs text-[#7c6ea8]">
+                        {ev && new Date(ev.date).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+                      </p>
+                    </div>
+                    {canManageHolyrics && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => notificarEquipe(setlistAberta)}
+                          disabled={notifyingTeam || setlistItens.length === 0}
+                          className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] text-white text-xs font-semibold hover:opacity-90 transition-all shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                          title="Enviar notificação push com as músicas para todos os voluntários escalados"
+                        >
+                          <span>📢</span> {notifyingTeam ? "Enviando..." : "Notificar Equipe"}
+                        </button>
+                        <button
+                          onClick={enviarSetlistHolyrics}
+                          className="px-3.5 py-1.5 rounded-xl bg-[#1e1b4b] text-white text-xs font-semibold hover:opacity-90 transition-all"
+                        >
+                          Publicar no Holyrics
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {canManageHolyrics && <button onClick={enviarSetlistHolyrics} className="px-4 py-2 rounded-xl bg-[#1e1b4b] text-white text-sm font-semibold">Publicar no Holyrics</button>}
+
+                  {/* Lista de Músicas */}
+                  {carregandoSetlist ? (
+                    <div className="flex items-center justify-center py-16">
+                      <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#e5e0f8] border-t-[#7c3aed]" />
+                    </div>
+                  ) : setlistItens.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-[#7c6ea8] space-y-2">
+                      <span className="text-3xl">🎼</span>
+                      <p className="text-sm font-medium">Nenhuma música cadastrada para este culto ainda.</p>
+                      <p className="text-xs text-[#7c6ea8]">Assim que a liderança definir o repertório, ele aparecerá aqui.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[#f0eefe]">
+                      {setlistItens.map((item, i) => {
+                        const tom = item.songKey || item.song.originalKey || "?";
+                        const tomColor = tomColors[tom] || "#7c3aed";
+                        return (
+                          <div key={item.id} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#faf9fe] transition-colors">
+                            <div className="flex items-center gap-3.5 min-w-0">
+                              <span className="text-base font-bold text-[#7c6ea8] w-5 text-center">
+                                {item.order || i + 1}
+                              </span>
+
+                              {/* Tom em destaque exclusivo para Louvor / Líder */}
+                              {isLouvorVolunteer ? (
+                                <div
+                                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm"
+                                  style={{ backgroundColor: tomColor }}
+                                  title={`Tom do Culto: ${tom}`}
+                                >
+                                  {tom}
+                                </div>
+                              ) : (
+                                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-violet-50 text-violet-600 text-base flex-shrink-0">
+                                  🎵
+                                </div>
+                              )}
+
+                              <div className="min-w-0">
+                                <p className="font-bold text-[#1e1b4b] text-sm truncate">{item.song.title}</p>
+                                <p className="text-xs text-[#7c6ea8]">
+                                  {item.song.artist || "Sem artista"}
+                                  {isLouvorVolunteer && item.song.bpm ? ` · ${item.song.bpm} BPM` : ""}
+                                  {isLouvorVolunteer && item.song.structure ? ` · ${item.song.structure}` : ""}
+                                </p>
+                                {item.notes && (
+                                  <p className="text-[11px] text-amber-800 bg-amber-50 rounded-md px-2 py-0.5 mt-1 inline-block border border-amber-200">
+                                    Obs: {item.notes}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Links e Ações Rápidas */}
+                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                              <button
+                                onClick={() => setSelectedSongDetails(item.song)}
+                                className="px-2.5 py-1.5 rounded-lg border border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] text-xs font-semibold transition-all flex items-center gap-1"
+                              >
+                                <span>📄</span> {isLouvorVolunteer ? "Letra / Cifra" : "Letra da Música"}
+                              </button>
+
+                              {/* Cifra Club apenas para Louvor */}
+                              {isLouvorVolunteer && item.song.cifraClubUrl && (
+                                <a
+                                  href={item.song.cifraClubUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-semibold transition-all flex items-center gap-1"
+                                >
+                                  <span>🎸</span> Cifra
+                                </a>
+                              )}
+
+                              {/* YouTube para todos */}
+                              {item.song.youtubeUrl && (
+                                <a
+                                  href={item.song.youtubeUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-semibold transition-all flex items-center gap-1"
+                                >
+                                  <span>📺</span> YouTube
+                                </a>
+                              )}
+
+                              {/* Spotify para todos */}
+                              {item.song.spotifyUrl && (
+                                <a
+                                  href={item.song.spotifyUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold transition-all flex items-center gap-1"
+                                >
+                                  <span>🎧</span> Spotify
+                                </a>
+                              )}
+
+                              {canManageHolyrics && (
+                                <button
+                                  onClick={() => removerItemSetlist(item.id)}
+                                  className="px-2 py-1.5 rounded-lg text-rose-500 hover:bg-rose-50 text-xs font-semibold transition-all"
+                                  title="Remover do setlist"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {setlistItens.length > 0 && (
+                    <div className="px-6 py-3 border-t border-[#f0eefe] bg-[#faf8ff] flex items-center justify-between text-xs text-[#7c6ea8]">
+                      <p>Músicas: <strong>{setlistItens.length}</strong> (~{setlistItens.length * 4} min)</p>
+                      {canManageHolyrics && (
+                        <p>Vinculadas ao Holyrics: {setlistItens.filter((item) => !!item.song.holyricsId).length}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {carregandoSetlist ? <div className="flex items-center justify-center h-48"><p className="text-sm text-[#7c6ea8]">Carregando setlist...</p></div> : setlistItens.length === 0 ? <div className="flex flex-col items-center justify-center h-48 text-[#7c6ea8]"><p className="text-sm">Nenhuma música nesta setlist</p></div> : <>
-                  <div className="divide-y divide-[#f0eefe]">
-                    {setlistItens.map((item, i) => {
-                      const tom = item.songKey || item.song.originalKey || "?";
-                      const tomColor = tomColors[tom] || "#7c3aed";
-                      return <div key={item.id} className="px-6 py-4 flex items-center gap-4 hover:bg-[#fafafe] transition-colors group">
-                        <span className="text-lg font-bold text-[#d4c7f7] w-6 text-center">{item.order || i + 1}</span>
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: tomColor }}>{tom}</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-[#1e1b4b] text-sm">{item.song.title}</p>
-                          <p className="text-xs text-[#7c6ea8]">{item.song.artist || "Sem artista"} · {item.song.bpm ? `${item.song.bpm} BPM` : "sem BPM"}{item.song.holyricsId ? " · vinc. Holyrics" : " · sem vínculo Holyrics"}</p>
-                        </div>
-                        <button onClick={() => removerItemSetlist(item.id)} className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-semibold">Remover</button>
-                      </div>;
-                    })}
-                  </div>
-                  <div className="px-6 py-4 border-t border-[#f0eefe] flex items-center justify-between"><p className="text-xs text-[#7c6ea8]">Duração estimada: ~{setlistItens.length * 4} min</p><p className="text-xs text-[#7c6ea8]">Vinculadas ao Holyrics: {setlistItens.filter((item) => !!item.song.holyricsId).length}</p></div>
-                </>}
-              </>;
-            })() : <div className="flex flex-col items-center justify-center h-48 text-[#7c6ea8]"><p className="text-sm">Selecione um evento</p></div>}
+              );
+            })() : (
+              <div className="flex flex-col items-center justify-center py-20 text-[#7c6ea8]">
+                <p className="text-sm">Selecione um culto para ver o repertório</p>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {aba === "repertorio" && (
+      {/* Aba Catálogo de Músicas (Apenas Líder / Admin) */}
+      {canManageHolyrics && aba === "repertorio" && (
         <div className="space-y-4">
-          <div className="relative max-w-sm"><input value={buscaMusica} onChange={(e) => setBuscaMusica(e.target.value)} placeholder="Buscar música..." className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" /></div>
-          {carregandoMusicas ? <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8 text-center"><p className="text-sm text-[#7c6ea8]">Carregando repertório...</p></div> : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{musicasFiltradas.map((m) => {
-            const tomColor = tomColors[m.originalKey || ""] || "#7c3aed";
-            return <div key={m.id} className="bg-white rounded-2xl border border-[#e5e0f8] p-5">
-              <div className="flex items-start justify-between mb-3"><div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: tomColor }}>{m.originalKey || "?"}</div><div className="flex gap-2">{m.holyricsId && <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Holyrics</span>}</div></div>
-              <h3 className="font-semibold text-[#1e1b4b]">{m.title}</h3><p className="text-sm text-[#7c6ea8]">{m.artist || "Sem artista"}</p>
-              <div className="flex items-center gap-3 mt-3"><span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ backgroundColor: tomColor + "15", color: tomColor }}>Tom {m.originalKey || "?"}</span>{m.bpm && <span className="text-xs text-[#7c6ea8]">{m.bpm} BPM</span>}</div>
-              <div className="mt-4 flex gap-2 flex-wrap">{canManageHolyrics && <button onClick={() => sincronizarMusica(m.id)} disabled={syncingSongId === m.id} className="px-3 py-2 rounded-xl border border-[#c4b5fd] text-[#7c3aed] text-xs font-semibold disabled:opacity-50">{syncingSongId === m.id ? "Sincronizando..." : m.holyricsId ? "Reenviar" : "Enviar ao Holyrics"}</button>}<button onClick={() => removerMusica(m.id)} className="px-3 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-semibold">Excluir</button></div>
-              {m.holyricsSyncStatus && <p className={`mt-3 text-[11px] ${m.holyricsSyncStatus === "ERROR" ? "text-red-600" : "text-[#7c6ea8]"}`}>Status Holyrics: {m.holyricsSyncStatus}{m.holyricsLastSyncAt ? ` · ${new Date(m.holyricsLastSyncAt).toLocaleString("pt-BR")}` : ""}{m.holyricsSyncError ? ` · ${m.holyricsSyncError}` : ""}</p>}
-            </div>;
-          })}<button onClick={() => setShowAddModal(true)} className="bg-white rounded-2xl border-2 border-dashed border-[#c4b5fd] p-5 flex flex-col items-center justify-center gap-2 text-[#7c3aed] min-h-[150px]"><span className="text-sm font-medium">Adicionar Música</span></button></div>}
-          {showAddModal && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-2xl p-6 w-full max-w-xl space-y-4"><h3 className="font-semibold text-[#1e1b4b]">Nova Música</h3><input value={novaMusica.title} onChange={(e) => setNovaMusica({ ...novaMusica, title: e.target.value })} placeholder="Título *" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" /><input value={novaMusica.artist} onChange={(e) => setNovaMusica({ ...novaMusica, artist: e.target.value })} placeholder="Artista" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" /><div className="grid grid-cols-2 gap-3"><input value={novaMusica.originalKey} onChange={(e) => setNovaMusica({ ...novaMusica, originalKey: e.target.value })} placeholder="Tom" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" /><input value={novaMusica.bpm} onChange={(e) => setNovaMusica({ ...novaMusica, bpm: e.target.value })} placeholder="BPM" type="number" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" /></div><input value={novaMusica.youtubeUrl} onChange={(e) => setNovaMusica({ ...novaMusica, youtubeUrl: e.target.value })} placeholder="YouTube URL" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" /><input value={novaMusica.spotifyUrl} onChange={(e) => setNovaMusica({ ...novaMusica, spotifyUrl: e.target.value })} placeholder="Spotify URL" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" /><input value={novaMusica.cifraClubUrl} onChange={(e) => setNovaMusica({ ...novaMusica, cifraClubUrl: e.target.value })} placeholder="CifraClub URL" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" /><textarea value={novaMusica.structure} onChange={(e) => setNovaMusica({ ...novaMusica, structure: e.target.value })} placeholder="Estrutura" rows={3} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl resize-none" /><textarea value={novaMusica.lyrics} onChange={(e) => setNovaMusica({ ...novaMusica, lyrics: e.target.value })} placeholder="Letra da música (separe blocos com linha em branco)" rows={6} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl resize-none" /><textarea value={novaMusica.chords} onChange={(e) => setNovaMusica({ ...novaMusica, chords: e.target.value })} placeholder="Cifra/observações para palco (opcional)" rows={4} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl resize-none" /><label className="flex items-center gap-2 text-sm text-[#5b5077]"><input type="checkbox" checked={syncAfterCreate} onChange={(e) => setSyncAfterCreate(e.target.checked)} /> Enviar ao Holyrics após criar</label><div className="flex gap-3 justify-end"><button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm font-medium text-[#7c6ea8]">Cancelar</button><button onClick={adicionarMusica} disabled={!novaMusica.title.trim() || adicionandoMusica} className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>{adicionandoMusica ? "Salvando..." : "Adicionar"}</button></div></div></div>}
+          <div className="relative max-w-sm">
+            <input
+              value={buscaMusica}
+              onChange={(e) => setBuscaMusica(e.target.value)}
+              placeholder="Buscar música por título ou artista..."
+              className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl focus:outline-none focus:border-[#7c3aed]"
+            />
+          </div>
+          {carregandoMusicas ? (
+            <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8 text-center">
+              <p className="text-sm text-[#7c6ea8]">Carregando repertório...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {musicasFiltradas.map((m) => {
+                const tomColor = tomColors[m.originalKey || ""] || "#7c3aed";
+                return (
+                  <div key={m.id} className="bg-white rounded-2xl border border-[#e5e0f8] p-5 flex flex-col justify-between hover:shadow-md transition-all">
+                    <div>
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm" style={{ backgroundColor: tomColor }}>
+                          {m.originalKey || "?"}
+                        </div>
+                        <div className="flex gap-1.5">
+                          {m.holyricsId && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                              Holyrics
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <h3 className="font-bold text-[#1e1b4b] text-base">{m.title}</h3>
+                      <p className="text-xs text-[#7c6ea8] mt-0.5">{m.artist || "Sem artista"}</p>
+                      <div className="flex items-center gap-2 mt-3 flex-wrap">
+                        <span className="text-xs px-2.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: tomColor + "15", color: tomColor }}>
+                          Tom {m.originalKey || "?"}
+                        </span>
+                        {m.bpm && <span className="text-xs text-[#7c6ea8]">{m.bpm} BPM</span>}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-[#ede9fe] flex gap-2 flex-wrap items-center justify-between">
+                      <button
+                        onClick={() => setSelectedSongDetails(m)}
+                        className="text-xs font-semibold text-[#7c3aed] hover:underline"
+                      >
+                        Ver Detalhes / Letra
+                      </button>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => sincronizarMusica(m.id)}
+                          disabled={syncingSongId === m.id}
+                          className="px-2.5 py-1.5 rounded-lg border border-[#c4b5fd] text-[#7c3aed] text-xs font-semibold disabled:opacity-50 hover:bg-[#f5f3ff]"
+                        >
+                          {syncingSongId === m.id ? "Sincronizando..." : m.holyricsId ? "Reenviar" : "Holyrics"}
+                        </button>
+                        <button
+                          onClick={() => removerMusica(m.id)}
+                          className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="bg-white rounded-2xl border-2 border-dashed border-[#c4b5fd] p-5 flex flex-col items-center justify-center gap-2 text-[#7c3aed] min-h-[160px] hover:bg-[#f5f3ff] transition-colors"
+              >
+                <span className="text-2xl">➕</span>
+                <span className="text-sm font-semibold">Adicionar Nova Música</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {aba === "novo" && (
+      {/* Aba Nova Setlist (Apenas Líder / Admin) */}
+      {canManageHolyrics && aba === "novo" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-4"><h2 className="font-semibold text-[#1e1b4b]">Criar Nova Setlist</h2><div><label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">Evento</label><select value={setlistAberta || ""} onChange={(e) => setSetlistAberta(e.target.value || null)} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl"><option value="">Selecione um evento</option>{eventos.map((e) => <option key={e.id} value={e.id}>{e.title} — {new Date(e.date).toLocaleDateString("pt-BR")}</option>)}</select></div><div><label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-2">Músicas Selecionadas ({musicasSelecionadas.length})</label>{musicasSelecionadas.length === 0 ? <p className="text-sm text-[#7c6ea8]">Selecione músicas ao lado →</p> : <div className="space-y-2">{musicasSelecionadas.map((id, i) => { const m = musicas.find((x) => x.id === id); if (!m) return null; return <div key={id} className="flex items-center gap-3 bg-[#f5f3ff] rounded-xl px-3 py-2"><span className="text-xs font-bold text-[#7c3aed]">{i + 1}</span><span className="text-sm font-medium text-[#1e1b4b] flex-1">{m.title}</span><button onClick={() => toggleMusica(id)} className="text-[#7c6ea8]">×</button></div>; })}</div>}</div><label className="flex items-center gap-2 text-sm text-[#5b5077]"><input type="checkbox" checked={publishAfterSave} onChange={(e) => setPublishAfterSave(e.target.checked)} /> Publicar no Holyrics ao salvar a setlist</label><button onClick={salvarSetlist} disabled={!setlistAberta || musicasSelecionadas.length === 0 || salvandoSetlist} className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>{salvandoSetlist ? "Salvando..." : "Salvar Setlist"}</button></div>
-          <div className="bg-white rounded-2xl border border-[#e5e0f8] overflow-hidden"><div className="px-6 py-4 border-b border-[#f0eefe]"><h2 className="font-semibold text-[#1e1b4b]">Repertório</h2><p className="text-xs text-[#7c6ea8]">Clique para adicionar à setlist</p></div><div className="divide-y divide-[#f0eefe] max-h-96 overflow-y-auto">{carregandoMusicas ? <div className="p-8 text-center"><p className="text-sm text-[#7c6ea8]">Carregando...</p></div> : musicas.map((m) => { const selecionada = musicasSelecionadas.includes(m.id); const tomColor = tomColors[m.originalKey || ""] || "#7c3aed"; return <button key={m.id} onClick={() => toggleMusica(m.id)} className={`w-full flex items-center gap-4 px-6 py-3.5 text-left transition-colors ${selecionada ? "bg-[#f5f3ff]" : "hover:bg-gray-50"}`}><div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: selecionada ? "#7c3aed" : tomColor }}>{selecionada ? "✓" : m.originalKey || "?"}</div><div className="flex-1"><p className="text-sm font-medium text-[#1e1b4b]">{m.title}</p><p className="text-xs text-[#7c6ea8]">{m.artist || "Sem artista"} {m.bpm ? `· ${m.bpm} BPM` : ""}</p></div>{m.holyricsId && <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Holyrics</span>}</button>; })}</div></div>
+          <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-4">
+            <h2 className="font-bold text-[#1e1b4b]">Montar Setlist do Culto</h2>
+            <div>
+              <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">
+                Selecione o Culto
+              </label>
+              <select
+                value={setlistAberta || ""}
+                onChange={(e) => setSetlistAberta(e.target.value || null)}
+                className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl focus:outline-none focus:border-[#7c3aed]"
+              >
+                <option value="">Selecione um culto...</option>
+                {eventos.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.title} — {new Date(e.date).toLocaleDateString("pt-BR")}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-2">
+                Músicas Selecionadas ({musicasSelecionadas.length})
+              </label>
+              {musicasSelecionadas.length === 0 ? (
+                <p className="text-xs text-[#7c6ea8] py-2">Clique nas músicas da lista ao lado para adicionar.</p>
+              ) : (
+                <div className="space-y-2">
+                  {musicasSelecionadas.map((id, i) => {
+                    const m = musicas.find((x) => x.id === id);
+                    if (!m) return null;
+                    return (
+                      <div key={id} className="flex items-center gap-3 bg-[#f5f3ff] border border-[#ede9fe] rounded-xl px-3 py-2">
+                        <span className="text-xs font-bold text-[#7c3aed]">{i + 1}</span>
+                        <span className="text-sm font-semibold text-[#1e1b4b] flex-1">{m.title}</span>
+                        <span className="text-xs text-[#7c6ea8]">{m.originalKey}</span>
+                        <button onClick={() => toggleMusica(id)} className="text-[#7c6ea8] hover:text-red-500 font-bold px-1">
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-[#5b5077] pt-1">
+              <input type="checkbox" checked={publishAfterSave} onChange={(e) => setPublishAfterSave(e.target.checked)} />
+              Publicar automaticamente no Holyrics ao salvar a setlist
+            </label>
+
+            <button
+              onClick={salvarSetlist}
+              disabled={!setlistAberta || musicasSelecionadas.length === 0 || salvandoSetlist}
+              className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 shadow-sm transition-all"
+              style={{ backgroundColor: "#7c3aed" }}
+            >
+              {salvandoSetlist ? "Salvando..." : "Salvar Setlist do Culto"}
+            </button>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-[#e5e0f8] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#f0eefe] bg-[#faf8ff]">
+              <h2 className="font-bold text-[#1e1b4b] text-sm">Catálogo de Músicas</h2>
+              <p className="text-xs text-[#7c6ea8]">Clique nas músicas para compor o setlist</p>
+            </div>
+            <div className="divide-y divide-[#f0eefe] max-h-96 overflow-y-auto">
+              {carregandoMusicas ? (
+                <div className="p-8 text-center text-xs text-[#7c6ea8]">Carregando...</div>
+              ) : (
+                musicas.map((m) => {
+                  const selecionada = musicasSelecionadas.includes(m.id);
+                  const tomColor = tomColors[m.originalKey || ""] || "#7c3aed";
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => toggleMusica(m.id)}
+                      className={`w-full flex items-center gap-4 px-6 py-3 text-left transition-colors ${
+                        selecionada ? "bg-[#f5f3ff]" : "hover:bg-gray-50"
+                      }`}
+                    >
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                        style={{ backgroundColor: selecionada ? "#7c3aed" : tomColor }}
+                      >
+                        {selecionada ? "✓" : m.originalKey || "?"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[#1e1b4b] truncate">{m.title}</p>
+                        <p className="text-xs text-[#7c6ea8]">{m.artist || "Sem artista"}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
       )}
 
+      {/* Modal de Detalhes da Música (Letra / Cifra / Mídia) */}
+      {selectedSongDetails && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between border-b border-[#f0eefe] pb-4">
+              <div>
+                <h3 className="font-bold text-xl text-[#1e1b4b]">{selectedSongDetails.title}</h3>
+                <p className="text-sm text-[#7c6ea8] mt-0.5">{selectedSongDetails.artist || "Artista não informado"}</p>
+              </div>
+              <button onClick={() => setSelectedSongDetails(null)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400">
+                ✕
+              </button>
+            </div>
+
+            <div className="flex gap-2 flex-wrap">
+              {isLouvorVolunteer && (
+                <span className="px-3 py-1 rounded-full bg-violet-100 text-violet-700 text-xs font-bold">
+                  Tom: {selectedSongDetails.originalKey || "Livre"}
+                </span>
+              )}
+              {isLouvorVolunteer && selectedSongDetails.bpm && (
+                <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
+                  ⏱️ {selectedSongDetails.bpm} BPM
+                </span>
+              )}
+              {isLouvorVolunteer && selectedSongDetails.structure && (
+                <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
+                  Estrutura: {selectedSongDetails.structure}
+                </span>
+              )}
+            </div>
+
+            {/* Links rápidos */}
+            <div className="flex gap-2 flex-wrap pt-1">
+              {isLouvorVolunteer && selectedSongDetails.cifraClubUrl && (
+                <a href={selectedSongDetails.cifraClubUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100">
+                  🎸 Abrir no Cifra Club ↗
+                </a>
+              )}
+              {selectedSongDetails.youtubeUrl && (
+                <a href={selectedSongDetails.youtubeUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100">
+                  📺 Assistir no YouTube ↗
+                </a>
+              )}
+              {selectedSongDetails.spotifyUrl && (
+                <a href={selectedSongDetails.spotifyUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold transition-all">
+                  🎧 Ouvir no Spotify ↗
+                </a>
+              )}
+            </div>
+
+            {/* Letra da Música */}
+            {selectedSongDetails.lyrics ? (
+              <div className="space-y-1.5 pt-2">
+                <p className="text-xs font-bold text-[#5b5077] uppercase tracking-wider">Letra da Música</p>
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl whitespace-pre-wrap font-sans text-sm text-[#1e1b4b] leading-relaxed max-h-60 overflow-y-auto">
+                  {selectedSongDetails.lyrics}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Cifra / Observações exclusiva para Louvor */}
+            {isLouvorVolunteer && selectedSongDetails.chords ? (
+              <div className="space-y-1.5 pt-2">
+                <p className="text-xs font-bold text-[#5b5077] uppercase tracking-wider">Cifra & Observações</p>
+                <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl whitespace-pre-wrap font-mono text-xs text-amber-300 leading-relaxed max-h-60 overflow-y-auto">
+                  {selectedSongDetails.chords}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="pt-3 flex justify-end border-t border-[#f0eefe]">
+              <button
+                onClick={() => setSelectedSongDetails(null)}
+                className="px-5 py-2 rounded-xl text-white text-xs font-semibold shadow-sm"
+                style={{ backgroundColor: "#7c3aed" }}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Adicionar Música */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="font-bold text-[#1e1b4b] text-base">Nova Música para o Repertório</h3>
+            <input value={novaMusica.title} onChange={(e) => setNovaMusica({ ...novaMusica, title: e.target.value })} placeholder="Título *" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+            <input value={novaMusica.artist} onChange={(e) => setNovaMusica({ ...novaMusica, artist: e.target.value })} placeholder="Artista" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+            <div className="grid grid-cols-2 gap-3">
+              <input value={novaMusica.originalKey} onChange={(e) => setNovaMusica({ ...novaMusica, originalKey: e.target.value })} placeholder="Tom Original (ex: G, A, C#)" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+              <input value={novaMusica.bpm} onChange={(e) => setNovaMusica({ ...novaMusica, bpm: e.target.value })} placeholder="BPM" type="number" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+            </div>
+            <input value={novaMusica.youtubeUrl} onChange={(e) => setNovaMusica({ ...novaMusica, youtubeUrl: e.target.value })} placeholder="YouTube URL" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+            <input value={novaMusica.spotifyUrl} onChange={(e) => setNovaMusica({ ...novaMusica, spotifyUrl: e.target.value })} placeholder="Spotify URL" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+            <input value={novaMusica.cifraClubUrl} onChange={(e) => setNovaMusica({ ...novaMusica, cifraClubUrl: e.target.value })} placeholder="CifraClub URL" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+            <textarea value={novaMusica.structure} onChange={(e) => setNovaMusica({ ...novaMusica, structure: e.target.value })} placeholder="Estrutura (ex: Intro | V1 | Refrão | Solo | Fim)" rows={2} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl resize-none" />
+            <textarea value={novaMusica.lyrics} onChange={(e) => setNovaMusica({ ...novaMusica, lyrics: e.target.value })} placeholder="Letra da música..." rows={4} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl resize-none" />
+            <textarea value={novaMusica.chords} onChange={(e) => setNovaMusica({ ...novaMusica, chords: e.target.value })} placeholder="Cifra / anotações de palco..." rows={3} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl resize-none" />
+            
+            <div className="flex gap-3 justify-end pt-2">
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm font-medium text-[#7c6ea8]">Cancelar</button>
+              <button onClick={adicionarMusica} disabled={!novaMusica.title.trim() || adicionandoMusica} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>
+                {adicionandoMusica ? "Salvando..." : "Adicionar ao Repertório"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Config Holyrics */}
       {showHolyricsModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg space-y-4">
-            <div className="flex items-center justify-between"><h3 className="font-semibold text-[#1e1b4b]">Configuração Holyrics</h3><button onClick={() => setShowHolyricsModal(false)} className="text-[#7c6ea8]">×</button></div>
-            <select value={holyricsForm.mode} onChange={(e) => setHolyricsForm((prev) => ({ ...prev, mode: e.target.value as "local" | "online" }))} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl"><option value="local">Local</option><option value="online">Online</option></select>
-            {holyricsForm.mode === "local" ? <div className="grid grid-cols-2 gap-3"><input value={holyricsForm.localIp} onChange={(e) => setHolyricsForm((prev) => ({ ...prev, localIp: e.target.value }))} placeholder="IP local do Holyrics" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" /><input value={holyricsForm.localPort} onChange={(e) => setHolyricsForm((prev) => ({ ...prev, localPort: e.target.value }))} placeholder="Porta" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" /></div> : <input value={holyricsForm.apiKey} onChange={(e) => setHolyricsForm((prev) => ({ ...prev, apiKey: e.target.value }))} placeholder="API key" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />}
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-[#1e1b4b]">Configuração Holyrics</h3>
+              <button onClick={() => setShowHolyricsModal(false)} className="text-[#7c6ea8]">✕</button>
+            </div>
+            <select value={holyricsForm.mode} onChange={(e) => setHolyricsForm((prev) => ({ ...prev, mode: e.target.value as "local" | "online" }))} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl">
+              <option value="local">Local (Rede da Igreja)</option>
+              <option value="online">Online (Nuvem)</option>
+            </select>
+            {holyricsForm.mode === "local" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <input value={holyricsForm.localIp} onChange={(e) => setHolyricsForm((prev) => ({ ...prev, localIp: e.target.value }))} placeholder="IP local do Holyrics" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+                <input value={holyricsForm.localPort} onChange={(e) => setHolyricsForm((prev) => ({ ...prev, localPort: e.target.value }))} placeholder="Porta (ex: 8091)" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+              </div>
+            ) : (
+              <input value={holyricsForm.apiKey} onChange={(e) => setHolyricsForm((prev) => ({ ...prev, apiKey: e.target.value }))} placeholder="API key" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+            )}
             <input value={holyricsForm.token} onChange={(e) => setHolyricsForm((prev) => ({ ...prev, token: e.target.value }))} placeholder="Token" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
-            <div className="rounded-xl bg-[#f8f7ff] border border-[#ede9fe] p-4 text-xs text-[#5b5077] space-y-1"><p>• Modo local: o PC com Holyrics precisa estar ligado, na mesma rede e com API Server ativado.</p><p>• Modo online: use token e API key válidos do painel do Holyrics.</p><p>• Para criar ou editar músicas direto no Holyrics, habilite as permissões avançadas do API Server.</p></div>
-            <div className="flex justify-end gap-3"><button onClick={testarHolyrics} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold">Testar conexão</button>{canEditHolyricsConfig && <button onClick={salvarConfigHolyrics} disabled={holyricsSaving} className="px-4 py-2 rounded-xl bg-[#7c3aed] text-white text-sm font-semibold disabled:opacity-50">{holyricsSaving ? "Salvando..." : "Salvar configuração"}</button>}</div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={testarHolyrics} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold">Testar conexão</button>
+              {canEditHolyricsConfig && (
+                <button onClick={salvarConfigHolyrics} disabled={holyricsSaving} className="px-4 py-2 rounded-xl bg-[#7c3aed] text-white text-sm font-semibold disabled:opacity-50">
+                  {holyricsSaving ? "Salvando..." : "Salvar"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

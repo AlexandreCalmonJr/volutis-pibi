@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma, belongsToChurch, itemEventChurch } from "../lib/db.js";
 import { requireAuth, requireRole, type AuthUser } from "../middleware/auth.js";
+import { notifyMember } from "../services/notification.service.js";
 
 const songSchema = z.object({
   title: z.string().min(1),
@@ -122,7 +123,59 @@ export async function songRoutes(app: FastifyInstance) {
         },
         include: { song: true },
       });
+
+      // Notifica os voluntários escalados no evento
+      const scheduledVolunteers = await prisma.scheduleItem.findMany({
+        where: { eventId, status: { not: "DECLINED" } },
+        include: { event: true },
+      });
+      for (const vol of scheduledVolunteers) {
+        if (vol.memberId !== auth.memberId) {
+          await notifyMember(vol.memberId, {
+            type: "SETLIST_UPDATED",
+            title: "Repertório de Louvor Atualizado 🎵",
+            body: `"${song.title}" foi adicionada ao repertório do culto "${vol.event.title}". Confira na aba Louvor!`,
+            data: { eventId, songId: song.id },
+          }).catch(() => {});
+        }
+      }
+
       return reply.code(201).send(item);
+    }
+  );
+
+  // ── Notificar voluntários com o repertório completo ──────────────
+  app.post(
+    "/events/:eventId/setlist/notify",
+    { preHandler: [requireRole("MINISTRY_LEADER")] },
+    async (req, reply) => {
+      const { eventId } = req.params as { eventId: string };
+      const auth = req.user as AuthUser;
+      if (!(await belongsToChurch("event", eventId, auth.churchId)))
+        return reply.code(404).send({ error: "Evento não encontrado" });
+
+      const [event, setlist, scheduledVolunteers] = await Promise.all([
+        prisma.event.findUnique({ where: { id: eventId } }),
+        prisma.setlistItem.findMany({ where: { eventId }, include: { song: true }, orderBy: { order: "asc" } }),
+        prisma.scheduleItem.findMany({ where: { eventId, status: { not: "DECLINED" } } }),
+      ]);
+      if (!event) return reply.code(404).send({ error: "Evento não encontrado" });
+      if (setlist.length === 0) return reply.code(400).send({ error: "O repertório está vazio" });
+
+      const songListText = setlist.map((s, idx) => `${idx + 1}. ${s.song.title} (${s.songKey || s.song.originalKey || "Tom livre"})`).join("\n");
+      let notifiedCount = 0;
+
+      for (const vol of scheduledVolunteers) {
+        await notifyMember(vol.memberId, {
+          type: "SETLIST_UPDATED",
+          title: `Repertório do Culto: ${event.title} 🎵`,
+          body: `Músicas definidas para o culto (${setlist.length} músicas):\n${songListText}`,
+          data: { eventId },
+        }).catch(() => {});
+        notifiedCount++;
+      }
+
+      return reply.send({ success: true, notifiedCount, songsCount: setlist.length });
     }
   );
 
