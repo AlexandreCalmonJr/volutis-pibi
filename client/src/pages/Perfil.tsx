@@ -175,17 +175,18 @@ export default function Perfil() {
 
   const upcomingItems = useMemo(
     () => schedule
-      .filter((item) => new Date(item.event.startTime).getTime() >= Date.now() - 86400000)
+      .filter((item) => item?.event?.startTime && new Date(item.event.startTime).getTime() >= Date.now() - 86400000)
       .slice()
-      .sort((a, b) => new Date(a.event.startTime).getTime() - new Date(b.event.startTime).getTime())
+      .sort((a, b) => (new Date(a?.event?.startTime || 0).getTime()) - (new Date(b?.event?.startTime || 0).getTime()))
       .slice(0, 5),
     [schedule]
   );
 
   const historyItems = useMemo(
     () => schedule
+      .filter((item) => item?.event?.startTime)
       .slice()
-      .sort((a, b) => new Date(b.event.startTime).getTime() - new Date(a.event.startTime).getTime())
+      .sort((a, b) => (new Date(b?.event?.startTime || 0).getTime()) - (new Date(a?.event?.startTime || 0).getTime()))
       .slice(0, 10),
     [schedule]
   );
