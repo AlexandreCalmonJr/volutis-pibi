@@ -1055,25 +1055,164 @@ export default function Louvor() {
 
       {/* Modal Adicionar Música */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="font-bold text-[#1e1b4b] text-base">Nova Música para o Repertório</h3>
-            <input value={novaMusica.title} onChange={(e) => setNovaMusica({ ...novaMusica, title: e.target.value })} placeholder="Título *" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
-            <input value={novaMusica.artist} onChange={(e) => setNovaMusica({ ...novaMusica, artist: e.target.value })} placeholder="Artista" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
-            <div className="grid grid-cols-2 gap-3">
-              <input value={novaMusica.originalKey} onChange={(e) => setNovaMusica({ ...novaMusica, originalKey: e.target.value })} placeholder="Tom Original (ex: G, A, C#)" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
-              <input value={novaMusica.bpm} onChange={(e) => setNovaMusica({ ...novaMusica, bpm: e.target.value })} placeholder="BPM" type="number" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAddModal(false);
+          }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150"
+        >
+          <div className="bg-white dark:bg-[var(--color-surface)] rounded-3xl p-6 sm:p-7 w-full max-w-xl shadow-2xl border border-[#e5e0f8] dark:border-[var(--color-border)] flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
+            {/* Header com botão de fechar */}
+            <div className="flex items-center justify-between border-b border-[#f0eefe] dark:border-[var(--color-border)] pb-4 mb-4 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🎵</span>
+                <h3 className="font-bold text-[#1e1b4b] dark:text-[var(--color-ink)] text-lg">
+                  Nova Música para o Repertório
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-[var(--color-surface-2)] flex items-center justify-center text-gray-400 hover:text-gray-700 dark:hover:text-[var(--color-ink)] transition-colors text-lg cursor-pointer"
+                title="Fechar modal"
+              >
+                ✕
+              </button>
             </div>
-            <input value={novaMusica.youtubeUrl} onChange={(e) => setNovaMusica({ ...novaMusica, youtubeUrl: e.target.value })} placeholder="YouTube URL" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
-            <input value={novaMusica.spotifyUrl} onChange={(e) => setNovaMusica({ ...novaMusica, spotifyUrl: e.target.value })} placeholder="Spotify URL" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
-            <input value={novaMusica.cifraClubUrl} onChange={(e) => setNovaMusica({ ...novaMusica, cifraClubUrl: e.target.value })} placeholder="CifraClub URL" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
-            <textarea value={novaMusica.structure} onChange={(e) => setNovaMusica({ ...novaMusica, structure: e.target.value })} placeholder="Estrutura (ex: Intro | V1 | Refrão | Solo | Fim)" rows={2} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl resize-none" />
-            <textarea value={novaMusica.lyrics} onChange={(e) => setNovaMusica({ ...novaMusica, lyrics: e.target.value })} placeholder="Letra da música..." rows={4} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl resize-none" />
-            <textarea value={novaMusica.chords} onChange={(e) => setNovaMusica({ ...novaMusica, chords: e.target.value })} placeholder="Cifra / anotações de palco..." rows={3} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl resize-none" />
-            
-            <div className="flex gap-3 justify-end pt-2">
-              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm font-medium text-[#7c6ea8]">Cancelar</button>
-              <button onClick={adicionarMusica} disabled={!novaMusica.title.trim() || adicionandoMusica} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>
+
+            {/* Conteúdo do Formulário */}
+            <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+              <div>
+                <label className="block text-xs font-semibold text-[#7c6ea8] dark:text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                  Título *
+                </label>
+                <input
+                  value={novaMusica.title}
+                  onChange={(e) => setNovaMusica({ ...novaMusica, title: e.target.value })}
+                  placeholder="Nome da música..."
+                  className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] dark:border-[var(--color-border)] rounded-xl bg-white dark:bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[#7c3aed]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#7c6ea8] dark:text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                  Artista / Ministério
+                </label>
+                <input
+                  value={novaMusica.artist}
+                  onChange={(e) => setNovaMusica({ ...novaMusica, artist: e.target.value })}
+                  placeholder="Ex: Isaías Saad, Morada, Elevation..."
+                  className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] dark:border-[var(--color-border)] rounded-xl bg-white dark:bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[#7c3aed]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#7c6ea8] dark:text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                    Tom Original
+                  </label>
+                  <input
+                    value={novaMusica.originalKey}
+                    onChange={(e) => setNovaMusica({ ...novaMusica, originalKey: e.target.value })}
+                    placeholder="Ex: G, A, C#, F#m"
+                    className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] dark:border-[var(--color-border)] rounded-xl bg-white dark:bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[#7c3aed]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#7c6ea8] dark:text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                    BPM (Andamento)
+                  </label>
+                  <input
+                    value={novaMusica.bpm}
+                    onChange={(e) => setNovaMusica({ ...novaMusica, bpm: e.target.value })}
+                    placeholder="Ex: 72"
+                    type="number"
+                    className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] dark:border-[var(--color-border)] rounded-xl bg-white dark:bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[#7c3aed]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#7c6ea8] dark:text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                  Links de Referência
+                </label>
+                <div className="space-y-2">
+                  <input
+                    value={novaMusica.youtubeUrl}
+                    onChange={(e) => setNovaMusica({ ...novaMusica, youtubeUrl: e.target.value })}
+                    placeholder="YouTube URL (https://...)"
+                    className="w-full px-4 py-2 text-xs border border-[#e5e0f8] dark:border-[var(--color-border)] rounded-xl bg-white dark:bg-[var(--color-surface-2)] text-[var(--color-ink)]"
+                  />
+                  <input
+                    value={novaMusica.spotifyUrl}
+                    onChange={(e) => setNovaMusica({ ...novaMusica, spotifyUrl: e.target.value })}
+                    placeholder="Spotify URL (https://...)"
+                    className="w-full px-4 py-2 text-xs border border-[#e5e0f8] dark:border-[var(--color-border)] rounded-xl bg-white dark:bg-[var(--color-surface-2)] text-[var(--color-ink)]"
+                  />
+                  <input
+                    value={novaMusica.cifraClubUrl}
+                    onChange={(e) => setNovaMusica({ ...novaMusica, cifraClubUrl: e.target.value })}
+                    placeholder="CifraClub URL (https://...)"
+                    className="w-full px-4 py-2 text-xs border border-[#e5e0f8] dark:border-[var(--color-border)] rounded-xl bg-white dark:bg-[var(--color-surface-2)] text-[var(--color-ink)]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#7c6ea8] dark:text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                  Estrutura da Música
+                </label>
+                <input
+                  value={novaMusica.structure}
+                  onChange={(e) => setNovaMusica({ ...novaMusica, structure: e.target.value })}
+                  placeholder="Ex: Intro | V1 | Refrão | V2 | Refrão | Ponte | Solo | Fim"
+                  className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] dark:border-[var(--color-border)] rounded-xl bg-white dark:bg-[var(--color-surface-2)] text-[var(--color-ink)]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#7c6ea8] dark:text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                  Letra Completa
+                </label>
+                <textarea
+                  value={novaMusica.lyrics}
+                  onChange={(e) => setNovaMusica({ ...novaMusica, lyrics: e.target.value })}
+                  placeholder="Cole a letra da música..."
+                  rows={4}
+                  className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] dark:border-[var(--color-border)] rounded-xl bg-white dark:bg-[var(--color-surface-2)] text-[var(--color-ink)] resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#7c6ea8] dark:text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                  Cifra / Anotações de Palco
+                </label>
+                <textarea
+                  value={novaMusica.chords}
+                  onChange={(e) => setNovaMusica({ ...novaMusica, chords: e.target.value })}
+                  placeholder="Anotações de palco, acordes ou dicas de execução..."
+                  rows={3}
+                  className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] dark:border-[var(--color-border)] rounded-xl bg-white dark:bg-[var(--color-surface-2)] text-[var(--color-ink)] resize-none font-mono text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Footer fixo */}
+            <div className="flex gap-3 justify-end pt-4 border-t border-[#f0eefe] dark:border-[var(--color-border)] mt-4 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-gray-200 dark:border-[var(--color-border)] text-sm font-semibold text-[#7c6ea8] dark:text-[var(--color-muted)] hover:bg-gray-50 dark:hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={adicionarMusica}
+                disabled={!novaMusica.title.trim() || adicionandoMusica}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all shadow-md active:scale-95 cursor-pointer"
+                style={{ backgroundColor: "#7c3aed" }}
+              >
                 {adicionandoMusica ? "Salvando..." : "Adicionar ao Repertório"}
               </button>
             </div>
@@ -1083,11 +1222,22 @@ export default function Louvor() {
 
       {/* Modal Config Holyrics */}
       {showHolyricsModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-[#1e1b4b]">Configuração Holyrics</h3>
-              <button onClick={() => setShowHolyricsModal(false)} className="text-[#7c6ea8]">✕</button>
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowHolyricsModal(false);
+          }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150"
+        >
+          <div className="bg-white dark:bg-[var(--color-surface)] rounded-3xl p-6 sm:p-7 w-full max-w-lg space-y-4 shadow-2xl border border-[#e5e0f8] dark:border-[var(--color-border)] animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#f0eefe] dark:border-[var(--color-border)] pb-3">
+              <h3 className="font-bold text-[#1e1b4b] dark:text-[var(--color-ink)] text-base">Configuração Holyrics</h3>
+              <button
+                type="button"
+                onClick={() => setShowHolyricsModal(false)}
+                className="w-8 h-8 rounded-lg hover:bg-gray-100 dark:hover:bg-[var(--color-surface-2)] flex items-center justify-center text-gray-400 hover:text-gray-700 dark:hover:text-[var(--color-ink)]"
+              >
+                ✕
+              </button>
             </div>
             <select value={holyricsForm.mode} onChange={(e) => setHolyricsForm((prev) => ({ ...prev, mode: e.target.value as "local" | "online" }))} className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl">
               <option value="local">Local (Rede da Igreja)</option>
