@@ -573,15 +573,15 @@ export default function TriagemPage() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">
-                      Papel do voluntário
+                      Papel no ministério
                     </label>
                     <select
                       value={reviewRole}
                       onChange={(e) => setReviewRole(e.target.value)}
                       className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400"
                     >
-                      <option value="VOLUNTEER">Voluntário</option>
-                      <option value="MEMBER">Membro</option>
+                      <option value="VOLUNTEER">Membro do Ministério</option>
+                      <option value="MEMBER">Membro Geral</option>
                     </select>
                   </div>
 
@@ -702,7 +702,7 @@ export default function TriagemPage() {
                   📲
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-[#1e1b4b]">Inscrição de Voluntários & Membros</h3>
+                  <h3 className="font-bold text-lg text-[#1e1b4b]">Inscrição de Membros do Ministério</h3>
                   <p className="text-xs text-[#7c6ea8]">Divulgue para a igreja se cadastrar nos ministérios</p>
                 </div>
               </div>
@@ -725,7 +725,7 @@ export default function TriagemPage() {
               </div>
               <p className="font-bold text-[#1e1b4b] mt-4 text-sm">Escaneie com a câmera do celular</p>
               <p className="text-xs text-[#7c6ea8] mt-1 max-w-xs">
-                Aponte a câmera para preencher a ficha de voluntário e escolher os ministérios desejados.
+                Aponte a câmera para preencher a ficha de membro e escolher os ministérios desejados.
               </p>
             </div>
 
@@ -759,7 +759,7 @@ export default function TriagemPage() {
 
             {/* Ações e Dicas */}
             <div className="p-3 bg-violet-50 border border-violet-100 rounded-xl text-[11px] text-[#5b5077] leading-relaxed">
-              💡 <strong>Dica para os Cultos:</strong> Projete esta imagem no telão nos avisos de domingo ou envie o link nos grupos de WhatsApp da igreja para captar voluntários.
+              💡 <strong>Dica para os Cultos:</strong> Projete esta imagem no telão nos avisos de domingo ou envie o link nos grupos de WhatsApp da igreja para cadastrar novos membros nos ministérios.
             </div>
 
             <div className="pt-2 flex items-center justify-between border-t border-[#f0eefe]">

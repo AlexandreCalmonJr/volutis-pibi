@@ -757,7 +757,7 @@ export default function Comunicacao() {
                   <span>📅</span> Novas Escalas & Lembretes
                 </div>
                 <p className="text-xs text-[#5b5077] leading-relaxed">
-                  Voluntários recebem avisos imediatos ao serem adicionados em escalas e 24h antes do culto.
+                  Membros do ministério recebem avisos imediatos ao serem adicionados em escalas e 24h antes do culto.
                 </p>
               </div>
 
@@ -766,7 +766,7 @@ export default function Comunicacao() {
                   <span>🔄</span> Solicitações de Troca
                 </div>
                 <p className="text-xs text-[#5b5077] leading-relaxed">
-                  Líderes e voluntários são notificados instantaneamente quando alguém solicita ou aceita trocas de escala.
+                  Líderes e membros são notificados instantaneamente quando alguém solicita ou aceita trocas de escala.
                 </p>
               </div>
 
@@ -996,7 +996,7 @@ export default function Comunicacao() {
                 <span className="text-xl">📢</span>
                 <div>
                   <h3 className="font-bold text-[#1e1b4b]">Disparo de Comunicado em Massa</h3>
-                  <p className="text-xs text-[#7c6ea8]">Envie avisos oficiais para voluntários via WhatsApp e Notificação no App</p>
+                  <p className="text-xs text-[#7c6ea8]">Envie avisos oficiais para membros do ministério via WhatsApp e Notificação no App</p>
                 </div>
               </div>
 

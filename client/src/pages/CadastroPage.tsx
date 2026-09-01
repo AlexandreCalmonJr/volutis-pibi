@@ -200,7 +200,7 @@ export default function CadastroPage() {
           <h1 className="text-2xl font-bold text-gray-800" style={{ fontFamily: "'Fraunces', serif" }}>
             {church?.name}
           </h1>
-          <p className="text-gray-600 mt-1">Cadastro de Voluntários</p>
+          <p className="text-gray-600 mt-1">Inscrição para Ministérios da Igreja</p>
         </div>
 
         {/* Progress Bar */}

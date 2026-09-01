@@ -361,7 +361,7 @@ export default function Relatorios() {
             {/* Top ranking */}
             <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6">
               <h2 className="font-semibold text-[#1e1b4b] mb-1">Ranking de Pontuação</h2>
-              <p className="text-xs text-[#7c6ea8] mb-4">Top voluntários</p>
+              <p className="text-xs text-[#7c6ea8] mb-4">Membros mais engajados</p>
               {topRanking.length > 0 ? (
                 <div className="space-y-3">
                   {topRanking.map((m, i) => {
@@ -482,7 +482,7 @@ export default function Relatorios() {
       {/* Jornada */}
       {abaRelatorio === "jornada" && (
         <div className="space-y-4">
-          <p className="text-sm text-[#7c6ea8]">Jornada completa de serviço de cada voluntário</p>
+          <p className="text-sm text-[#7c6ea8]">Jornada completa de serviço de cada membro do ministério</p>
           {members.length === 0 ? (
             <EmptyState message="Nenhum membro encontrado." />
           ) : (

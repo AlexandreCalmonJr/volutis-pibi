@@ -11,8 +11,8 @@ interface MinistryOption {
 }
 
 const ROLE_OPTIONS = [
-  { value: "MEMBER", label: "Membro", description: "Acesso básico ao app", color: "#6b7280" },
-  { value: "VOLUNTEER", label: "Voluntário", description: "Pode participar de escalas", color: "#7c3aed" },
+  { value: "MEMBER", label: "Membro Geral", description: "Acesso básico ao app e cultos", color: "#6b7280" },
+  { value: "VOLUNTEER", label: "Membro do Ministério", description: "Participa das escalas do ministério", color: "#7c3aed" },
   { value: "MINISTRY_LEADER", label: "Líder de Ministério", description: "Gerencia membros do ministério", color: "#f59e0b" },
 ];
 

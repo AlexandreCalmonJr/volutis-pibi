@@ -187,7 +187,7 @@ function ProfileModal({ member, loading, feedback, onApprove, onDeactivate, onCl
                 disabled={loading}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-red-200 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
               >
-                {loading ? "Processando..." : "Desativar voluntário"}
+                {loading ? "Processando..." : "Desativar membro"}
               </button>
             </div>
           )}
@@ -200,7 +200,7 @@ function ProfileModal({ member, loading, feedback, onApprove, onDeactivate, onCl
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
                 style={{ backgroundColor: "#7c3aed" }}
               >
-                {loading ? "Processando..." : "Reativar voluntário"}
+                {loading ? "Processando..." : "Reativar membro"}
               </button>
             </div>
           )}
@@ -230,7 +230,7 @@ export default function Voluntarios() {
       const data = await api<Member[]>("/members");
       setMembers(data);
     } catch (e: any) {
-      setError(e.message ?? "Erro ao carregar voluntários");
+      setError(e.message ?? "Erro ao carregar membros do ministério");
     } finally {
       setLoading(false);
     }
@@ -252,10 +252,10 @@ export default function Voluntarios() {
       setMemberSelecionado(updated);
       setActionFeedback({
         type: "ok",
-        text: approvalStatus === "ACTIVE" ? "Voluntário aprovado/reativado com sucesso." : "Voluntário marcado como inativo.",
+        text: approvalStatus === "ACTIVE" ? "Membro aprovado/reativado com sucesso." : "Membro marcado como inativo.",
       });
     } catch (e: any) {
-      setActionFeedback({ type: "error", text: e.message ?? "Não foi possível atualizar o voluntário." });
+      setActionFeedback({ type: "error", text: e.message ?? "Não foi possível atualizar o membro." });
     } finally {
       setActionLoading(false);
     }
@@ -298,7 +298,7 @@ export default function Voluntarios() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>
-            Voluntários
+            Membros do Ministério
           </h1>
           <p className="text-[#5b5077] text-sm mt-1">
             {ativos.length} ativos · {pendentes.length} aguardando aprovação
@@ -328,7 +328,7 @@ export default function Voluntarios() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span className="text-sm font-semibold text-amber-800">
-                {pendentes.length} voluntário(s) aguardando aprovação
+                {pendentes.length} membro(s) aguardando aprovação
               </span>
             </div>
             <button
@@ -349,7 +349,7 @@ export default function Voluntarios() {
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar voluntário..."
+            placeholder="Buscar membro do ministério..."
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl bg-white text-[#1e1b4b] placeholder:text-[#7c6ea8] focus:outline-none focus:border-[#a78bfa] transition-colors"
           />
         </div>
@@ -464,7 +464,7 @@ export default function Voluntarios() {
           <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" />
           </svg>
-          <p>Nenhum voluntário encontrado</p>
+          <p>Nenhum membro encontrado</p>
         </div>
       )}
 

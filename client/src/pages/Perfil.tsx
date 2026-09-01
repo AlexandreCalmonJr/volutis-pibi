@@ -376,7 +376,7 @@ export default function Perfil() {
               <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>{profile.name}</h1>
               <p className="text-sm text-[#6d5fa1]">{user?.email}</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-[#ede9fe] text-[#7c3aed]">{user?.role === "ADMIN" ? "Administrador" : user?.role === "MINISTRY_LEADER" ? "Líder" : user?.role === "VOLUNTEER" ? "Voluntário" : "Membro"}</span>
+                <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-[#ede9fe] text-[#7c3aed]">{user?.role === "ADMIN" ? "Administrador" : user?.role === "MINISTRY_LEADER" ? "Líder" : user?.role === "VOLUNTEER" ? "Membro do Ministério" : "Membro"}</span>
                 <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-[#ecfdf5] text-[#059669]">{profile.points} pontos</span>
               </div>
             </div>
@@ -464,7 +464,7 @@ export default function Perfil() {
             <div>
               <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">Instrumentos / habilidades</label>
               <input value={form.instrumentsText} onChange={(e) => setForm((prev) => ({ ...prev, instrumentsText: e.target.value }))} placeholder="Vocal, Violão, Teclado" className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] focus:outline-none focus:border-[#a78bfa]" />
-              <p className="mt-2 text-xs text-[#7c6ea8]">Separe por vírgula. Isso ajuda na escala automática e nas sugestões de voluntários.</p>
+              <p className="mt-2 text-xs text-[#7c6ea8]">Separe por vírgula. Isso ajuda na escala automática e nas sugestões de membros.</p>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">

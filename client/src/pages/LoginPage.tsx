@@ -78,7 +78,7 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>
             Volut
           </h1>
-          <p className="text-sm text-[#7c6ea8] mt-1">Gestão de Voluntários da Igreja</p>
+          <p className="text-sm text-[#7c6ea8] mt-1">Gestão de Ministérios da Igreja</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6 shadow-sm">
