@@ -90,16 +90,25 @@ export async function removePushSubscription(memberId: string, endpoint: string)
 }
 
 export async function sendPushToMember(memberId: string, notification: Notification) {
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: { id: true, name: true, user: { select: { email: true } } },
+  }).catch(() => null);
+
+  const memberLabel = member ? `"${member.name}" (${member.user?.email || member.id})` : `Membro ID ${memberId}`;
+
   if (!ensureConfigured()) {
-    console.warn(`[push] VAPID não configurado — push não enviado para membro ${memberId}`);
-    return { sent: 0, skipped: true };
+    console.warn(`⚠️ [PUSH] VAPID não configurado — notificação push ignorada para ${memberLabel}`);
+    return { sent: 0, skipped: true, memberName: member?.name, devicesCount: 0 };
   }
 
   const subscriptions = await prisma.pushSubscription.findMany({ where: { memberId } });
   if (!subscriptions.length) {
-    console.warn(`[push] Membro ${memberId} não possui dispositivos registrados`);
-    return { sent: 0, skipped: true };
+    console.warn(`⚠️ [PUSH] ${memberLabel} NÃO POSSUI NENHUM DISPOSITIVO CADASTRADO (Push desativado pelo usuário no navegador).`);
+    return { sent: 0, skipped: true, memberName: member?.name, devicesCount: 0 };
   }
+
+  console.log(`📱 [PUSH] ${memberLabel} possui ${subscriptions.length} dispositivo(s) cadastrado(s). Enviando: "${notification.title}"...`);
 
   const payload = JSON.stringify({
     title: notification.title,
@@ -114,7 +123,7 @@ export async function sendPushToMember(memberId: string, notification: Notificat
   });
 
   const results = await Promise.allSettled(
-    subscriptions.map(async (subscription) => {
+    subscriptions.map(async (subscription, index) => {
       try {
         await webpush.sendNotification(
           {
@@ -131,11 +140,12 @@ export async function sendPushToMember(memberId: string, notification: Notificat
           where: { id: subscription.id },
           data: { lastNotifiedAt: new Date() },
         });
+        console.log(`   └─ Dispositivo #${index + 1} (${subscription.userAgent || "Web Client"}): Entregue com sucesso!`);
         return true;
       } catch (error: any) {
-        console.error(`[push] Erro ao enviar para endpoint ${subscription.endpoint.slice(0, 60)}…:`, error?.statusCode ?? error?.message ?? error);
+        console.error(`   └─ Dispositivo #${index + 1} (${subscription.userAgent || "Web Client"}): Falha no envio (${error?.statusCode ?? error?.message ?? error})`);
         if (error?.statusCode === 404 || error?.statusCode === 410) {
-          console.warn(`[push] Removendo subscription expirada/inválida (${error.statusCode})`);
+          console.warn(`      └─ Removendo assinatura expirada/inválida do banco.`);
           await prisma.pushSubscription.delete({ where: { id: subscription.id } }).catch(() => {});
         }
         return false;
@@ -144,6 +154,6 @@ export async function sendPushToMember(memberId: string, notification: Notificat
   );
 
   const sentCount = results.filter((item) => item.status === "fulfilled" && item.value).length;
-  console.log(`[push] Membro ${memberId}: ${sentCount}/${subscriptions.length} dispositivo(s) notificado(s) — "${notification.title}"`);
-  return { sent: sentCount, skipped: false };
+  console.log(`✅ [PUSH] Resultado para ${memberLabel}: ${sentCount}/${subscriptions.length} dispositivo(s) notificado(s) com sucesso.`);
+  return { sent: sentCount, skipped: false, memberName: member?.name, devicesCount: subscriptions.length };
 }

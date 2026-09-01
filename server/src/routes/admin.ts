@@ -381,9 +381,11 @@ export async function adminRoutes(app: FastifyInstance) {
       ok: result.sent > 0,
       sent: result.sent,
       subscriptions,
-      message: result.sent > 0
-        ? `Notificação de teste enviada para ${result.sent} dispositivo(s).`
-        : "Nenhum dispositivo aceitou o push. Verifique a permissão no celular e reinstale a assinatura, se necessário.",
+      message: subscriptions === 0
+        ? `⚠️ Atenção: ${member.name} NÃO possui nenhum celular/dispositivo cadastrado para notificações push.`
+        : result.sent > 0
+        ? `✅ Notificação entregue com sucesso para ${result.sent} de ${subscriptions} dispositivo(s) cadastrado(s) de ${member.name}.`
+        : `⚠️ Falha ao entregar para os ${subscriptions} dispositivo(s) de ${member.name}. O token pode ter expirado.`,
     };
   });
 
