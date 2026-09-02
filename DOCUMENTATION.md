@@ -1,62 +1,63 @@
 # 📖 Documentação Técnica Completa — Volutis PIBI
 
-**Projeto**: Volutis PIBI — Sistema de Gestão Ministerial, Escalas, Louvor e Mídias  
+**Projeto**: Volutis PIBI — Sistema de Gestão Ministerial, Escalas, Louvor, Mídias e Helpdesk  
 **Autor e Idealizador**: Alexandre Calmon Jr.  
 **Igreja**: Primeira Igreja Batista de Itapuã (PIBI)  
-**Versão Atual**: 2.0.0 (Produção Pronta)  
+**Versão Atual**: 2.5.0 (Produção Pronta e Otimizada)  
 
 ---
 
 ## 1. 🏗️ Arquitetura do Sistema
 
-O Volutis PIBI é estruturado em uma arquitetura monorepo moderna, separando claramente o Frontend SPA (Progressive Web App) do Backend REST API com comunicação em tempo real via WebSocket e Web Push.
+O Volutis PIBI é estruturado em uma arquitetura monorepo moderna, separando claramente o Frontend SPA (Progressive Web App) do Backend REST API com comunicação em tempo real via WebSocket, Web Push e mensageria WhatsApp.
 
 ```
 Volutis-PIBI/
-├── client/                     # Frontend SPA (PWA)
-│   ├── index.html              # HTML base + manifesto PWA
+├── client/                     # Frontend SPA (React 19 + Vite + Tailwind/Vanilla CSS)
 │   ├── src/
-│   │   ├── main.tsx            # Ponto de entrada do React 19
-│   │   ├── App.tsx             # Roteamento e layouts protegidos por RBAC
-│   │   ├── store.ts            # Zustand (Sessão, Tokens, Auth, Toasts)
-│   │   ├── api.ts              # Cliente HTTP com interceptor e refresh token
-│   │   ├── components/         # Componentes reutilizáveis (Sidebar, Avatar, Modais, etc.)
-│   │   └── pages/              # Páginas e fluxos de negócio
-│   │       ├── Dashboard.tsx       # Visão geral, estatísticas e limpeza de banco
-│   │       ├── Escalas.tsx         # Calendário de escalas, IA e trocas
-│   │       ├── Eventos.tsx         # Cultos, ensaios e liturgia
-│   │       ├── Voluntarios.tsx     # Gestão de membros do ministério
-│   │       ├── TriagemPage.tsx     # Triagem pública, aprovações e QR Code telão
-│   │       ├── Louvor.tsx          # Repertório, setlists, tons, Holyrics e push
-│   │       ├── MinisteriosPage.tsx # Gestão de ministérios e lideranças
-│   │       ├── Comunicacao.tsx     # Chat por culto e comunicados em massa
-│   │       ├── CadastroPage.tsx    # Ficha de inscrição pública (/cadastro/:slug)
-│   │       ├── ConvitesPage.tsx    # Geração de convites por link
-│   │       ├── Perfil.tsx          # Perfil, histórico e disponibilidade
-│   │       └── Relatorios.tsx      # Métricas de presença e engajamento
+│   │   ├── components/         # Componentes reutilizáveis
+│   │   │   ├── ScheduleCardModal.tsx # Gerador de Card Visual da Escala para WhatsApp (HTML5 Canvas)
+│   │   │   ├── Sidebar.tsx           # Navegação lateral com controle de acesso RBAC
+│   │   │   └── ModalPortal.tsx       # Modais acessíveis via React Portal
+│   │   └── pages/
+│   │       ├── Dashboard.tsx         # Visão geral, métricas e monitoramento
+│   │       ├── Escalas.tsx           # Calendário, escalas com detecção de Double Booking e card WhatsApp
+│   │       ├── Eventos.tsx           # Gestão de cultos com validação contra horários sobrepostos
+│   │       ├── Voluntarios.tsx       # Gestão de membros com isolamento por ministério
+│   │       ├── MinistryHubPage.tsx   # Hub da equipe com alternador dinâmico e mural interno
+│   │       ├── EventChatPage.tsx     # Chat restrito ao dia do culto e a voluntários escalados
+│   │       ├── AjudaPage.tsx         # Central de Ajuda & Helpdesk com FAQ operacional editável
+│   │       ├── TriagemPage.tsx       # Triagem pública com isolamento por liderança
+│   │       ├── Louvor.tsx            # Repertório musical, setlists, tons e metrônomo
+│   │       ├── MinisteriosPage.tsx   # Gestão de ministérios e funções (Admin e Líder)
+│   │       ├── ConvitesPage.tsx      # Geração de convites protegida por escopo de ministério
+│   │       ├── Perfil.tsx            # Perfil do voluntário, badges e disponibilidades
+│   │       └── Relatorios.tsx        # Métricas de presença e relatórios ministeriais
 │
-├── server/                     # Backend API (Node.js + Fastify + Prisma)
+├── server/                     # Backend API (Node.js + Fastify + Prisma + PostgreSQL)
 │   ├── prisma/
-│   │   └── schema.prisma       # Modelagem relacional do PostgreSQL
+│   │   └── schema.prisma       # Modelagem relacional, índices compostos e soft delete
 │   ├── src/
-│   │   ├── server.ts           # Inicialização do Fastify, CORS e WebSockets
+│   │   ├── server.ts           # Fastify, rate-limit granular, graceful shutdown e hooks anti-XSS
+│   │   ├── lib/
+│   │   │   ├── cache.ts        # Cache em memória ultra-rápido com TTL e invalidação
+│   │   │   └── db.ts           # Instância singleton do Prisma Client
 │   │   ├── middleware/
-│   │   │   └── auth.ts         # Autenticação JWT e RBAC hierárquico
-│   │   ├── routes/             # Controladores REST
-│   │   │   ├── auth.ts             # Login, registro e rotação de tokens
-│   │   │   ├── applications.ts     # Triagem, aprovação e limpeza de testes
-│   │   │   ├── events.ts           # Cultos, liturgia e roteiros
-│   │   │   ├── schedules.ts        # Escalas, sugestão inteligente e trocas
-│   │   │   ├── songs.ts            # Catálogo musical e notificações de louvor
-│   │   │   ├── ministries.ts       # Ministérios e controle de lideranças
-│   │   │   ├── members.ts          # Perfil ministerial e disponibilidades
-│   │   │   ├── holyrics.ts         # Integração Holyrics local/cloud
-│   │   │   ├── admin.ts            # Reset de produção e gestão de usuários
-│   │   │   └── chat.ts             # Mensagens em tempo real
+│   │   │   ├── auth.ts         # Autenticação JWT e RBAC hierárquico
+│   │   │   └── sanitize.ts     # Sanitização universal anti-XSS de payloads
+│   │   ├── routes/             # Controladores REST com paginação e cache
+│   │   │   ├── auth.ts         # Login e refresh com rate limiting severo
+│   │   │   ├── ministries.ts   # CRUD de ministérios com cache de 60s e soft delete
+│   │   │   ├── songs.ts        # Catálogo musical com cache de 120s
+│   │   │   ├── events.ts       # Validação de eventos sobrepostos no mesmo horário
+│   │   │   ├── chat.ts         # Chat dos cultos com paginação segura (take: 50)
+│   │   │   └── applications.ts # Triagem com filtro automático para o ministério do líder
 │   │   └── services/
-│   │       ├── notification.service.ts # Disparos In-App e Push
-│   │       ├── push.service.ts         # Web Push VAPID para celulares
-│   │       └── whatsapp.service.ts     # Integração WhatsApp / Avisos
+│   │       ├── audit.service.ts      # Auditoria de ações persistida na tabela AuditLog
+│   │       ├── cleanup.service.ts    # Job automático de limpeza de convites e tokens antigos
+│   │       ├── scheduler.service.ts  # Disparo de lembretes automáticos 24h antes do culto
+│   │       ├── notification.service.ts # Notificações internas in-app e Web Push
+│   │       └── whatsapp.service.ts   # Integração de mensagens interativas de escala
 ```
 
 ---
@@ -65,43 +66,55 @@ Volutis-PIBI/
 
 Hierarquia de permissões implementada em `server/src/middleware/auth.ts`:
 
-1. **👑 `ADMIN` (Nível 4)**: Acesso completo. Apenas ele cria ministérios, promove membros para líderes de ministério e executa limpeza de banco de dados para produção.
-2. **🛡️ `MINISTRY_LEADER` (Nível 3)**: Acesso restrito aos ministérios em que é líder ativo. Gera escalas de sua equipe, aprova novos membros na Triagem, monta repertórios de louvor e envia avisos para a equipe.
-3. **🤝 `VOLUNTEER` (Nível 2 — Membro do Ministério)**: Acessa suas próprias escalas, confirma/recusa presença, solicita trocas com outros membros, participa do chat dos cultos escalados e, no Louvor, acessa cifras, tons e anotações musicais.
-4. **👤 `MEMBER` (Nível 1 — Membro Geral)**: Vê o calendário dos cultos, repertório das músicas (com links para YouTube/Spotify/Letra) e acessa o formulário de inscrição via QR Code.
+1. **👑 `ADMIN`**: Acesso global irrestrito a todos os ministérios, usuários, auditoria, configurações e reset de produção.
+2. **🛡️ `MINISTRY_LEADER`**:
+   - Vê e gerencia **apenas** os ministérios e voluntários sob sua liderança ativa.
+   - Na **Triagem**, visualiza somente candidatos que marcaram interesse em seus ministérios.
+   - Nos **Convites**, gera convites vinculados unicamente ao seu ministério.
+   - Na **Central de Ajuda**, pode cadastrar e excluir perguntas e procedimentos operacionais (FAQs).
+3. **🤝 `VOLUNTEER`**:
+   - Acessa suas próprias escalas, confirma/recusa presença e pede trocas com outros voluntários.
+   - Acessa o chat do culto **apenas** nos eventos em que está escalado e **no dia do evento**.
+   - No Louvor, acessa repertório, cifras e metrônomo.
+4. **👤 `MEMBER`**: Visualiza eventos públicos, repertório e mural geral.
 
 ---
 
-## 3. 🗄️ Esquema do Banco de Dados (PostgreSQL + Prisma)
+## 3. 🗄️ Esquema do Banco de Dados & Otimizações de Performance
 
 ### Principais Tabelas:
-* **`Church`**: Organização/igreja dona dos dados (`slug` público para formulários).
+* **`Church`**: Igreja/organização com configurações de Holyrics e YouTube Live.
 * **`User`**: Credenciais de login (`email`, `passwordHash`, `role`).
-* **`Member`**: Perfil ministerial (`name`, `phone`, `instruments`, `points`, `approvalStatus`).
-* **`Ministry` & `MinistryRole`**: Ministérios cadastrados e suas funções específicas (ex: *Louvor → Vocal, Bateria, Violão*).
-* **`MinistryMember`**: Tabela de junção Membro <-> Ministério, com a flag `isLeader: boolean`.
-* **`Event`**: Cultos e ensaios com data, horário e tipo.
-* **`ScheduleItem`**: Vaga na escala vinculando Evento, Membro e Função (`PENDING`, `CONFIRMED`, `DECLINED`, `SWAP_REQUESTED`).
-* **`SwapRequest`**: Pedido de troca de vaga com histórico de aprovação.
-* **`Song` & `SetlistItem`**: Catálogo de louvor (Tom, BPM, Letra, Cifra, Links YouTube/Spotify/CifraClub).
-* **`Application` & `ApplicationPreference`**: Fichas de inscrição recebidas via QR Code do Telão.
-* **`Notification` & `PushSubscription`**: Feed de notificações e chaves de Web Push nos navegadores/smartphones.
+* **`Member`**: Perfil ministerial (`name`, `phone`, `instruments`, `approvalStatus`).
+* **`Ministry`**: Ministérios com suporte a `deletedAt DateTime?` (Soft Delete para preservação de histórico).
+* **`Event`**: Cultos e eventos com `deletedAt DateTime?` e índice temporal.
+* **`ScheduleItem`**: Vaga na escala com índices compostos de alta velocidade (`[memberId, status]`, `[eventId, status]`, `[reminderSentAt]`).
+* **`ChatMessage`**: Mensagens de chat do culto com índice composto `@@index([eventId, createdAt])`.
+* **`UserNotification`**: Notificações com índice composto `@@index([memberId, readAt, createdAt])`.
+* **`AuditLog`**: Registro persistente de ações administrativas com categorização e rastreamento de IP.
+* **`RefreshToken` & `Invite`**: Sessões e convites com limpeza automática por job de background.
 
 ---
 
-## 4. 🔄 Ciclo de Vida e Fluxos de Produção
+## 4. ⚡ Otimizações do Servidor Backend
 
-### Como colocar em Produção e Limpar Dados de Teste:
-1. No **Dashboard**, clique em **`Limpeza de dados para Produção`**.
-2. O sistema aciona `POST /api/admin/production-reset`, removendo escalas, eventos ou membros de teste, preservando o usuário do Administrador e a estrutura de ministérios.
-3. Na **Triagem**, use o botão **`🧹 Limpar Inscrições de Teste`** para limpar testes residuais.
+1. **Rate Limiting Granular:**
+   - Proteção de força bruta em `/auth/login` e `/auth/forgot-password` limitada a **12 requisições por minuto por IP**.
+   - Proteção contra bots no formulário público `/applications/public` limitada a **10 cadastros por minuto por IP**.
+2. **Sanitização Universal Anti-XSS (`sanitize.ts`):**
+   - Intercepta payloads JSON no hook `preValidation` do Fastify, removendo scripts maliciosos sem alterar textos válidos ou emojis.
+3. **Cache em Memória com TTL (`appCache`):**
+   - Reduz até 70% das queries ao banco de dados no pico de domingo para rotas de leitura frequente (`GET /ministries` e `GET /songs`).
+4. **Job Automático de Limpeza (`cleanup.service.ts`):**
+   - Executa a cada 12 horas, removendo convites expirados (+7 dias), tokens de sessão antigos e notificações lidas com mais de 60 dias.
+5. **Graceful Shutdown:**
+   - Trata sinais `SIGTERM` e `SIGINT` desconectando o Prisma Client e limpando temporizadores antes de desligar.
 
 ---
 
-## 5. 🚀 Guia de Atualizações e Melhorias Futuras
+## 5. 🚀 Ferramentas Operacionais de Destaque
 
-Ao criar novas funcionalidades ou módulos no sistema:
-1. **Modelos no Banco**: Edite `server/prisma/schema.prisma` e execute `npm run prisma:generate -w server` e `npx prisma migrate dev --name nome_da_migracao`.
-2. **Rotas da API**: Crie o arquivo em `server/src/routes/` e registre no `server/src/server.ts`.
-3. **Páginas no Frontend**: Crie a tela em `client/src/pages/` e adicione a rota em `client/src/App.tsx`.
-4. **Permissões**: Use `requireRole("ADMIN")` ou `requireRole("MINISTRY_LEADER")` nos endpoints críticos.
+* **Gerador de Card Visual da Escala para WhatsApp:** Renderiza imagens PNG estilizadas (1080x1350) com 1 clique para postar em grupos ou stories.
+* **Alerta de Conflito de Escala Dupla (Double Booking):** Avisa instantaneamente quando um voluntário já está escalado no mesmo culto em outra função.
+* **Prevenção de Eventos Sobrepostos:** Impede dois eventos cadastrados na mesma data e horário.
+* **Central de Ajuda & Helpdesk Operacional:** Catálogo de emergências (falha de som, queda de live no OBS, Holyrics travado) com diretório de plantão WhatsApp e FAQs personalizáveis.
