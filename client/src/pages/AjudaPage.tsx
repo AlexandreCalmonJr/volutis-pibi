@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../store";
+import { ModalPortal } from "../components/ModalPortal";
 
 interface FAQItem {
   id: string;
@@ -113,12 +115,64 @@ const PLANTAO_CONTATOS = [
 
 export default function AjudaPage() {
   const navigate = useNavigate();
+  const user = useAuth((s) => s.user);
+  const canManageFaq = user?.role === "ADMIN" || user?.role === "MINISTRY_LEADER";
+
   const [busca, setBusca] = useState("");
   const [categoria, setCategoria] = useState<"TODAS" | "GERAL" | "MIDIA" | "LOUVOR" | "DIACONIA">("TODAS");
   const [openFaqId, setOpenFaqId] = useState<string | null>("troca-escala");
 
+  const [faqsList, setFaqsList] = useState<FAQItem[]>(() => {
+    try {
+      const saved = localStorage.getItem("volut_custom_faqs");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return [...parsed, ...FAQS];
+      }
+    } catch {}
+    return FAQS;
+  });
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newPergunta, setNewPergunta] = useState("");
+  const [newResposta, setNewResposta] = useState("");
+  const [newCategoria, setNewCategoria] = useState<"GERAL" | "MIDIA" | "LOUVOR" | "DIACONIA">("GERAL");
+  const [newPassosText, setNewPassosText] = useState("");
+
+  function handleSaveFaq(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newPergunta.trim() || !newResposta.trim()) return;
+    const item: FAQItem = {
+      id: "custom-" + Date.now(),
+      categoria: newCategoria,
+      pergunta: newPergunta.trim(),
+      resposta: newResposta.trim(),
+      passos: newPassosText
+        .split("\n")
+        .map((p) => p.trim())
+        .filter(Boolean),
+    };
+    const updated = [item, ...faqsList];
+    setFaqsList(updated);
+    const customOnly = updated.filter((f) => f.id.startsWith("custom-"));
+    localStorage.setItem("volut_custom_faqs", JSON.stringify(customOnly));
+    setModalOpen(false);
+    setNewPergunta("");
+    setNewResposta("");
+    setNewPassosText("");
+    setOpenFaqId(item.id);
+  }
+
+  function handleDeleteFaq(id: string) {
+    if (!confirm("Deseja remover esta orientação cadastrada?")) return;
+    const updated = faqsList.filter((f) => f.id !== id);
+    setFaqsList(updated);
+    const customOnly = updated.filter((f) => f.id.startsWith("custom-"));
+    localStorage.setItem("volut_custom_faqs", JSON.stringify(customOnly));
+  }
+
   const faqsFiltrados = useMemo(() => {
-    return FAQS.filter((item) => {
+    return faqsList.filter((item) => {
       const matchCat = categoria === "TODAS" || item.categoria === categoria;
       const matchBusca =
         !busca.trim() ||
@@ -127,7 +181,7 @@ export default function AjudaPage() {
         (item.passos && item.passos.some((p) => p.toLowerCase().includes(busca.toLowerCase())));
       return matchCat && matchBusca;
     });
-  }, [busca, categoria]);
+  }, [busca, categoria, faqsList]);
 
   return (
     <div className="space-y-7 max-w-6xl mx-auto pb-12">
@@ -142,6 +196,15 @@ export default function AjudaPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {canManageFaq && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="px-4 py-2 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+              style={{ backgroundColor: "#7c3aed" }}
+            >
+              + Adicionar FAQ
+            </button>
+          )}
           <button
             onClick={() => navigate("/escalas")}
             className="px-4 py-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink)] text-xs font-semibold hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
@@ -296,7 +359,7 @@ export default function AjudaPage() {
         </div>
 
         {/* Filtros de Categoria */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <div className="flex flex-wrap items-center gap-1.5">
           {(["TODAS", "GERAL", "MIDIA", "LOUVOR", "DIACONIA"] as const).map((cat) => (
             <button
               key={cat}
@@ -356,6 +419,18 @@ export default function AjudaPage() {
                           ))}
                         </div>
                       )}
+
+                      {canManageFaq && faq.id.startsWith("custom-") && (
+                        <div className="pt-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFaq(faq.id)}
+                            className="text-xs font-semibold text-rose-500 hover:text-rose-700 hover:underline cursor-pointer"
+                          >
+                            Excluir esta orientação
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -364,6 +439,104 @@ export default function AjudaPage() {
           )}
         </div>
       </div>
+
+      {/* Modal Adicionar FAQ */}
+      {modalOpen && (
+        <ModalPortal isOpen={modalOpen}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md" onClick={() => setModalOpen(false)} />
+            <div className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl my-auto max-h-[calc(100vh-2rem)] overflow-y-auto animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+                <h3 className="font-bold text-base sm:text-lg text-[var(--color-ink)]" style={{ fontFamily: "'Fraunces', serif" }}>
+                  Adicionar Orientação / FAQ
+                </h3>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="w-8 h-8 rounded-lg hover:bg-[var(--color-surface-2)] text-[var(--color-muted)] flex items-center justify-center cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveFaq} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                    Categoria
+                  </label>
+                  <select
+                    value={newCategoria}
+                    onChange={(e: any) => setNewCategoria(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-primary)]"
+                  >
+                    <option value="GERAL">Geral & Escalas</option>
+                    <option value="MIDIA">Mídia & TI</option>
+                    <option value="LOUVOR">Louvor & Som</option>
+                    <option value="DIACONIA">Recepção & Diaconia</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                    Pergunta / Dúvida Operacional
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Como ligar o ar-condicionado do templo?"
+                    value={newPergunta}
+                    onChange={(e) => setNewPergunta(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-primary)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                    Resposta Explicativa
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="Explique a solução de forma clara para os voluntários..."
+                    value={newResposta}
+                    onChange={(e) => setNewResposta(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-primary)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider mb-1">
+                    Passos Recomendados (Opcional - 1 por linha)
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder={"1. Vá até o quadro geral...\n2. Ligue a chave 4...\n3. Acione o controle remoto..."}
+                    value={newPassosText}
+                    onChange={(e) => setNewPassosText(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-primary)]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--color-border)]">
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(false)}
+                    className="px-4 py-2 text-xs font-semibold rounded-xl border border-[var(--color-border)] text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 text-xs font-semibold rounded-xl text-white shadow-sm hover:opacity-90 transition-all cursor-pointer"
+                    style={{ backgroundColor: "#7c3aed" }}
+                  >
+                    Salvar FAQ
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 }

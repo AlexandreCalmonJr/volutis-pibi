@@ -87,6 +87,20 @@ export async function eventRoutes(app: FastifyInstance) {
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
     const body = eventSchema.parse(req.body);
+
+    const duplicate = await prisma.event.findFirst({
+      where: {
+        churchId: auth.churchId,
+        date: new Date(body.date),
+        startTime: new Date(body.startTime),
+      },
+    });
+    if (duplicate) {
+      return reply.code(409).send({
+        error: `Conflito de agenda: Já existe o evento "${duplicate.title}" agendado para esta mesma data e horário.`,
+      });
+    }
+
     const event = await prisma.event.create({
       data: {
         title: body.title,

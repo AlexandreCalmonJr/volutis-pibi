@@ -18,6 +18,7 @@ interface ChatMessage {
   authorName: string;
   createdAt: string;
   eventId: string;
+  memberId?: string;
 }
 
 export default function EventChatPage() {
@@ -36,14 +37,34 @@ export default function EventChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const user = useAuth((s) => s.user);
-  const isLeaderOrAdmin = user?.role === "ADMIN" || user?.role === "MINISTRY_LEADER";
+  const isAdmin = user?.role === "ADMIN";
 
-  // Carregar eventos disponíveis para chat
+  function formatTime(val: string | undefined | null): string {
+    if (!val) return "";
+    if (/^\d{2}:\d{2}$/.test(val)) return val;
+    try {
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      }
+    } catch {}
+    return val.slice(0, 5);
+  }
+
+  function isEventDayOrPast(eventDateStr: string): boolean {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const evDate = new Date(eventDateStr);
+    evDate.setHours(0, 0, 0, 0);
+    return evDate.getTime() <= today.getTime();
+  }
+
+  // Carregar eventos disponíveis para chat (Apenas cultos onde o voluntário está escalado; Admin vê todos)
   useEffect(() => {
     async function loadEvents() {
       setLoadingEvents(true);
       try {
-        if (isLeaderOrAdmin) {
+        if (isAdmin) {
           const data = await api<Event[]>("/events");
           setEvents(data);
           if (paramEventId && data.some((e) => e.id === paramEventId)) {
@@ -52,6 +73,7 @@ export default function EventChatPage() {
             setSelectedEventId(data[0].id);
           }
         } else {
+          // Membros e líderes: carrega estritamente os eventos onde estão escalados
           const res = await api<{ items: Array<{ event: Event }> }>("/my/schedule?scope=all");
           const evMap = new Map<string, Event>();
           for (const item of res.items || []) {
@@ -72,7 +94,7 @@ export default function EventChatPage() {
       }
     }
     loadEvents();
-  }, [isLeaderOrAdmin, paramEventId]);
+  }, [isAdmin, paramEventId]);
 
   // Carregar mensagens do evento selecionado
   useEffect(() => {
@@ -210,7 +232,7 @@ export default function EventChatPage() {
                           isSelected ? "text-white/80" : "text-[var(--color-muted)]"
                         }`}
                       >
-                        {formattedDate} {event.startTime ? `· ${event.startTime}` : ""}
+                        {formattedDate} {event.startTime ? `· ${formatTime(event.startTime)}` : ""}
                       </p>
                     </div>
                   </button>
@@ -256,7 +278,7 @@ export default function EventChatPage() {
                         day: "2-digit",
                         month: "long",
                       })}
-                      {selectedEvent.startTime ? ` às ${selectedEvent.startTime}` : ""}
+                      {selectedEvent.startTime ? ` às ${formatTime(selectedEvent.startTime)}` : ""}
                     </p>
                   </div>
                 </div>
@@ -270,6 +292,21 @@ export default function EventChatPage() {
 
               {/* Lista de Mensagens com Scroll */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 bg-[var(--color-background)]">
+                {!isEventDayOrPast(selectedEvent.date) && !isAdmin && (
+                  <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-5 text-center space-y-2 mb-4 shadow-xs">
+                    <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-200 flex items-center justify-center mx-auto text-lg font-bold">
+                      🔒
+                    </div>
+                    <h4 className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                      Chat Liberado no Dia do Culto
+                    </h4>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 max-w-sm mx-auto leading-relaxed">
+                      Este culto está agendado para{" "}
+                      <strong>{new Date(selectedEvent.date).toLocaleDateString("pt-BR")}</strong>. O canal de mensagens será liberado no dia do evento para alinhamento da equipe escalada.
+                    </p>
+                  </div>
+                )}
+
                 {loadingMessages ? (
                   <div className="text-center py-12 text-xs text-[var(--color-muted)]">
                     Carregando mensagens...
@@ -281,17 +318,12 @@ export default function EventChatPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
                     </div>
-                    <p className="text-sm font-semibold text-[var(--color-ink)]">Nenhuma mensagem neste culto</p>
-                    <p className="text-xs">Seja o primeiro a enviar uma mensagem para a equipe!</p>
+                    <p className="font-semibold text-sm text-[var(--color-ink)]">Nenhuma mensagem ainda</p>
+                    <p className="text-xs">Envie a primeira mensagem para alinhar com os voluntários escalados.</p>
                   </div>
                 ) : (
                   messages.map((msg) => {
-                    const isMe = msg.authorName === (user?.memberName || user?.email);
-                    const time = new Date(msg.createdAt).toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    });
-
+                    const isMe = msg.memberId === user?.memberId || msg.authorName === (user?.memberName || user?.email);
                     return (
                       <div
                         key={msg.id}
@@ -299,13 +331,15 @@ export default function EventChatPage() {
                       >
                         <div className="flex items-center gap-1.5 mb-1 px-1">
                           <span className="text-[11px] font-semibold text-[var(--color-muted)]">
-                            {isMe ? "Você" : msg.authorName}
+                            {msg.authorName}
                           </span>
-                          <span className="text-[10px] text-[var(--color-muted)] opacity-70">
-                            {time}
+                          <span className="text-[10px] text-[var(--color-muted)] opacity-75">
+                            {new Date(msg.createdAt).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </span>
                         </div>
-
                         <div
                           className={`max-w-[85%] sm:max-w-[70%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm break-words ${
                             isMe
@@ -322,29 +356,35 @@ export default function EventChatPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Barra de Digitação */}
-              <form
-                onSubmit={handleSendMessage}
-                className="p-3 sm:p-4 border-t border-[var(--color-border)] bg-[var(--color-surface)] flex items-center gap-2 flex-shrink-0"
-              >
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder={`Mensagem para a equipe de ${selectedEvent.title}...`}
-                  className="flex-1 px-4 py-2.5 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-primary)] transition-all"
-                />
-                <button
-                  type="submit"
-                  disabled={!newMessage.trim() || sending}
-                  className="px-4 py-2.5 rounded-xl bg-[var(--color-primary)] hover:opacity-95 text-white text-xs sm:text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 flex-shrink-0"
+              {/* Barra de Digitação ou Aviso de Bloqueio */}
+              {isEventDayOrPast(selectedEvent.date) || isAdmin ? (
+                <form
+                  onSubmit={handleSendMessage}
+                  className="p-3 sm:p-4 border-t border-[var(--color-border)] bg-[var(--color-surface)] flex items-center gap-2 flex-shrink-0"
                 >
-                  <span>Enviar</span>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                </button>
-              </form>
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder={`Mensagem para a equipe de ${selectedEvent.title}...`}
+                    className="flex-1 px-4 py-2.5 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-primary)] transition-all"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newMessage.trim() || sending}
+                    className="px-4 py-2.5 rounded-xl bg-[var(--color-primary)] hover:opacity-95 text-white text-xs sm:text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 flex-shrink-0"
+                  >
+                    <span>Enviar</span>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                  </button>
+                </form>
+              ) : (
+                <div className="p-3.5 border-t border-[var(--color-border)] bg-[var(--color-surface)] text-center text-xs text-[var(--color-muted)] flex items-center justify-center gap-1.5">
+                  <span>🔒 O envio de mensagens será liberado no dia do culto.</span>
+                </div>
+              )}
             </>
           ) : (
             <div className="p-8 text-center text-[var(--color-muted)] space-y-2 my-auto">

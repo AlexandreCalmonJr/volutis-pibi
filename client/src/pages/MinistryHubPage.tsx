@@ -224,61 +224,12 @@ export default function MinistryHubPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Seletor de Modo (visível para Admin e Líderes) */}
-      {(user?.role === "ADMIN" || user?.role === "MINISTRY_LEADER") && (
-        <div className="flex gap-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-1.5 w-fit shadow-xs">
-          <button
-            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-[var(--color-primary)] text-white shadow-sm cursor-default"
-          >
-            Hub & Mural da Equipe
-          </button>
-          <button
-            onClick={() => navigate("/ministerios-gestao")}
-            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] cursor-pointer"
-          >
-            Gestão de Ministérios & Trocas ⚙
-          </button>
-        </div>
-      )}
-
-      {/* Seletor Rápido de Múltiplos Ministérios (Pills / Chips) */}
-      {ministries.length > 1 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="text-xs font-bold text-[var(--color-muted)] uppercase tracking-wider whitespace-nowrap mr-1">
-            Minhas Equipes:
-          </span>
-          {ministries.map((m) => {
-            const isCurrent = m.id === selectedMinistryId;
-            return (
-              <button
-                key={m.id}
-                onClick={() => {
-                  setSelectedMinistryId(m.id);
-                  navigate(`/ministerios/${m.id}`);
-                }}
-                className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-                  isCurrent
-                    ? "bg-[var(--color-primary)] text-white shadow-md shadow-violet-500/20 ring-2 ring-violet-400/30"
-                    : "bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)] text-[var(--color-ink)] border border-[var(--color-border)]"
-                }`}
-              >
-                <span
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: m.color || "var(--color-primary)" }}
-                />
-                <span>{m.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {/* Top Banner: Informações do Ministério Selecionado */}
       <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-5 sm:p-7 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
             <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl text-white shadow-md"
+              className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl text-white shadow-md flex-shrink-0"
               style={{ backgroundColor: currentMinistry.color || "var(--color-primary)" }}
             >
               {currentMinistry.name.charAt(0)}
@@ -301,32 +252,44 @@ export default function MinistryHubPage() {
             </div>
           </div>
 
-          {/* Trocar de Ministério se houver mais de um */}
+          {/* Alternar entre Ministérios do Voluntário */}
           {ministries.length > 1 && (
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-[var(--color-muted)] whitespace-nowrap">
-                Alternar equipe:
-              </label>
-              <select
-                value={selectedMinistryId}
-                onChange={(e) => {
-                  setSelectedMinistryId(e.target.value);
-                  navigate(`/ministerios/${e.target.value}`);
-                }}
-                className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-primary)]"
-              >
-                {ministries.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <span className="text-xs font-semibold text-[var(--color-muted)] whitespace-nowrap">
+                Minhas equipes:
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-border)]">
+                {ministries.map((m) => {
+                  const isCurrent = m.id === selectedMinistryId;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedMinistryId(m.id);
+                        navigate(`/ministerios/${m.id}`);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        isCurrent
+                          ? "bg-[var(--color-primary)] text-white shadow-xs"
+                          : "text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface)]"
+                      }`}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: m.color || "var(--color-primary)" }}
+                      />
+                      <span>{m.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
 
         {/* Abas Internas do Ministério */}
-        <div className="flex items-center gap-2 border-t border-[var(--color-border)] pt-4 mt-6 overflow-x-auto pb-1">
+        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] pt-4 mt-6">
           <button
             onClick={() => setAba("feed")}
             className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${

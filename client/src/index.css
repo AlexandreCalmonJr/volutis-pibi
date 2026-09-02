@@ -198,4 +198,15 @@ html, body, #root {
   }
 }
 
+/* Utilitário universal para ocultar barras de rolagem nativas indesejadas */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
 

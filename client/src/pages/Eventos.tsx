@@ -92,6 +92,21 @@ export default function Eventos() {
 
   async function salvarEvento() {
     if (!novoEvento.titulo || !novoEvento.data || !novoEvento.horario) return;
+    setErro(null);
+
+    // Impedir dois eventos no mesmo dia e horário
+    const overlapping = eventos.find((ev) => {
+      if (editingEventId && String(ev.id) === String(editingEventId)) return false;
+      const evDate = new Date(ev.date).toISOString().slice(0, 10);
+      const evTime = new Date(ev.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      return evDate === novoEvento.data && evTime === novoEvento.horario;
+    });
+
+    if (overlapping) {
+      setErro(`Conflito de agenda: Já existe o evento "${overlapping.title}" agendado para o dia ${novoEvento.data} às ${novoEvento.horario}. Escolha outro horário.`);
+      return;
+    }
+
     setEnviando(true);
     try {
       const startTime = new Date(`${novoEvento.data}T${novoEvento.horario}:00`);

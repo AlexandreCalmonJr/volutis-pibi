@@ -105,8 +105,23 @@ export async function memberRoutes(app: FastifyInstance) {
   app.get("/members", { preHandler: [requireAuth] }, async (req, reply) => {
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+
+    const whereClause: any = { churchId: auth.churchId };
+    if (auth.role === "MINISTRY_LEADER" && auth.memberId) {
+      const leadMemberships = await prisma.ministryMember.findMany({
+        where: { memberId: auth.memberId, isLeader: true },
+        select: { ministryId: true },
+      });
+      const leadMinistryIds = leadMemberships.map((item) => item.ministryId);
+      if (leadMinistryIds.length > 0) {
+        whereClause.ministryMembers = {
+          some: { ministryId: { in: leadMinistryIds } },
+        };
+      }
+    }
+
     const members = await prisma.member.findMany({
-      where: { churchId: auth.churchId },
+      where: whereClause,
       include: { ministryMembers: { include: { ministry: true } } },
       orderBy: { name: "asc" },
     });

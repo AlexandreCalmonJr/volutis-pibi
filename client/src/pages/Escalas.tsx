@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../store";
@@ -7,6 +7,7 @@ import { Avatar } from "../components/Avatar";
 import { Skeleton, ListItemSkeleton } from "../components/Skeleton";
 import { ModalPortal } from "../components/ModalPortal";
 import { ActionMenu, type ActionMenuItem, EmptyState } from "../components/ui";
+import { ScheduleCardModal } from "../components/ScheduleCardModal";
 
 const dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -229,17 +230,38 @@ export default function Escalas() {
   const [importDraftRows, setImportDraftRows] = useState<any[]>([]);
   const [importPreviewSummary, setImportPreviewSummary] = useState<{ total: number; ready: number; warnings: number; errors: number } | null>(null);
   const [replacementItem, setReplacementItem] = useState<DayScheduleItem | null>(null);
+  const [cardModalOpen, setCardModalOpen] = useState(false);
+  const [selectedEventForCard, setSelectedEventForCard] = useState<Event | null>(null);
   const focusedEventId = searchParams.get("eventId");
   const focusedScheduleItemId = searchParams.get("scheduleItemId");
 
+  // Detecção de Conflito de Escala Dupla (Double Booking)
+  const conflictScheduleItem = useMemo(() => {
+    if (!selectedEventForAdd || !selectedMemberId) return null;
+    const ev = events.find((e) => e.id === selectedEventForAdd);
+    if (!ev) return null;
+    return ev.scheduleItems.find(
+      (item) => item.member.id === selectedMemberId && item.id !== replacementItem?.id
+    );
+  }, [events, selectedEventForAdd, selectedMemberId, replacementItem]);
+
   useEffect(() => {
     api<Ministry[]>("/ministries")
-      .then((data) => setMinistriesList(data))
+      .then((data) => {
+        if (user?.role === "MINISTRY_LEADER") {
+          const myMinistries = data.filter((m: any) =>
+            m.members?.some((mm: any) => mm.memberId === user?.memberId && mm.isLeader)
+          );
+          setMinistriesList(myMinistries.length > 0 ? myMinistries : data);
+        } else {
+          setMinistriesList(data);
+        }
+      })
       .catch(() => setMinistriesList([]));
     api<MemberOption[]>("/members")
       .then((data) => setMembersList(data.filter((item) => item.approvalStatus === "ACTIVE")))
       .catch(() => setMembersList([]));
-  }, []);
+  }, [user?.memberId, user?.role]);
 
   useEffect(() => {
     fetchEvents();
@@ -400,6 +422,10 @@ export default function Escalas() {
     if (!selectedEventForAdd || !selectedRoleName || !selectedMemberId) return;
     if (replacementItem && replacementItem.member.id === selectedMemberId) {
       setAddError("Escolha outro voluntário para substituir a escala atual.");
+      return;
+    }
+    if (conflictScheduleItem && !forceAssign) {
+      setAddError(`Atenção: Este voluntário já está escalado como "${conflictScheduleItem.roleName}" neste mesmo culto. Marque "Forçar escala mesmo com conflito" se deseja confirmar a sobreposição.`);
       return;
     }
     setAddingVolunteer(true);
@@ -614,6 +640,20 @@ export default function Escalas() {
       label: importingExcel ? "Importando Planilha..." : "Importar Planilha Excel",
       description: "Carregar eventos e escalas via .xlsx",
       onClick: () => excelInputRef.current?.click(),
+    },
+    {
+      id: "card",
+      label: "Gerar Card para WhatsApp",
+      description: "Imagem da escala para grupos e stories",
+      onClick: () => {
+        const ev = diaSelecionado ? (eventosDoDia[0] || events[0]) : events[0];
+        if (ev) {
+          setSelectedEventForCard(ev);
+          setCardModalOpen(true);
+        } else {
+          alert("Nenhum evento com escala encontrado.");
+        }
+      },
     },
     {
       id: "print",
@@ -832,17 +872,30 @@ export default function Escalas() {
                 : "Selecione um dia"}
             </h2>
             {diaSelecionado && (
-              <div className="mt-2">
+              <div className="mt-2.5 flex items-center justify-between gap-2 flex-wrap">
                 <select
                   value={filtroMinisterio}
                   onChange={(e) => setFiltroMinisterio(e.target.value)}
-                  className="text-xs border border-[var(--color-border)] rounded-lg px-2 py-1 text-[var(--color-text)] bg-[var(--color-surface-2)] focus:outline-none focus:border-[var(--color-primary)]"
+                  className="text-xs border border-[var(--color-border)] rounded-lg px-2 py-1.5 text-[var(--color-text)] bg-[var(--color-surface-2)] focus:outline-none focus:border-[var(--color-primary)]"
                 >
                   <option>Todos</option>
                   {MINISTERIOS.map((m) => (
                     <option key={m}>{m}</option>
                   ))}
                 </select>
+
+                {eventosDoDia.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setSelectedEventForCard(eventosDoDia[0]);
+                      setCardModalOpen(true);
+                    }}
+                    className="text-xs px-2.5 py-1.5 rounded-lg bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-semibold hover:bg-violet-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Gerar card visual desta escala para postar no WhatsApp"
+                  >
+                    <span>Card WhatsApp 📸</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1046,9 +1099,25 @@ export default function Escalas() {
                 </div>
               </div>
 
+              {conflictScheduleItem && (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-4 text-xs sm:text-sm text-amber-900 dark:text-amber-200 flex items-start gap-3 animate-in fade-in">
+                  <span className="text-xl">⚠️</span>
+                  <div className="space-y-1">
+                    <p className="font-bold">Alerta de Conflito de Escala Dupla</p>
+                    <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                      <strong>{conflictScheduleItem.member.name}</strong> já está escalado(a) neste mesmo culto na função{" "}
+                      <strong>{conflictScheduleItem.roleName}</strong>.
+                    </p>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                      Para confirmar mesmo assim, marque a opção abaixo.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <label className="flex items-center gap-2 text-sm text-[#5b5077]">
                 <input type="checkbox" checked={forceAssign} onChange={(e) => setForceAssign(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
-                Permitir conflito de horário se o líder quiser forçar a escala
+                Forçar escala mesmo com conflito de horário ou dupla função
               </label>
 
               <div className="space-y-3">
@@ -1360,6 +1429,13 @@ export default function Escalas() {
           </div>
         </ModalPortal>
       )}
+
+      {/* Modal de Geração do Card da Escala para WhatsApp */}
+      <ScheduleCardModal
+        isOpen={cardModalOpen}
+        onClose={() => setCardModalOpen(false)}
+        event={selectedEventForCard}
+      />
     </div>
   );
 }
