@@ -15,6 +15,7 @@ const Convites = lazy(() => import("./pages/ConvitesPage"));
 const Ministerios = lazy(() => import("./pages/MinisteriosPage"));
 const MinistryHub = lazy(() => import("./pages/MinistryHubPage"));
 const EventChat = lazy(() => import("./pages/EventChatPage"));
+const Ajuda = lazy(() => import("./pages/AjudaPage"));
 const UsuariosAdmin = lazy(() => import("./pages/UsuariosAdminPage"));
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -46,6 +47,7 @@ const pageTitles: Record<string, string> = {
   "/usuarios": "Usuários",
   "/convites": "Convites",
   "/ministerios": "Ministérios & Equipes",
+  "/ajuda": "Central de Ajuda & Helpdesk",
 };
 
 function EscalaDeepLink() {
@@ -325,6 +327,7 @@ function AppLayout() {
                     <Route path="/ministerios" element={<MinistryHub />} />
                     <Route path="/ministerios/:id" element={<MinistryHub />} />
                     <Route path="/ministerios-gestao" element={<LeaderRoute><Ministerios /></LeaderRoute>} />
+                    <Route path="/ajuda" element={<Ajuda />} />
                     <Route path="/escala/:id" element={<EscalaDeepLink />} />
                     <Route path="*" element={<div className="text-center py-20"><p className="text-lg font-semibold text-[var(--color-text)]">Página não encontrada</p><p className="text-sm text-[var(--color-muted)] mt-2">O endpoint que você procura não existe.</p></div>} />
                   </Routes>

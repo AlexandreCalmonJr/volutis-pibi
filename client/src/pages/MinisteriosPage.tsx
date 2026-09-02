@@ -291,15 +291,27 @@ export default function MinisteriosPage() {
 
   return (
     <div className="space-y-6">
+      {/* Seletor de Modo: Hub da Equipe vs Gestão de Ministérios */}
+      <div className="flex gap-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-1.5 w-fit shadow-xs">
+        <button
+          onClick={() => navigate("/ministerios")}
+          className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] cursor-pointer"
+        >
+          Hub & Mural da Equipe
+        </button>
+        <button
+          className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-[var(--color-primary)] text-white shadow-sm cursor-default"
+        >
+          Gestão de Ministérios & Trocas
+        </button>
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>Ministérios e Liderança</h1>
           <p className="text-[#5b5077] text-sm mt-1">Administre ministérios, papéis de liderança e transferências com aprovação dos líderes.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => navigate("/ministerios")} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-[#f5f3ff] cursor-pointer">
-            Ver Hub da Equipe ↗
-          </button>
           <button onClick={loadData} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-[#f5f3ff] cursor-pointer">
             Atualizar
           </button>

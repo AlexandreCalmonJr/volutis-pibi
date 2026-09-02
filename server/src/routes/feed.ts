@@ -59,6 +59,24 @@ export async function feedRoutes(app: FastifyInstance) {
         comments: true,
       },
     });
+
+    // Disparar notificação para voluntários da igreja
+    prisma.member.findMany({
+      where: { churchId: auth.churchId, id: { not: auth.memberId } },
+      select: { id: true },
+      take: 150,
+    }).then(async (recipients) => {
+      const preview = body.content?.slice(0, 120) || "Nova foto ou material de estudo compartilhado no mural.";
+      for (const r of recipients) {
+        await notifyMember(r.id, {
+          type: "FEED_POST",
+          title: `📢 ${member.name} postou no Mural`,
+          body: preview,
+          data: { postId: post.id },
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+
     return reply.code(201).send(post);
   });
 
@@ -82,15 +100,18 @@ export async function feedRoutes(app: FastifyInstance) {
         authorName: member.name,
         content: body.content.trim(),
       },
-      include: { member: { select: { id: true, name: true, photoUrl: true, avatarKey: true } } },
+      include: {
+        member: { select: { id: true, name: true, photoUrl: true, avatarKey: true } },
+      },
     });
 
+    // Notificar autor da publicação original
     if (post.memberId !== auth.memberId) {
       await notifyMember(post.memberId, {
-        type: "ANNOUNCEMENT",
-        title: "Novo comentário no feed 💬",
-        body: `${member.name} comentou na sua publicação.`,
-        data: { postId: post.id, tab: "feed" },
+        type: "FEED_COMMENT",
+        title: `💬 ${member.name} comentou no seu post`,
+        body: body.content.slice(0, 100),
+        data: { postId: post.id },
       }).catch(() => {});
     }
 

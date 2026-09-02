@@ -20,7 +20,9 @@ export type NotificationType =
   | "CHAT_MESSAGE"
   | "BADGE_EARNED"
   | "SETLIST_UPDATED"
-  | "ANNOUNCEMENT";
+  | "ANNOUNCEMENT"
+  | "FEED_POST"
+  | "FEED_COMMENT";
 
 export interface Notification {
   id?: string;

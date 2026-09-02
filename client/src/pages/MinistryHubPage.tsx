@@ -224,7 +224,56 @@ export default function MinistryHubPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Top Banner: Seletor de Ministério + Informações do Ministério */}
+      {/* Seletor de Modo (visível para Admin e Líderes) */}
+      {(user?.role === "ADMIN" || user?.role === "MINISTRY_LEADER") && (
+        <div className="flex gap-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-1.5 w-fit shadow-xs">
+          <button
+            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-[var(--color-primary)] text-white shadow-sm cursor-default"
+          >
+            Hub & Mural da Equipe
+          </button>
+          <button
+            onClick={() => navigate("/ministerios-gestao")}
+            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] cursor-pointer"
+          >
+            Gestão de Ministérios & Trocas ⚙
+          </button>
+        </div>
+      )}
+
+      {/* Seletor Rápido de Múltiplos Ministérios (Pills / Chips) */}
+      {ministries.length > 1 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-xs font-bold text-[var(--color-muted)] uppercase tracking-wider whitespace-nowrap mr-1">
+            Minhas Equipes:
+          </span>
+          {ministries.map((m) => {
+            const isCurrent = m.id === selectedMinistryId;
+            return (
+              <button
+                key={m.id}
+                onClick={() => {
+                  setSelectedMinistryId(m.id);
+                  navigate(`/ministerios/${m.id}`);
+                }}
+                className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                  isCurrent
+                    ? "bg-[var(--color-primary)] text-white shadow-md shadow-violet-500/20 ring-2 ring-violet-400/30"
+                    : "bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)] text-[var(--color-ink)] border border-[var(--color-border)]"
+                }`}
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: m.color || "var(--color-primary)" }}
+                />
+                <span>{m.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Top Banner: Informações do Ministério Selecionado */}
       <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-5 sm:p-7 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">

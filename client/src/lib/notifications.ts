@@ -20,9 +20,11 @@ export function resolveNotificationTarget(notification: NotificationRouteInput):
   const messageId = readString(notification.data, "messageId");
 
   if (notification.type === "CHAT_MESSAGE" && eventId) {
-    const params = new URLSearchParams({ tab: "chat", eventId });
-    if (messageId) params.set("messageId", messageId);
-    return { path: `/comunicacao?${params.toString()}`, label: "Abrir chat" };
+    return { path: `/chat?eventId=${encodeURIComponent(eventId)}`, label: "Abrir chat do culto" };
+  }
+
+  if (["FEED_POST", "FEED_COMMENT"].includes(notification.type)) {
+    return { path: "/ministerios", label: "Abrir mural da equipe" };
   }
 
   if (["SCHEDULE_ASSIGNED", "SCHEDULE_REMINDER", "SCHEDULE_CONFIRMED", "SCHEDULE_DECLINED", "CHECKIN_DONE"].includes(notification.type)) {
