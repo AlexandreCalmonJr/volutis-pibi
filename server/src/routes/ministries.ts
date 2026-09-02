@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma, toJson, fromJson, belongsToChurch } from "../lib/db.js";
 import { requireAuth, requireRole, type AuthUser } from "../middleware/auth.js";
+import { appCache } from "../lib/cache.js";
 
 const ministrySchema = z.object({
   name: z.string().min(2),
@@ -124,15 +125,22 @@ export async function ministryRoutes(app: FastifyInstance) {
   app.get("/ministries", { preHandler: [requireAuth] }, async (req, reply) => {
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(403).send({ error: "Acesso negado" });
+
+    const cacheKey = `ministries:${auth.churchId}`;
+    const cached = appCache.get<any[]>(cacheKey);
+    if (cached) return cached;
+
     const list = await prisma.ministry.findMany({
-      where: { churchId: auth.churchId },
+      where: { churchId: auth.churchId, deletedAt: null },
       include: {
         roles: true,
         members: { include: { member: true } },
       },
       orderBy: { name: "asc" },
     });
-    return list.map(serializeMinistry);
+    const serialized = list.map(serializeMinistry);
+    appCache.set(cacheKey, serialized, 60); // 60s TTL
+    return serialized;
   });
 
   app.post("/ministries", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
@@ -142,16 +150,20 @@ export async function ministryRoutes(app: FastifyInstance) {
     const ministry = await prisma.ministry.create({
       data: { ...body, churchId: auth.churchId },
     });
+    appCache.invalidate(`ministries:${auth.churchId}`);
     return reply.code(201).send(ministry);
   });
 
   app.put("/ministries/:id", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await belongsToChurch("ministry", id, (req.user as AuthUser).churchId)))
+    const auth = req.user as AuthUser;
+    if (!(await belongsToChurch("ministry", id, auth.churchId)))
       return reply.code(404).send({ error: "Ministério não encontrado" });
     const body = ministrySchema.partial().parse(req.body);
     try {
-      return await prisma.ministry.update({ where: { id }, data: body });
+      const updated = await prisma.ministry.update({ where: { id }, data: body });
+      appCache.invalidate(`ministries:${auth.churchId}`);
+      return updated;
     } catch {
       return reply.code(404).send({ error: "Ministério não encontrado" });
     }
@@ -159,10 +171,13 @@ export async function ministryRoutes(app: FastifyInstance) {
 
   app.delete("/ministries/:id", { preHandler: [requireRole("ADMIN")] }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await belongsToChurch("ministry", id, (req.user as AuthUser).churchId)))
+    const auth = req.user as AuthUser;
+    if (!(await belongsToChurch("ministry", id, auth.churchId)))
       return reply.code(404).send({ error: "Ministério não encontrado" });
     try {
-      await prisma.ministry.delete({ where: { id } });
+      // Soft-delete preserva integridade histórica de escalas
+      await prisma.ministry.update({ where: { id }, data: { deletedAt: new Date() } });
+      appCache.invalidate(`ministries:${auth.churchId}`);
       return reply.code(204).send();
     } catch {
       return reply.code(404).send({ error: "Ministério não encontrado" });

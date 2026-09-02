@@ -41,6 +41,7 @@ model Church {
   feedPosts    FeedPost[]
   feedComments FeedComment[]
   holyricsLogs HolyricsLog[]
+  auditLogs    AuditLog[]
   createdAt    DateTime   @default(now())
 }
 
@@ -134,6 +135,10 @@ model Ministry {
   invites                Invite[]
   outgoingTransfers      MinistryTransferRequest[] @relation("TransferFromMinistry")
   incomingTransfers      MinistryTransferRequest[] @relation("TransferToMinistry")
+  deletedAt              DateTime?
+
+  @@index([churchId])
+  @@index([deletedAt])
 }
 
 model MinistryRole {
@@ -182,9 +187,11 @@ model Event {
   setlistItems  SetlistItem[]
   chatMessages  ChatMessage[]
   mediaAssets   EventMediaAsset[]
+  deletedAt     DateTime?
 
   @@index([churchId, date])
   @@index([startTime])
+  @@index([deletedAt])
 }
 
 model EventMediaAsset {
@@ -223,6 +230,9 @@ model ScheduleItem {
   @@index([memberId])
   @@index([eventId])
   @@index([status])
+  @@index([memberId, status])
+  @@index([eventId, status])
+  @@index([reminderSentAt])
 }
 
 model SwapRequest {
@@ -449,6 +459,7 @@ model UserNotification {
 
   @@index([memberId, createdAt])
   @@index([memberId, readAt])
+  @@index([memberId, readAt, createdAt])
 }
 
 model PushSubscription {
@@ -526,4 +537,22 @@ model SchedulerLease {
   expiresAt DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  category  String   // SCHEDULE | MEMBER | EVENT | SONG | SECURITY | ADMIN
+  details   String?
+  actorId   String?
+  actorName String
+  actorRole String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  church   Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  churchId String
+
+  @@index([churchId, createdAt])
+  @@index([category])
 }

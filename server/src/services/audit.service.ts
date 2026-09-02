@@ -44,8 +44,8 @@ export async function logAudit(params: {
   }
 
   try {
-    if ((prisma as any).auditLog) {
-      await (prisma as any).auditLog.create({
+    if (prisma.auditLog) {
+      await prisma.auditLog.create({
         data: {
           action: params.action,
           category: params.category,
@@ -65,15 +65,16 @@ export async function logAudit(params: {
 
 export async function getAuditLogs(churchId: string, limit = 50): Promise<AuditLogEntry[]> {
   try {
-    if ((prisma as any).auditLog) {
-      const logs = await (prisma as any).auditLog.findMany({
+    if (prisma.auditLog) {
+      const logs = await prisma.auditLog.findMany({
         where: { churchId },
         orderBy: { createdAt: "desc" },
         take: limit,
       });
       if (logs && logs.length > 0) {
-        return logs.map((l: any) => ({
+        return logs.map((l) => ({
           ...l,
+          category: l.category as AuditLogEntry["category"],
           createdAt: l.createdAt.toISOString ? l.createdAt.toISOString() : String(l.createdAt),
         }));
       }

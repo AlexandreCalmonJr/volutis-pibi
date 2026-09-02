@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma, belongsToChurch, itemEventChurch } from "../lib/db.js";
 import { requireAuth, requireRole, type AuthUser } from "../middleware/auth.js";
 import { notifyMember } from "../services/notification.service.js";
+import { appCache } from "../lib/cache.js";
 
 const songSchema = z.object({
   title: z.string().min(1),
@@ -33,13 +34,26 @@ export async function songRoutes(app: FastifyInstance) {
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(403).send({ error: "Acesso negado" });
     const { q } = req.query as { q?: string };
-    return prisma.song.findMany({
+
+    const cacheKey = `songs:${auth.churchId}`;
+    if (!q) {
+      const cached = appCache.get<any[]>(cacheKey);
+      if (cached) return cached;
+    }
+
+    const songs = await prisma.song.findMany({
       where: {
         churchId: auth.churchId,
         ...(q ? { OR: [{ title: { contains: q } }, { artist: { contains: q } }] } : {}),
       },
       orderBy: { title: "asc" },
     });
+
+    if (!q) {
+      appCache.set(cacheKey, songs, 120); // 120s TTL
+    }
+
+    return songs;
   });
 
   app.get("/songs/:id", { preHandler: [requireAuth] }, async (req, reply) => {
@@ -56,16 +70,20 @@ export async function songRoutes(app: FastifyInstance) {
     if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
     const body = songSchema.parse(req.body);
     const song = await prisma.song.create({ data: { ...body, churchId: auth.churchId } });
+    appCache.invalidate(`songs:${auth.churchId}`);
     return reply.code(201).send(song);
   });
 
   app.put("/songs/:id", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await belongsToChurch("song", id, (req.user as AuthUser).churchId)))
+    const auth = req.user as AuthUser;
+    if (!(await belongsToChurch("song", id, auth.churchId)))
       return reply.code(404).send({ error: "Música não encontrada" });
     const body = songSchema.partial().parse(req.body);
     try {
-      return await prisma.song.update({ where: { id }, data: body });
+      const updated = await prisma.song.update({ where: { id }, data: body });
+      appCache.invalidate(`songs:${auth.churchId}`);
+      return updated;
     } catch {
       return reply.code(404).send({ error: "Música não encontrada" });
     }
@@ -73,10 +91,12 @@ export async function songRoutes(app: FastifyInstance) {
 
   app.delete("/songs/:id", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await belongsToChurch("song", id, (req.user as AuthUser).churchId)))
+    const auth = req.user as AuthUser;
+    if (!(await belongsToChurch("song", id, auth.churchId)))
       return reply.code(404).send({ error: "Música não encontrada" });
     try {
       await prisma.song.delete({ where: { id } });
+      appCache.invalidate(`songs:${auth.churchId}`);
       return reply.code(204).send();
     } catch {
       return reply.code(404).send({ error: "Música não encontrada" });

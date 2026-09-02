@@ -11,11 +11,12 @@ export async function chatRoutes(app: FastifyInstance) {
     const { eventId } = req.params as { eventId: string };
     if (!(await belongsToChurch("event", eventId, (req.user as AuthUser).churchId)))
       return reply.code(404).send({ error: "Evento não encontrado" });
-    const { after } = req.query as { after?: string };
+    const { after, limit } = req.query as { after?: string; limit?: string };
+    const take = Math.min(Math.max(Number(limit) || 50, 1), 100);
     return prisma.chatMessage.findMany({
       where: { eventId, ...(after ? { createdAt: { gt: new Date(after) } } : {}) },
       orderBy: { createdAt: "asc" },
-      take: 200,
+      take,
     });
   });
 

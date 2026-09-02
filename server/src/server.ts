@@ -32,7 +32,10 @@ import { whatsappWebhookRoutes } from "./routes/whatsapp-webhook.js";
 import { devotionalRoutes } from "./routes/devotional.js";
 import { websocketHandler } from "./websocket/handler.js";
 import { startReminderScheduler } from "./services/scheduler.service.js";
+import { startDatabaseCleanupScheduler } from "./services/cleanup.service.js";
 import { initNativeWhatsApp } from "./services/whatsapp.service.js";
+import { sanitizePayload } from "./middleware/sanitize.js";
+import { appCache } from "./lib/cache.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -60,9 +63,20 @@ export async function buildServer() {
     threshold: 1024, // Compress responses larger than 1KB
   });
 
-  // API Rate Limiting
+  // API Rate Limiting granular
   await app.register(rateLimit, {
-    max: 300, // 300 requests per minute per IP
+    max: (req) => {
+      const url = req.url.toLowerCase();
+      // Proteção severa contra ataques de força bruta em autenticação
+      if (url.includes("/auth/login") || url.includes("/auth/forgot-password")) {
+        return 12; // máx 12 tentativas por minuto por IP
+      }
+      // Proteção contra spam de cadastros públicos
+      if (url.includes("/applications/public")) {
+        return 10; // máx 10 inscrições por minuto por IP
+      }
+      return 300; // Padrão geral de 300 req/min
+    },
     timeWindow: "1 minute",
     allowList: (req) =>
       req.url.startsWith("/health") ||
@@ -71,7 +85,7 @@ export async function buildServer() {
     errorResponseBuilder: () => ({
       statusCode: 429,
       error: "Too Many Requests",
-      message: "Limite de requisições excedido. Tente novamente em 1 minuto.",
+      message: "Limite de requisições excedido para esta operação. Tente novamente em 1 minuto.",
     }),
   });
 
@@ -84,6 +98,13 @@ export async function buildServer() {
   });
   await app.register(jwt, {
     secret: jwtSecret ?? "dev-secret",
+  });
+
+  // Sanitização automática anti-XSS de payloads JSON recebidos
+  app.addHook("preValidation", async (req) => {
+    if (req.body && typeof req.body === "object") {
+      req.body = sanitizePayload(req.body);
+    }
   });
 
   app.setErrorHandler((err, _req, reply) => {
@@ -110,12 +131,16 @@ export async function buildServer() {
 
   const getHealthStatus = async () => {
     const memory = process.memoryUsage();
+    const start = performance.now();
     try {
       await prisma.$queryRaw`SELECT 1`;
+      const dbLatencyMs = Math.round(performance.now() - start);
       return {
         status: "ok",
         service: "volut-pibi-api",
         db: "connected",
+        dbLatencyMs,
+        cache: appCache.stats(),
         uptimeSec: Math.round(process.uptime()),
         memory: {
           rssMb: Math.round(memory.rss / 1024 / 1024),
@@ -129,6 +154,8 @@ export async function buildServer() {
         status: "degraded",
         service: "volut-pibi-api",
         db: "disconnected",
+        dbLatencyMs: -1,
+        cache: appCache.stats(),
         uptimeSec: Math.round(process.uptime()),
         memory: {
           rssMb: Math.round(memory.rss / 1024 / 1024),
@@ -198,11 +225,14 @@ if (!isTest) {
   console.log(`🚀 Volut PIBI API rodando em http://localhost:${port}`);
 
   const schedulerInterval = startReminderScheduler();
+  const cleanupInterval = startDatabaseCleanupScheduler();
   initNativeWhatsApp().catch(() => {});
 
   const shutdown = async () => {
-    console.log("\n🛑 Encerrando servidor...");
+    console.log("\n🛑 Encerrando servidor e finalizando conexões ativas...");
     clearInterval(schedulerInterval);
+    clearInterval(cleanupInterval);
+    appCache.clear();
     await app.close();
     await prisma.$disconnect();
     process.exit(0);
