@@ -5,6 +5,7 @@ import { Skeleton, ListItemSkeleton } from "../components/Skeleton";
 import { Metronome } from "../components/Metronome";
 import { RehearsalPlayer, RehearsalTrack } from "../components/RehearsalPlayer";
 import { ModalPortal } from "../components/ModalPortal";
+import { ActionMenu, type ActionMenuItem, EmptyState } from "../components/ui";
 
 interface Song {
   id: string;
@@ -412,6 +413,30 @@ export default function Louvor() {
   const isLouvorVolunteer = canManageHolyrics || 
     userMinistries.some((m) => m.includes("louvor") || m.includes("música") || m.includes("musica")) ||
     checkIsLouvorRole(eventoAtual?.roleName);
+  const holyricsActionItems: ActionMenuItem[] = [
+    {
+      id: "import-holyrics",
+      label: "Importar do Holyrics",
+      description: "Puxar músicas do software",
+      icon: <span>📥</span>,
+      onClick: importarDoHolyrics,
+    },
+    {
+      id: "sync-holyrics",
+      label: syncingLibrary ? "Sincronizando..." : "Sincronizar Repertório",
+      description: "Atualizar status de sincronia",
+      icon: <span>🔄</span>,
+      disabled: syncingLibrary,
+      onClick: sincronizarBiblioteca,
+    },
+    {
+      id: "config-holyrics",
+      label: "Configurações Holyrics",
+      description: "IP, porta e token de conexão",
+      icon: <span>⚙️</span>,
+      onClick: () => setShowHolyricsModal(true),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -419,7 +444,7 @@ export default function Louvor() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>
-            {canManageHolyrics ? "Ministério de Louvor" : "Repertório de Louvor 🎵"}
+            Repertório & Louvor
           </h1>
           <p className="text-[#5b5077] text-sm mt-1">
             {canManageHolyrics
@@ -429,19 +454,18 @@ export default function Louvor() {
               : "Músicas e letras dos cultos em que você está escalado"}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           {canManageHolyrics && (
             <>
-              <button onClick={() => setShowHolyricsModal(true)} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-gray-50">
-                Holyrics
-              </button>
-              <button onClick={importarDoHolyrics} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#1e1b4b] text-sm font-semibold hover:bg-gray-50">
-                Importar do Holyrics
-              </button>
-              <button onClick={sincronizarBiblioteca} disabled={syncingLibrary} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#1e1b4b] text-sm font-semibold disabled:opacity-50 hover:bg-gray-50">
-                {syncingLibrary ? "Sincronizando..." : "Sincronizar repertório"}
-              </button>
-              <button onClick={() => setAba("novo")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 shadow-sm" style={{ backgroundColor: "#7c3aed" }}>
+              <ActionMenu label="Ações" items={holyricsActionItems} />
+              <button
+                onClick={() => setAba("novo")}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 active:scale-95 shadow-sm cursor-pointer"
+                style={{ backgroundColor: "#7c3aed" }}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
                 Nova Setlist
               </button>
             </>
@@ -531,6 +555,29 @@ export default function Louvor() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
+                      {canManageHolyrics && setlistItens.length > 0 && (
+                        <ActionMenu
+                          label="Ações"
+                          items={[
+                            {
+                              id: "notify-team",
+                              label: notifyingTeam ? "Enviando..." : "Notificar Músicos",
+                              description: "Enviar push com músicas e tons",
+                              icon: <span>📢</span>,
+                              disabled: notifyingTeam,
+                              onClick: () => notificarEquipe(setlistAberta),
+                            },
+                            {
+                              id: "publish-holyrics",
+                              label: "Publicar no Holyrics",
+                              description: "Transmitir setlist ao Holyrics",
+                              icon: <span>📡</span>,
+                              onClick: enviarSetlistHolyrics,
+                            },
+                          ]}
+                        />
+                      )}
+
                       {setlistItens.length > 0 && (
                         <button
                           onClick={() => {
@@ -552,25 +599,6 @@ export default function Louvor() {
                           <span>🎧</span> Ensaio Online
                         </button>
                       )}
-
-                      {canManageHolyrics && (
-                        <>
-                          <button
-                            onClick={() => notificarEquipe(setlistAberta)}
-                            disabled={notifyingTeam || setlistItens.length === 0}
-                            className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] text-white text-xs font-semibold hover:opacity-90 transition-all shadow-sm disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-                            title="Enviar notificação push com as músicas para todos os voluntários escalados"
-                          >
-                            <span>📢</span> {notifyingTeam ? "Enviando..." : "Notificar Equipe"}
-                          </button>
-                          <button
-                            onClick={enviarSetlistHolyrics}
-                            className="px-3.5 py-1.5 rounded-xl bg-[#1e1b4b] text-white text-xs font-semibold hover:opacity-90 transition-all cursor-pointer"
-                          >
-                            Publicar no Holyrics
-                          </button>
-                        </>
-                      )}
                     </div>
                   </div>
 
@@ -582,10 +610,14 @@ export default function Louvor() {
                       <ListItemSkeleton />
                     </div>
                   ) : setlistItens.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-[#7c6ea8] space-y-2">
-                      <span className="text-3xl">🎼</span>
-                      <p className="text-sm font-medium">Nenhuma música cadastrada para este culto ainda.</p>
-                      <p className="text-xs text-[#7c6ea8]">Assim que a liderança definir o repertório, ele aparecerá aqui.</p>
+                    <div className="p-8">
+                      <EmptyState
+                        title="Nenhuma música neste culto"
+                        description="Assim que a liderança definir o repertório, as músicas e cifras aparecerão aqui."
+                        actionLabel={canManageHolyrics ? "+ Adicionar Música" : undefined}
+                        onAction={canManageHolyrics ? () => setAba("repertorio") : undefined}
+                        className="border-0 bg-transparent shadow-none"
+                      />
                     </div>
                   ) : (
                     <div className="divide-y divide-[#f0eefe]">

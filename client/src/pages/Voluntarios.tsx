@@ -5,6 +5,7 @@ import { MINISTERIO_COLORS, MINISTERIOS } from "../lib/constants";
 import { Avatar } from "../components/Avatar";
 import { MetricCardSkeleton, TableSkeleton } from "../components/Skeleton";
 import { ModalPortal } from "../components/ModalPortal";
+import { ActionMenu, type ActionMenuItem, EmptyState } from "../components/ui";
 
 interface Ministry {
   id: number;
@@ -303,6 +304,23 @@ export default function Voluntarios() {
     );
   }
 
+  const voluntarioActionItems: ActionMenuItem[] = [
+    {
+      id: "refresh",
+      label: "Atualizar Lista",
+      description: "Recarregar dados do servidor",
+      icon: <span>🔄</span>,
+      onClick: () => carregarMembros(),
+    },
+    {
+      id: "triagem",
+      label: "Painel de Triagem",
+      description: "Avaliar novos candidatos",
+      icon: <span>📋</span>,
+      onClick: () => navigate("/triagem"),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -314,18 +332,17 @@ export default function Voluntarios() {
             {ativos.length} ativos · {pendentes.length} aguardando aprovação
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => carregarMembros()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c6ea8] hover:bg-[#f5f3ff]"
-          >
-            Atualizar lista
-          </button>
+        <div className="flex items-center gap-2.5">
+          <ActionMenu label="Ações" items={voluntarioActionItems} />
           <button
             onClick={() => navigate("/convites")}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c3aed] hover:bg-[#f5f3ff]"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 active:scale-95 shadow-sm transition-all cursor-pointer"
+            style={{ backgroundColor: "var(--color-primary)" }}
           >
-            Gerar convite
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Gerar Convite
           </button>
         </div>
       </div>
@@ -470,11 +487,13 @@ export default function Voluntarios() {
       )}
 
       {filtrados.length === 0 && (
-        <div className="text-center py-16 text-[#7c6ea8]">
-          <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" />
-          </svg>
-          <p>Nenhum membro encontrado</p>
+        <div className="p-8">
+          <EmptyState
+            title="Nenhum membro encontrado"
+            description="Tente alterar os termos de busca ou selecione outro ministério ou status de aprovação."
+            actionLabel="+ Convidar Voluntário"
+            onAction={() => navigate("/convites")}
+          />
         </div>
       )}
 

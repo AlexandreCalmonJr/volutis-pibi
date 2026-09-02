@@ -570,6 +570,7 @@ export default function Perfil() {
             </form>
           </div>
 
+
           {/* Autenticação em Duas Etapas (2FA / MFA) */}
           <div className="bg-white dark:bg-[var(--color-surface)] rounded-2xl border border-[#e5e0f8] dark:border-[var(--color-border)] p-6 space-y-4">
             <div className="flex items-center justify-between gap-3">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../store";
@@ -6,6 +6,7 @@ import { MINISTERIO_COLORS, MINISTERIOS } from "../lib/constants";
 import { Avatar } from "../components/Avatar";
 import { Skeleton, ListItemSkeleton } from "../components/Skeleton";
 import { ModalPortal } from "../components/ModalPortal";
+import { ActionMenu, type ActionMenuItem, EmptyState } from "../components/ui";
 
 const dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -596,6 +597,35 @@ export default function Escalas() {
     }
   }
 
+  const excelInputRef = useRef<HTMLInputElement>(null);
+
+  const adminEscalasActions: ActionMenuItem[] = [
+    {
+      id: "auto",
+      label: "Gerar Escala Automática",
+      description: "Distribuição inteligente de funções",
+      icon: <span>⚡</span>,
+      onClick: () => {
+        setAutoResult(null);
+        setModalAutoOpen(true);
+      },
+    },
+    {
+      id: "excel",
+      label: importingExcel ? "Importando Planilha..." : "Importar Planilha Excel",
+      description: "Carregar eventos e escalas via .xlsx",
+      icon: <span>📥</span>,
+      onClick: () => excelInputRef.current?.click(),
+    },
+    {
+      id: "print",
+      label: "Imprimir / Salvar PDF",
+      description: "Visualização otimizada de impressão",
+      icon: <span>🖨️</span>,
+      onClick: () => window.print(),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -609,32 +639,28 @@ export default function Escalas() {
           </p>
         </div>
         {isAdminOrLeader && (
-          <div className="flex items-center gap-3 flex-wrap">
-            <label className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-[#f5f3ff] transition-all cursor-pointer">
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void handleImportExcel(file);
-                  e.currentTarget.value = "";
-                }}
-              />
-              {importingExcel ? "Importando Excel..." : "Importar Excel"}
-            </label>
-            <button
-              onClick={() => {
-                setAutoResult(null);
-                setModalAutoOpen(true);
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <input
+              ref={excelInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleImportExcel(file);
+                e.currentTarget.value = "";
               }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 shadow-sm cursor-pointer"
+            />
+            <ActionMenu label="Ações" items={adminEscalasActions} />
+            <button
+              onClick={openAddVolunteerModal}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-95 shadow-sm cursor-pointer"
               style={{ backgroundColor: "#7c3aed" }}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              Gerar Escala Automática
+              Escalar Voluntário
             </button>
           </div>
         )}
@@ -833,29 +859,27 @@ export default function Escalas() {
                 <ListItemSkeleton />
               </div>
             ) : !diaSelecionado ? (
-              <div className="flex flex-col items-center justify-center h-40 text-[#7c6ea8]">
-                <svg className="w-10 h-10 mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <p className="text-sm">Clique em um dia para ver a escala</p>
-              </div>
+              <EmptyState
+                title="Selecione um dia"
+                description="Clique em qualquer data do calendário para visualizar ou gerenciar a escala de voluntários."
+                className="my-6 border-0 bg-transparent shadow-none"
+              />
             ) : eventosDoDia.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 text-[#7c6ea8]">
-                <svg className="w-10 h-10 mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <p className="text-sm">Nenhum evento neste dia</p>
-              </div>
+              <EmptyState
+                title="Nenhum evento neste dia"
+                description="Não há cultos ou programações agendadas para esta data."
+                actionLabel={isAdminOrLeader ? "+ Criar Evento" : undefined}
+                onAction={isAdminOrLeader ? () => navigate("/eventos") : undefined}
+                className="my-6 border-0 bg-transparent shadow-none"
+              />
             ) : itemsFiltrados.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 text-[#7c6ea8]">
-                <svg className="w-10 h-10 mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-                </svg>
-                <p className="text-sm">Sem escalas para este ministério</p>
-                {isAdminOrLeader && (
-                  <button onClick={openAddVolunteerModal} className="mt-2 text-xs text-[#7c3aed] hover:underline">+ Adicionar voluntário</button>
-                )}
-              </div>
+              <EmptyState
+                title="Sem escalas para este filtro"
+                description={filtroMinisterio !== "Todos" ? `Nenhum voluntário escalado para o ministério "${filtroMinisterio}".` : "Nenhum voluntário escalado para este dia ainda."}
+                actionLabel={isAdminOrLeader ? "+ Escalar Voluntário" : undefined}
+                onAction={isAdminOrLeader ? openAddVolunteerModal : undefined}
+                className="my-6 border-0 bg-transparent shadow-none"
+              />
             ) : (
               <div className="divide-y divide-[#f0eefe]">
                 {itemsFiltrados.map((item) => {

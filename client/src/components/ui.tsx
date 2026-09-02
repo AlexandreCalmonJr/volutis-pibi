@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useToasts } from "../store";
 import { useTheme } from "../themeStore";
+export { ActionMenu, type ActionMenuItem } from "./ActionMenu";
+export { EmptyState } from "./EmptyState";
 
 /* ── Status chip ────────────────────────────────────────── */
 const STATUS_META: Record<string, { label: string; cls: string }> = {

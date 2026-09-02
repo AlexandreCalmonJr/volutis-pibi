@@ -22,6 +22,8 @@ import { useRealtimeNotifications } from "./ws";
 import { ToastHost } from "./components/ui";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { PullToRefresh } from "./components/PullToRefresh";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { NetworkStatus } from "./components/NetworkStatus";
 import { useAuth, useNotifications, type NotificationItem } from "./store";
 import { api } from "./api";
 import { resolveNotificationTarget } from "./lib/notifications";
@@ -300,24 +302,26 @@ function AppLayout() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <PullToRefresh>
             <div key={location.pathname} className="page-transition">
-              <Suspense fallback={<PageLoader />}>
-                <Routes location={location}>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/escalas" element={<Escalas />} />
-                  <Route path="/eventos" element={<Eventos />} />
-                  <Route path="/voluntarios" element={<Voluntarios />} />
-                  <Route path="/comunicacao" element={<Comunicacao />} />
-                  <Route path="/perfil" element={<Perfil />} />
-                  <Route path="/louvor" element={<Louvor />} />
-                  <Route path="/relatorios" element={<LeaderRoute><Relatorios /></LeaderRoute>} />
-                  <Route path="/triagem" element={<LeaderRoute><Triagem /></LeaderRoute>} />
-                  <Route path="/usuarios" element={<LeaderRoute><UsuariosAdmin /></LeaderRoute>} />
-                  <Route path="/convites" element={<LeaderRoute><Convites /></LeaderRoute>} />
-                  <Route path="/ministerios" element={<LeaderRoute><Ministerios /></LeaderRoute>} />
-                  <Route path="/escala/:id" element={<EscalaDeepLink />} />
-                  <Route path="*" element={<div className="text-center py-20"><p className="text-lg font-semibold text-[var(--color-text)]">Página não encontrada</p><p className="text-sm text-[var(--color-muted)] mt-2">O endpoint que você procura não existe.</p></div>} />
-                </Routes>
-              </Suspense>
+              <ErrorBoundary fallbackTitle="Erro ao exibir esta página" fallbackDescription="Não foi possível carregar as informações desta seção. Tente novamente.">
+                <Suspense fallback={<PageLoader />}>
+                  <Routes location={location}>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/escalas" element={<Escalas />} />
+                    <Route path="/eventos" element={<Eventos />} />
+                    <Route path="/voluntarios" element={<Voluntarios />} />
+                    <Route path="/comunicacao" element={<Comunicacao />} />
+                    <Route path="/perfil" element={<Perfil />} />
+                    <Route path="/louvor" element={<Louvor />} />
+                    <Route path="/relatorios" element={<LeaderRoute><Relatorios /></LeaderRoute>} />
+                    <Route path="/triagem" element={<LeaderRoute><Triagem /></LeaderRoute>} />
+                    <Route path="/usuarios" element={<LeaderRoute><UsuariosAdmin /></LeaderRoute>} />
+                    <Route path="/convites" element={<LeaderRoute><Convites /></LeaderRoute>} />
+                    <Route path="/ministerios" element={<LeaderRoute><Ministerios /></LeaderRoute>} />
+                    <Route path="/escala/:id" element={<EscalaDeepLink />} />
+                    <Route path="*" element={<div className="text-center py-20"><p className="text-lg font-semibold text-[var(--color-text)]">Página não encontrada</p><p className="text-sm text-[var(--color-muted)] mt-2">O endpoint que você procura não existe.</p></div>} />
+                  </Routes>
+                </Suspense>
+              </ErrorBoundary>
             </div>
           </PullToRefresh>
         </main>
@@ -333,6 +337,7 @@ export default function App() {
   return (
     <>
       <ToastHost />
+      <NetworkStatus />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
