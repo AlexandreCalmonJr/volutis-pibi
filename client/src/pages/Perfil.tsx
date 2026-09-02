@@ -389,7 +389,7 @@ export default function Perfil() {
       await loadProfileData();
       setFeedback({
         type: "ok",
-        text: action === "CONFIRM" ? "Escala confirmada com sucesso! 🙌" : "Escala recusada.",
+        text: action === "CONFIRM" ? "Escala confirmada com sucesso!" : "Escala recusada.",
       });
     } catch (err: any) {
       setFeedback({ type: "error", text: err?.message || "Não foi possível responder à escala." });
@@ -675,7 +675,7 @@ export default function Perfil() {
                   className="px-3 py-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-xs font-bold hover:bg-violet-100 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
                   title="Exportar todas as suas escalas para Apple Calendar, Outlook ou Google Calendar (.ics)"
                 >
-                  <span>📅</span> Exportar .ics
+                  Exportar .ics
                 </button>
               )}
             </div>
@@ -706,7 +706,7 @@ export default function Perfil() {
                       <p className="mt-1 text-sm font-semibold text-[#7c3aed]">{item.roleName}</p>
                       <div className="mt-1 flex items-center justify-between gap-2 flex-wrap text-xs text-[#7c6ea8]">
                         <p>
-                          📅 {new Date(item.event.startTime).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          {new Date(item.event.startTime).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                         </p>
                         <a
                           href={gCalUrl}
@@ -715,7 +715,7 @@ export default function Perfil() {
                           className="text-violet-600 hover:text-violet-800 font-semibold hover:underline flex items-center gap-1"
                           title="Adicionar este culto diretamente no seu Google Agenda"
                         >
-                          <span>🗓️</span> Google Agenda
+                          Google Agenda ↗
                         </a>
                       </div>
                     </div>
@@ -770,7 +770,7 @@ export default function Perfil() {
 
             {!isSupported ? (
               <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
-                ⚠️ Este navegador ou modo de navegação não suporta notificações push. No iPhone, adicione o app à Tela de Início via Safari (iOS 16.4+).
+                Este navegador ou modo de navegação não suporta notificações push. No iPhone, adicione o app à Tela de Início via Safari (iOS 16.4+).
               </div>
             ) : isSubscribed ? (
               <div className="space-y-3">
@@ -812,7 +812,7 @@ export default function Perfil() {
                 </button>
 
                 <div className="rounded-xl bg-violet-50/60 border border-violet-100 p-3 text-[11px] text-violet-800 space-y-1">
-                  <p className="font-semibold">💡 Dica de instalação:</p>
+                  <p className="font-semibold">Dica de instalação:</p>
                   <p>• <strong>Android</strong>: Toque em "Instalar" ou "Adicionar à tela inicial" no Chrome.</p>
                   <p>• <strong>iPhone</strong>: No Safari, toque em Compartilhar ⎋ e escolha "Adicionar à Tela de Início".</p>
                 </div>
@@ -1028,7 +1028,7 @@ export default function Perfil() {
                   disabled={twoFaCode.length !== 6 || twoFaVerifying}
                   className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-sm font-bold shadow-lg shadow-violet-500/25 transition-all cursor-pointer"
                 >
-                  {twoFaVerifying ? "Verificando..." : "Validar e Ativar 2FA ✅"}
+                  {twoFaVerifying ? "Verificando..." : "Validar e Ativar 2FA"}
                 </button>
               </div>
             </div>

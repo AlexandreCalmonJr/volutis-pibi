@@ -204,7 +204,7 @@ export default function Louvor() {
       const res = await api<{ success: boolean; notifiedCount: number; songsCount: number }>(`/events/${eventId}/setlist/notify`, {
         method: "POST",
       });
-      setNotifyFeedback(`Notificação enviada com sucesso para ${res.notifiedCount} voluntário(s) escalado(s)! 📢`);
+      setNotifyFeedback(`Notificação enviada com sucesso para ${res.notifiedCount} voluntário(s) escalado(s)!`);
       setTimeout(() => setNotifyFeedback(null), 4000);
     } catch (err: any) {
       alert(err?.message || "Não foi possível enviar a notificação.");
@@ -471,8 +471,8 @@ export default function Louvor() {
       </div>
 
       {notifyFeedback && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 font-semibold flex items-center gap-2">
-          <span>📢</span> {notifyFeedback}
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold">
+          {notifyFeedback}
         </div>
       )}
 
@@ -525,7 +525,7 @@ export default function Louvor() {
                 >
                   <p className="font-bold text-[#1e1b4b] text-sm">{e.title}</p>
                   <p className="text-xs text-[#7c6ea8] mt-1">
-                    📅 {new Date(e.date).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}
+                    {new Date(e.date).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}
                   </p>
                   {e.roleName && (
                     <span className="inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
@@ -687,8 +687,10 @@ export default function Louvor() {
                                   {tom}
                                 </div>
                               ) : (
-                                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-violet-50 text-violet-600 text-base flex-shrink-0">
-                                  🎵
+                                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-violet-50 text-violet-600 flex-shrink-0">
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                                  </svg>
                                 </div>
                               )}
 
@@ -711,9 +713,9 @@ export default function Louvor() {
                             <div className="flex items-center gap-2 flex-wrap justify-end">
                               <button
                                 onClick={() => setSelectedSongDetails(item.song)}
-                                className="px-2.5 py-1.5 rounded-lg border border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] text-xs font-semibold transition-all flex items-center gap-1"
+                                className="px-2.5 py-1.5 rounded-lg border border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] text-xs font-semibold transition-all cursor-pointer"
                               >
-                                <span>📄</span> {isLouvorVolunteer ? "Letra / Cifra" : "Letra da Música"}
+                                {isLouvorVolunteer ? "Letra / Cifra" : "Letra da Música"}
                               </button>
 
                               {/* Cifra Club apenas para Louvor */}
@@ -722,9 +724,9 @@ export default function Louvor() {
                                   href={item.song.cifraClubUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-semibold transition-all flex items-center gap-1"
+                                  className="px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-semibold transition-all"
                                 >
-                                  <span>🎸</span> Cifra
+                                  Cifra
                                 </a>
                               )}
 
@@ -734,9 +736,9 @@ export default function Louvor() {
                                   href={item.song.youtubeUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-semibold transition-all flex items-center gap-1"
+                                  className="px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-semibold transition-all"
                                 >
-                                  <span>📺</span> YouTube
+                                  YouTube
                                 </a>
                               )}
 
@@ -859,9 +861,13 @@ export default function Louvor() {
               })}
               <button
                 onClick={() => setShowAddModal(true)}
-                className="bg-white rounded-2xl border-2 border-dashed border-[#c4b5fd] p-5 flex flex-col items-center justify-center gap-2 text-[#7c3aed] min-h-[160px] hover:bg-[#f5f3ff] transition-colors"
+                className="bg-white rounded-2xl border-2 border-dashed border-[#c4b5fd] p-5 flex flex-col items-center justify-center gap-2 text-[#7c3aed] min-h-[160px] hover:bg-[#f5f3ff] transition-colors cursor-pointer"
               >
-                <span className="text-2xl">➕</span>
+                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-[#7c3aed]">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                </div>
                 <span className="text-sm font-semibold">Adicionar Nova Música</span>
               </button>
             </div>
@@ -1092,8 +1098,12 @@ export default function Louvor() {
             <div className="relative bg-white dark:bg-[var(--color-surface)] rounded-3xl p-6 sm:p-7 w-full max-w-xl shadow-2xl border border-[#e5e0f8] dark:border-[var(--color-border)] flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] my-auto animate-in zoom-in-95 duration-150">
               {/* Header com botão de fechar */}
               <div className="flex items-center justify-between border-b border-[#f0eefe] dark:border-[var(--color-border)] pb-4 mb-4 flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">🎵</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 flex items-center justify-center">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                  </div>
                   <h3 className="font-bold text-[#1e1b4b] dark:text-[var(--color-ink)] text-lg">
                     Nova Música para o Repertório
                   </h3>

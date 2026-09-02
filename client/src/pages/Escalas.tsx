@@ -1094,8 +1094,10 @@ export default function Escalas() {
             <div className="relative bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in duration-200">
             <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-[#ede9fe] flex items-center justify-center text-xl">
-                  ⚡
+                <div className="w-10 h-10 rounded-xl bg-[#ede9fe] text-violet-700 flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
                 </div>
                 <div>
                   <h3 className="font-bold text-lg text-[#1e1b4b]">Gerar Escala Automática</h3>
@@ -1106,7 +1108,7 @@ export default function Escalas() {
               </div>
               <button
                 onClick={() => setModalAutoOpen(false)}
-                className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+                className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
               >
                 ✕
               </button>
@@ -1116,7 +1118,7 @@ export default function Escalas() {
               <div className="space-y-4">
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 space-y-1">
                   <div className="flex items-center gap-2 font-bold text-sm text-emerald-800">
-                    <span>🎉</span> Escala gerada com sucesso!
+                    Escala gerada com sucesso!
                   </div>
                   <p className="text-xs text-emerald-700">
                     <strong>{autoResult.rolesAssigned}</strong> voluntários foram escalados em{" "}
@@ -1169,7 +1171,7 @@ export default function Escalas() {
                     onChange={(e) => setSelectedMinistryId(e.target.value)}
                     className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]"
                   >
-                    <option value="ALL">🏛️ Todos os Ministérios</option>
+                    <option value="ALL">Todos os Ministérios</option>
                     {ministriesList.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name}
@@ -1193,7 +1195,7 @@ export default function Escalas() {
 
                 <div className="p-3.5 bg-[#f8f7ff] border border-[#ede9fe] rounded-xl text-xs text-[#5b5077] space-y-1 leading-relaxed">
                   <div className="flex items-center gap-1.5 font-semibold text-[#7c3aed]">
-                    <span>🧠</span> Algoritmo Inteligente Volut:
+                    Algoritmo Inteligente Volut:
                   </div>
                   <ul className="list-disc list-inside space-y-0.5 text-[11px] text-[#7c6ea8]">
                     <li>Verifica indisponibilidades e bloqueios de data informados pelos voluntários.</li>
@@ -1207,7 +1209,7 @@ export default function Escalas() {
                     type="button"
                     onClick={() => setModalAutoOpen(false)}
                     disabled={gerando}
-                    className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all"
+                    className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all cursor-pointer"
                   >
                     Cancelar
                   </button>
@@ -1227,10 +1229,7 @@ export default function Escalas() {
                         Calculando e Escalando...
                       </>
                     ) : (
-                      <>
-                        <span>⚡</span>
-                        Confirmar e Gerar
-                      </>
+                      "Confirmar e Gerar"
                     )}
                   </button>
                 </div>
@@ -1249,8 +1248,10 @@ export default function Escalas() {
             <div className="relative bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4 flex-shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-xl">
-                    🔄
+                  <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 flex items-center justify-center">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-[#1e1b4b]">Solicitar Troca de Escala</h3>
@@ -1259,7 +1260,7 @@ export default function Escalas() {
                 </div>
                 <button
                   onClick={() => setSwapModalOpen(false)}
-                  className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+                  className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
                 >
                   ✕
                 </button>
@@ -1280,13 +1281,13 @@ export default function Escalas() {
 
               {swapSuccess && (
                 <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
-                  <span>✅</span> {swapSuccess}
+                  {swapSuccess}
                 </div>
               )}
 
               {swapError && (
                 <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
-                  <span>⚠️</span> {swapError}
+                  {swapError}
                 </div>
               )}
 

@@ -754,7 +754,7 @@ export default function Comunicacao() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-[#f8f7ff] border border-[#ede9fe] rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-2 text-[#7c3aed] font-semibold text-sm">
-                  <span>📅</span> Novas Escalas & Lembretes
+                  Novas Escalas & Lembretes
                 </div>
                 <p className="text-xs text-[#5b5077] leading-relaxed">
                   Membros do ministério recebem avisos imediatos ao serem adicionados em escalas e 24h antes do culto.
@@ -763,7 +763,7 @@ export default function Comunicacao() {
 
               <div className="bg-[#f8f7ff] border border-[#ede9fe] rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-2 text-[#7c3aed] font-semibold text-sm">
-                  <span>🔄</span> Solicitações de Troca
+                  Solicitações de Troca
                 </div>
                 <p className="text-xs text-[#5b5077] leading-relaxed">
                   Líderes e membros são notificados instantaneamente quando alguém solicita ou aceita trocas de escala.
@@ -772,7 +772,7 @@ export default function Comunicacao() {
 
               <div className="bg-[#f8f7ff] border border-[#ede9fe] rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-2 text-[#7c3aed] font-semibold text-sm">
-                  <span>🏆</span> Gamificação & Check-in
+                  Gamificação & Check-in
                 </div>
                 <p className="text-xs text-[#5b5077] leading-relaxed">
                   Confirmação visual de pontos e badges conquistados ao realizar check-in no culto.
@@ -938,10 +938,7 @@ export default function Comunicacao() {
                         Gerando QR Code...
                       </>
                     ) : (
-                      <>
-                        <span>📱</span>
-                        Conectar WhatsApp (Gerar QR Code)
-                      </>
+                      "Conectar WhatsApp (Gerar QR Code)"
                     )}
                   </button>
                 )}
@@ -982,7 +979,7 @@ export default function Comunicacao() {
                     <li>Toque em <strong>Conectar um aparelho</strong> e aponte a câmera para o QR Code ao lado.</li>
                   </ol>
                   <p className="text-[11px] text-[#7c6ea8]">
-                    Assim que você escanear, esta tela atualizará automaticamente para <strong>🟢 Conectado</strong>!
+                    Assim que você escanear, esta tela atualizará automaticamente para <strong>Conectado</strong>!
                   </p>
                 </div>
               </div>
@@ -992,8 +989,12 @@ export default function Comunicacao() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Broadcast Form (7 cols) */}
             <div className="lg:col-span-7 bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-5">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">📢</span>
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-[#7c3aed]">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                  </svg>
+                </div>
                 <div>
                   <h3 className="font-bold text-[#1e1b4b]">Disparo de Comunicado em Massa</h3>
                   <p className="text-xs text-[#7c6ea8]">Envie avisos oficiais para membros do ministério via WhatsApp e Notificação no App</p>
@@ -1016,7 +1017,7 @@ export default function Comunicacao() {
                           : "bg-[#f8f7ff] text-[#5b5077] border-[#e5e0f8] hover:bg-[#ede9fe]"
                       }`}
                     >
-                      🏛️ Toda a Igreja
+                      Toda a Igreja
                     </button>
                     <button
                       type="button"
@@ -1027,7 +1028,7 @@ export default function Comunicacao() {
                           : "bg-[#f8f7ff] text-[#5b5077] border-[#e5e0f8] hover:bg-[#ede9fe]"
                       }`}
                     >
-                      🎵 Por Ministério
+                      Por Ministério
                     </button>
                     <button
                       type="button"
@@ -1038,7 +1039,7 @@ export default function Comunicacao() {
                           : "bg-[#f8f7ff] text-[#5b5077] border-[#e5e0f8] hover:bg-[#ede9fe]"
                       }`}
                     >
-                      👑 Somente Líderes
+                      Somente Líderes
                     </button>
                   </div>
                 </div>
@@ -1086,18 +1087,14 @@ export default function Comunicacao() {
                 </div>
 
                 {broadcastSuccess && (
-                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
-                    <span className="text-base">✅</span>
-                    <div>
-                      <strong>Comunicado enviado!</strong> {broadcastSuccess.total} voluntário(s) notificados no App ({broadcastSuccess.sentWhatsapp} via WhatsApp direto).
-                    </div>
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
+                    <strong>Comunicado enviado!</strong> {broadcastSuccess.total} voluntário(s) notificados no App ({broadcastSuccess.sentWhatsapp} via WhatsApp direto).
                   </div>
                 )}
 
                 {broadcastError && (
-                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
-                    <span className="text-base">❌</span>
-                    <div>{broadcastError}</div>
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs">
+                    {broadcastError}
                   </div>
                 )}
 
@@ -1116,10 +1113,7 @@ export default function Comunicacao() {
                       Disparando comunicados...
                     </>
                   ) : (
-                    <>
-                      <span>🚀</span>
-                      Disparar Comunicado via WhatsApp & App
-                    </>
+                    "Disparar Comunicado via WhatsApp & App"
                   )}
                 </button>
               </form>
@@ -1129,8 +1123,12 @@ export default function Comunicacao() {
             <div className="lg:col-span-5 space-y-6">
               {/* Test form */}
               <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🧪</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                  </div>
                   <div>
                     <h3 className="font-bold text-[#1e1b4b] text-sm">Teste Rápido de Disparo</h3>
                     <p className="text-xs text-[#7c6ea8]">Envie uma mensagem de teste para seu celular</p>
@@ -1148,14 +1146,13 @@ export default function Comunicacao() {
 
                   {testFeedback && (
                     <div
-                      className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
+                      className={`p-2.5 rounded-xl text-xs ${
                         testFeedback.success
                           ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
                           : "bg-rose-50 text-rose-800 border border-rose-200"
                       }`}
                     >
-                      <span>{testFeedback.success ? "✅" : "⚠️"}</span>
-                      <span>{testFeedback.message}</span>
+                      {testFeedback.message}
                     </div>
                   )}
 
@@ -1173,28 +1170,19 @@ export default function Comunicacao() {
               <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-3">
                 <h3 className="font-bold text-[#1e1b4b] text-sm">Automações Ativas 24/7</h3>
                 <div className="space-y-2.5">
-                  <div className="flex items-start gap-2.5 bg-[#f8f7ff] p-3 rounded-xl">
-                    <span className="text-sm mt-0.5">⏰</span>
-                    <div>
-                      <p className="text-xs font-semibold text-[#1e1b4b]">Lembrete 24h antes do Culto</p>
-                      <p className="text-[11px] text-[#7c6ea8]">Disparado a cada 15 min pelo agendador automático.</p>
-                    </div>
+                  <div className="bg-[#f8f7ff] p-3 rounded-xl">
+                    <p className="text-xs font-semibold text-[#1e1b4b]">Lembrete 24h antes do Culto</p>
+                    <p className="text-[11px] text-[#7c6ea8] mt-0.5">Disparado a cada 15 min pelo agendador automático.</p>
                   </div>
 
-                  <div className="flex items-start gap-2.5 bg-[#f8f7ff] p-3 rounded-xl">
-                    <span className="text-sm mt-0.5">📱</span>
-                    <div>
-                      <p className="text-xs font-semibold text-[#1e1b4b]">Confirmação Interativa (1 ou 2)</p>
-                      <p className="text-[11px] text-[#7c6ea8]">O voluntário responde "1" e a escala confirma no banco de dados.</p>
-                    </div>
+                  <div className="bg-[#f8f7ff] p-3 rounded-xl">
+                    <p className="text-xs font-semibold text-[#1e1b4b]">Confirmação Interativa (1 ou 2)</p>
+                    <p className="text-[11px] text-[#7c6ea8] mt-0.5">O voluntário responde "1" e a escala confirma no banco de dados.</p>
                   </div>
 
-                  <div className="flex items-start gap-2.5 bg-[#f8f7ff] p-3 rounded-xl">
-                    <span className="text-sm mt-0.5">🎉</span>
-                    <div>
-                      <p className="text-xs font-semibold text-[#1e1b4b]">Aprovação de Voluntários</p>
-                      <p className="text-[11px] text-[#7c6ea8]">Ao aprovar na triagem, envia link para definir senha (48h).</p>
-                    </div>
+                  <div className="bg-[#f8f7ff] p-3 rounded-xl">
+                    <p className="text-xs font-semibold text-[#1e1b4b]">Aprovação de Voluntários</p>
+                    <p className="text-[11px] text-[#7c6ea8] mt-0.5">Ao aprovar na triagem, envia link para definir senha (48h).</p>
                   </div>
                 </div>
               </div>

@@ -54,8 +54,11 @@ export async function api<T = any>(
   });
 
 
-  if (res.status === 401 && !retried && (await refresh())) {
-    return api<T>(path, options, true);
+  if (res.status === 401) {
+    if (!retried && (await refresh())) {
+      return api<T>(path, options, true);
+    }
+    useAuth.getState().logout();
   }
   if (res.status === 204) return null as T;
   const data = await res.json().catch(() => ({}));

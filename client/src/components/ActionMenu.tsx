@@ -26,10 +26,11 @@ export function ActionMenu({
   items,
   variant = "outline",
   className = "",
-  align = "right",
+  align = "left",
 }: ActionMenuProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -53,6 +54,23 @@ export function ActionMenu({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
+  }, [open]);
+
+  // Adjust on open so the menu NEVER overflows viewport on mobile or desktop
+  useEffect(() => {
+    if (open && menuRef.current) {
+      const margin = 12;
+      const rect = menuRef.current.getBoundingClientRect();
+      if (rect.left < margin) {
+        const shift = margin - rect.left;
+        menuRef.current.style.transform = `translateX(${shift}px)`;
+      } else if (rect.right > window.innerWidth - margin) {
+        const shift = rect.right - (window.innerWidth - margin);
+        menuRef.current.style.transform = `translateX(-${shift}px)`;
+      } else {
+        menuRef.current.style.transform = "";
+      }
+    }
   }, [open]);
 
   const buttonStyles = {
@@ -88,7 +106,8 @@ export function ActionMenu({
 
       {open && (
         <div
-          className={`absolute mt-2 w-56 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-1.5 shadow-2xl z-40 animate-in fade-in zoom-in-95 duration-150 ${
+          ref={menuRef}
+          className={`absolute mt-2 w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 ${
             align === "right" ? "right-0" : "left-0"
           }`}
           role="menu"

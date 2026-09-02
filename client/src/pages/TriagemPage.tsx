@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import { useAuth } from "../store";
 import { AVATAR_OPTIONS, Avatar } from "../components/Avatar";
 import { ModalPortal } from "../components/ModalPortal";
+import { ActionMenu } from "../components/ui";
 
 interface Ministry {
   id: string;
@@ -243,33 +244,26 @@ export default function TriagemPage() {
             {stats ? `${stats.pending} pendente(s) · ${stats.approved} aprovado(s) este mês` : "Carregando..."}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {isAdmin && (
-            <button
-              onClick={handleCleanupTest}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold border border-red-200 text-red-600 hover:bg-red-50 transition-colors shadow-sm"
-              title="Excluir todas as inscrições de teste"
-            >
-              🧹 Limpar Inscrições de Teste
-            </button>
-          )}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <ActionMenu
+            label="Ações"
+            items={[
+              {
+                id: "refresh",
+                label: "Atualizar Lista",
+                description: "Recarregar inscrições do servidor",
+                onClick: fetchData,
+              },
+            ]}
+          />
           <button
             onClick={() => setShowQrModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[#7c3aed] text-white hover:opacity-90 shadow-sm transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[#7c3aed] text-white hover:opacity-90 shadow-sm transition-all cursor-pointer active:scale-95"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
             </svg>
-            Link da Igreja & QR Code 📲
-          </button>
-          <button
-            onClick={fetchData}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#7c3aed] hover:bg-[#f5f3ff] transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Atualizar
+            Link da Igreja & QR Code
           </button>
         </div>
       </div>
@@ -415,7 +409,7 @@ export default function TriagemPage() {
                             color: p.ministry.color || "#7c3aed",
                           }}
                         >
-                          {p.ministry.icon} {p.ministry.name}
+                          {p.ministry.name}
                         </span>
                       ))}
                     </div>
@@ -435,10 +429,12 @@ export default function TriagemPage() {
                       <button
                         type="button"
                         onClick={(e) => handleDeleteApplication(app.id, e)}
-                        className="w-8 h-8 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700 flex items-center justify-center transition-colors ml-2"
+                        className="w-8 h-8 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700 flex items-center justify-center transition-colors ml-2 cursor-pointer"
                         title="Excluir inscrição"
                       >
-                        🗑️
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
                       </button>
                     )}
                   </div>
@@ -727,9 +723,9 @@ export default function TriagemPage() {
                   type="button"
                   onClick={() => handleDeleteApplication(selectedApp.id)}
                   disabled={actionLoading}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50 transition-colors cursor-pointer"
                 >
-                  🗑️ Excluir
+                  Excluir
                 </button>
               )}
               {selectedApp.status === "PENDING" && modalTab === "review" && (
@@ -764,8 +760,10 @@ export default function TriagemPage() {
             <div className="relative bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-4 my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4 flex-shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-xl">
-                    📲
+                  <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 flex items-center justify-center">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                    </svg>
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-[#1e1b4b]">Inscrição de Membros do Ministério</h3>
@@ -825,7 +823,7 @@ export default function TriagemPage() {
 
               {/* Ações e Dicas */}
               <div className="p-3 bg-violet-50 border border-violet-100 rounded-xl text-[11px] text-[#5b5077] leading-relaxed">
-                💡 <strong>Dica para os Cultos:</strong> Projete esta imagem no telão nos avisos de domingo ou envie o link nos grupos de WhatsApp da igreja para cadastrar novos membros nos ministérios.
+                <strong>Dica para os Cultos:</strong> Projete esta imagem no telão nos avisos de domingo ou envie o link nos grupos de WhatsApp da igreja para cadastrar novos membros nos ministérios.
               </div>
 
               <div className="pt-2 flex items-center justify-between border-t border-[#f0eefe] flex-shrink-0">
@@ -846,9 +844,9 @@ export default function TriagemPage() {
                     link.target = "_blank";
                     link.click();
                   }}
-                  className="px-4 py-2 text-xs font-semibold border border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] rounded-xl transition-all"
+                  className="px-4 py-2 text-xs font-semibold border border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] rounded-xl transition-all cursor-pointer"
                 >
-                  Baixar Imagem do QR Code 📥
+                  Baixar Imagem do QR Code
                 </button>
               </div>
             </div>

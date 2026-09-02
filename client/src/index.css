@@ -43,18 +43,20 @@
   --color-accent-warm-light: #fef3c7;
 }
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ── Dark mode overrides ─── */
 .dark {
-  --color-background: #0f0a1e;
-  --color-surface: #1a1530;
-  --color-card: #1a1530;
-  --color-border: #2d2550;
-  --color-border-light: #231d42;
-  --color-muted: #9b8ec4;
-  --color-text: #e8e0ff;
-  --color-text-secondary: #b8a8d8;
-  --color-surface-2: #231d42;
-  --color-ink: #e8e0ff;
+  --color-background: #0c0a1f;
+  --color-surface: #17132e;
+  --color-surface-2: #221c42;
+  --color-card: #17132e;
+  --color-border: #2d2654;
+  --color-border-light: #241d44;
+  --color-muted: #a395cf;
+  --color-text: #f3f0ff;
+  --color-text-secondary: #c9bede;
+  --color-ink: #f3f0ff;
   --color-ok-light: #064e3b;
   --color-warn-light: #78350f;
   --color-danger-light: #7f1d1d;
@@ -63,9 +65,67 @@
   --color-info-light: #1e3a5f;
 }
 
-.dark html, .dark body, .dark #root {
+.dark, .dark html, .dark body, .dark #root {
   background-color: var(--color-background);
   color: var(--color-text);
+}
+
+/* ── Dark Mode Auto-Mapping for Content, Cards, Inputs and Typography ── */
+.dark .bg-white {
+  background-color: var(--color-surface) !important;
+  color: var(--color-ink);
+}
+
+.dark .bg-slate-50,
+.dark .bg-gray-50,
+.dark .bg-\[\#f8f7ff\],
+.dark .bg-\[\#f5f3ff\],
+.dark .bg-\[\#faf8ff\],
+.dark .bg-\[\#fcfbff\],
+.dark .bg-\[\#fcfbfe\],
+.dark .bg-\[\#f8f7fe\] {
+  background-color: var(--color-surface-2) !important;
+}
+
+.dark .text-\[\#1e1b4b\],
+.dark .text-gray-900,
+.dark .text-slate-900 {
+  color: var(--color-ink) !important;
+}
+
+.dark .text-\[\#5b5077\],
+.dark .text-gray-600,
+.dark .text-slate-600 {
+  color: var(--color-text-secondary) !important;
+}
+
+.dark .text-\[\#7c6ea8\],
+.dark .text-gray-500,
+.dark .text-slate-500 {
+  color: var(--color-muted) !important;
+}
+
+.dark .border-\[\#e5e0f8\],
+.dark .border-\[\#ede9fe\],
+.dark .border-\[\#f0eefe\],
+.dark .border-\[\#c4b5fd\],
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-slate-200 {
+  border-color: var(--color-border) !important;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-ink) !important;
+  border-color: var(--color-border) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--color-muted) !important;
 }
 
 *, *::before, *::after {

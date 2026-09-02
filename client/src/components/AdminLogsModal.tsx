@@ -72,12 +72,14 @@ export function AdminLogsModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[var(--color-border)] p-5 sm:p-6 pb-4 flex-shrink-0">
             <div className="flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center text-lg shadow-md shadow-violet-500/20">
-                📊
+              <span className="w-10 h-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
               </span>
               <div>
                 <h3 className="font-bold text-base sm:text-lg text-[var(--color-ink)]">
-                  Central de Logs & Dispositivos (Admin)
+                  Central de Logs & Dispositivos
                 </h3>
                 <p className="text-xs text-[var(--color-muted)]">
                   Acompanhe status de notificações, aparelhos cadastrados e ações do sistema
@@ -94,47 +96,49 @@ export function AdminLogsModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
 
           {/* Tabs & Search */}
           <div className="p-4 sm:px-6 bg-[var(--color-surface-2)] border-b border-[var(--color-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0">
-          <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] w-fit">
-            <button
-              onClick={() => setActiveTab("devices")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "devices"
-                  ? "bg-violet-600 text-white shadow-sm"
-                  : "text-[var(--color-muted)] hover:text-[var(--color-ink)]"
-              }`}
-            >
-              📱 Dispositivos / Push ({registeredCount}/{membersPush.length})
-            </button>
-            <button
-              onClick={() => setActiveTab("audit")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "audit"
-                  ? "bg-violet-600 text-white shadow-sm"
-                  : "text-[var(--color-muted)] hover:text-[var(--color-ink)]"
-              }`}
-            >
-              🛡️ Auditoria ({auditLogs.length})
-            </button>
-          </div>
+            <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] w-fit">
+              <button
+                onClick={() => setActiveTab("devices")}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === "devices"
+                    ? "bg-violet-600 text-white shadow-sm"
+                    : "text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+                }`}
+              >
+                Dispositivos / Push ({registeredCount}/{membersPush.length})
+              </button>
+              <button
+                onClick={() => setActiveTab("audit")}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === "audit"
+                    ? "bg-violet-600 text-white shadow-sm"
+                    : "text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+                }`}
+              >
+                Auditoria ({auditLogs.length})
+              </button>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filtrar por nome, email ou ação..."
-              className="px-3.5 py-1.5 text-xs rounded-xl border border-[var(--color-border)] bg-white dark:bg-[var(--color-surface)] text-[var(--color-ink)] focus:outline-none focus:border-violet-600 w-full sm:w-56"
-            />
-            <button
-              onClick={loadData}
-              disabled={loading}
-              className="p-1.5 rounded-xl border border-[var(--color-border)] text-xs text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:bg-white transition-all cursor-pointer"
-              title="Atualizar logs"
-            >
-              🔄
-            </button>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filtrar por nome, email ou ação..."
+                className="px-3.5 py-1.5 text-xs rounded-xl border border-[var(--color-border)] bg-white dark:bg-[var(--color-surface)] text-[var(--color-ink)] focus:outline-none focus:border-violet-600 w-full sm:w-56"
+              />
+              <button
+                onClick={loadData}
+                disabled={loading}
+                className="p-2 rounded-xl border border-[var(--color-border)] text-xs text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:bg-white dark:hover:bg-[var(--color-surface)] transition-all cursor-pointer disabled:opacity-50"
+                title="Atualizar logs"
+              >
+                <svg className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
           </div>
-        </div>
 
         {/* Content Body */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3">
@@ -173,12 +177,12 @@ export function AdminLogsModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
 
                       <div className="flex-shrink-0">
                         {m.pushDevices > 0 ? (
-                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold inline-flex items-center gap-1 shadow-sm">
-                            <span>📲</span> {m.pushDevices} aparelho(s)
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold inline-flex items-center shadow-sm">
+                            {m.pushDevices} aparelho(s) ativo(s)
                           </span>
                         ) : (
-                          <span className="px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-300 text-[11px] font-semibold inline-flex items-center gap-1">
-                            <span>⚠️</span> Sem celular cadastrado
+                          <span className="px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-300 text-[11px] font-semibold inline-flex items-center">
+                            Sem celular cadastrado
                           </span>
                         )}
                       </div>
@@ -191,8 +195,7 @@ export function AdminLogsModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
             <div className="space-y-2">
               {filteredAudit.length === 0 ? (
                 <div className="py-12 text-center text-xs text-[var(--color-muted)] space-y-1">
-                  <p className="text-2xl">📋</p>
-                  <p className="font-semibold">Nenhum log de auditoria recente registrado.</p>
+                  <p className="font-semibold text-sm text-[var(--color-ink)]">Nenhum log de auditoria recente registrado</p>
                   <p className="text-[11px]">Ações críticas de líderes e administradores aparecerão aqui.</p>
                 </div>
               ) : (

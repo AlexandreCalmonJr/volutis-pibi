@@ -464,14 +464,14 @@ export default function Dashboard() {
                     {pushTarget !== "ALL" && (() => {
                       const selected = pushMembers.find((m) => m.id === pushTarget);
                       return selected && selected.pushDevices === 0 ? (
-                        <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-                          ⚠️ Este membro não possui dispositivos com push ativo. A notificação aparecerá no app, mas não chegará como notificação no celular. O membro precisa abrir o app e ativar as notificações.
+                        <div className="rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                          Este membro não possui dispositivos com push ativo. A notificação aparecerá no app, mas não chegará como notificação no celular. O membro precisa abrir o app e ativar as notificações.
                         </div>
                       ) : null;
                     })()}
 
-                    <div className="rounded-xl bg-violet-50/60 border border-violet-200 px-4 py-3 text-xs text-violet-800">
-                      💡 A notificação será entregue via push no celular (se o membro ativou) e também aparecerá dentro do app em tempo real via WebSocket.
+                    <div className="rounded-xl bg-violet-50/60 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-900 px-4 py-3 text-xs text-violet-800 dark:text-violet-200">
+                      A notificação será entregue via push no celular (se o membro ativou) e também aparecerá dentro do app em tempo real via WebSocket.
                     </div>
                   </>
                 )}
