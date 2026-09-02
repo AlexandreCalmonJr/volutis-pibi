@@ -30,6 +30,8 @@ import { notificationRoutes } from "./routes/notifications.js";
 import { pushRoutes } from "./routes/push.js";
 import { whatsappWebhookRoutes } from "./routes/whatsapp-webhook.js";
 import { devotionalRoutes } from "./routes/devotional.js";
+import { reportsRoutes } from "./routes/reports.js";
+import { uploadRoutes } from "./routes/upload.js";
 import { websocketHandler } from "./websocket/handler.js";
 import { startReminderScheduler } from "./services/scheduler.service.js";
 import { startDatabaseCleanupScheduler } from "./services/cleanup.service.js";
@@ -190,7 +192,19 @@ export async function buildServer() {
   await app.register(pushRoutes, { prefix: "/api" });
   await app.register(whatsappWebhookRoutes, { prefix: "/api" });
   await app.register(devotionalRoutes, { prefix: "/api" });
+  await app.register(reportsRoutes, { prefix: "/api" });
+  await app.register(uploadRoutes, { prefix: "/api" });
   await app.register(websocketHandler);
+
+  // Servir uploads de mídias e avatares
+  const uploadsDir = join(process.cwd(), "uploads");
+  if (existsSync(uploadsDir)) {
+    await app.register(fastifyStatic, {
+      root: uploadsDir,
+      prefix: "/uploads/",
+      decorateReply: false,
+    });
+  }
 
   const clientDist = existsSync(join(process.cwd(), "client", "dist"))
     ? join(process.cwd(), "client", "dist")
@@ -200,6 +214,7 @@ export async function buildServer() {
     await app.register(fastifyStatic, {
       root: clientDist,
       prefix: "/",
+      decorateReply: false,
     });
 
     app.setNotFoundHandler(async (req, reply) => {

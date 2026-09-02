@@ -6,6 +6,7 @@ import { z } from "zod";
 import { fromJson, prisma } from "../lib/db.js";
 import { rateLimitHit, rateLimitReset } from "../lib/ratelimit.js";
 import type { AuthUser } from "../middleware/auth.js";
+import { whatsAppQueue } from "../services/whatsapp-queue.service.js";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -396,5 +397,57 @@ export async function authRoutes(app: FastifyInstance) {
 
     pending2faSecrets.delete(auth.sub);
     return reply.send({ success: true, message: "Autenticação em duas etapas (2FA) ativada com sucesso!" });
+  });
+
+  // ── 2FA via WhatsApp ─────────────────────────────────────────
+  app.post("/auth/2fa/request-whatsapp", async (req, reply) => {
+    const { email } = z.object({ email: z.string() }).parse(req.body);
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ email: email.trim() }, { phone: email.trim() }] },
+      include: { member: true },
+    });
+    if (!user || !user.phone) {
+      return reply.code(404).send({ error: "Usuário ou telefone não encontrado no sistema" });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    pending2faSecrets.set(`wa-${user.id}`, code);
+
+    whatsAppQueue.enqueue(
+      user.phone,
+      `🔒 *Volut PIBI*: Seu código de verificação é: *${code}*. Válido por 5 minutos. Não compartilhe com ninguém.`,
+      true
+    );
+
+    return { success: true, message: "Código de 6 dígitos enviado para o seu WhatsApp cadastrado!" };
+  });
+
+  app.post("/auth/2fa/verify-whatsapp", async (req, reply) => {
+    const { email, code } = z.object({ email: z.string(), code: z.string().length(6) }).parse(req.body);
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ email: email.trim() }, { phone: email.trim() }] },
+      include: { member: true },
+    });
+    if (!user) return reply.code(404).send({ error: "Usuário não encontrado" });
+
+    const expected = pending2faSecrets.get(`wa-${user.id}`);
+    if (!expected || expected !== code.trim()) {
+      return reply.code(400).send({ error: "Código de verificação incorreto ou expirado." });
+    }
+
+    pending2faSecrets.delete(`wa-${user.id}`);
+    const tokens = await issueTokens(app, toPayload(user));
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        memberId: user.member?.id,
+        memberName: user.member?.name,
+        avatarKey: user.member?.avatarKey,
+        photoUrl: user.member?.photoUrl,
+      },
+      ...tokens,
+    };
   });
 }
