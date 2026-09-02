@@ -309,14 +309,12 @@ export default function Voluntarios() {
       id: "refresh",
       label: "Atualizar Lista",
       description: "Recarregar dados do servidor",
-      icon: <span>🔄</span>,
       onClick: () => carregarMembros(),
     },
     {
       id: "triagem",
       label: "Painel de Triagem",
       description: "Avaliar novos candidatos",
-      icon: <span>📋</span>,
       onClick: () => navigate("/triagem"),
     },
   ];
@@ -428,7 +426,7 @@ export default function Voluntarios() {
               <button
                 key={m.id}
                 onClick={() => setMemberSelecionado(m)}
-                className="bg-white rounded-2xl border border-[#e5e0f8] p-5 text-left hover:shadow-md hover:border-[#c4b5fd] transition-all group"
+                className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5 text-left hover:shadow-md hover:border-[var(--color-primary)] transition-all group cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-3">
                   <Avatar name={m.name} photoUrl={m.photoUrl} avatarKey={m.avatarKey} size={44} />
@@ -439,9 +437,9 @@ export default function Voluntarios() {
                     {s.label}
                   </span>
                 </div>
-                <p className="font-semibold text-[#1e1b4b] group-hover:text-[#7c3aed] transition-colors">{m.name}</p>
-                <p className="text-xs text-[#7c6ea8] mt-0.5">{ministryName}{m.ministryMembers[0]?.isLeader ? " (Líder)" : ""}</p>
-                <div className="mt-3 flex items-center gap-3 text-xs text-[#7c6ea8]">
+                <p className="font-semibold text-[var(--color-text)] group-hover:text-[var(--color-primary)] transition-colors">{m.name}</p>
+                <p className="text-xs text-[var(--color-muted)] mt-0.5">{ministryName}{m.ministryMembers[0]?.isLeader ? " (Líder)" : ""}</p>
+                <div className="mt-3 flex items-center gap-3 text-xs text-[var(--color-muted)]">
                   <span>{m.points ?? 0} pontos</span>
                   {m.instruments.length > 0 && <span>{m.instruments.join(", ")}</span>}
                 </div>
@@ -450,8 +448,8 @@ export default function Voluntarios() {
           })}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-[#e5e0f8] overflow-hidden">
-          <div className="divide-y divide-[#f0eefe]">
+        <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] overflow-hidden">
+          <div className="divide-y divide-[var(--color-border)]">
             {filtrados.map((m) => {
               const s = statusConfig[mapStatus(m.approvalStatus)];
               const ministryName = getMinistryName(m);
@@ -460,15 +458,15 @@ export default function Voluntarios() {
                 <button
                   key={m.id}
                   onClick={() => setMemberSelecionado(m)}
-                  className="w-full flex items-center gap-4 px-6 py-3.5 hover:bg-[#fafafe] transition-colors text-left"
+                  className="w-full flex items-center gap-4 px-6 py-3.5 hover:bg-[var(--color-surface-2)] transition-colors text-left cursor-pointer"
                 >
                   <Avatar name={m.name} photoUrl={m.photoUrl} avatarKey={m.avatarKey} size={36} className="flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-[#1e1b4b] text-sm">{m.name}</p>
-                    <p className="text-xs text-[#7c6ea8]">{ministryName}{m.ministryMembers[0]?.isLeader ? " (Líder)" : ""}</p>
+                    <p className="font-medium text-[var(--color-text)] text-sm">{m.name}</p>
+                    <p className="text-xs text-[var(--color-muted)]">{ministryName}{m.ministryMembers[0]?.isLeader ? " (Líder)" : ""}</p>
                   </div>
                   <div className="hidden sm:flex items-center gap-4">
-                    <span className="text-xs text-[#7c6ea8]">{m.points ?? 0} pontos</span>
+                    <span className="text-xs text-[var(--color-muted)]">{m.points ?? 0} pontos</span>
                     <span
                       className="text-xs px-2.5 py-1 rounded-full font-semibold"
                       style={{ backgroundColor: s.bg, color: s.text }}
@@ -476,7 +474,7 @@ export default function Voluntarios() {
                       {s.label}
                     </span>
                   </div>
-                  <svg className="w-4 h-4 text-[#c4b5fd]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-4 h-4 text-[var(--color-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                   </svg>
                 </button>

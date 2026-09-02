@@ -418,14 +418,12 @@ export default function Louvor() {
       id: "import-holyrics",
       label: "Importar do Holyrics",
       description: "Puxar músicas do software",
-      icon: <span>📥</span>,
       onClick: importarDoHolyrics,
     },
     {
       id: "sync-holyrics",
       label: syncingLibrary ? "Sincronizando..." : "Sincronizar Repertório",
       description: "Atualizar status de sincronia",
-      icon: <span>🔄</span>,
       disabled: syncingLibrary,
       onClick: sincronizarBiblioteca,
     },
@@ -433,7 +431,6 @@ export default function Louvor() {
       id: "config-holyrics",
       label: "Configurações Holyrics",
       description: "IP, porta e token de conexão",
-      icon: <span>⚙️</span>,
       onClick: () => setShowHolyricsModal(true),
     },
   ];
@@ -563,7 +560,6 @@ export default function Louvor() {
                               id: "notify-team",
                               label: notifyingTeam ? "Enviando..." : "Notificar Músicos",
                               description: "Enviar push com músicas e tons",
-                              icon: <span>📢</span>,
                               disabled: notifyingTeam,
                               onClick: () => notificarEquipe(setlistAberta),
                             },
@@ -571,7 +567,6 @@ export default function Louvor() {
                               id: "publish-holyrics",
                               label: "Publicar no Holyrics",
                               description: "Transmitir setlist ao Holyrics",
-                              icon: <span>📡</span>,
                               onClick: enviarSetlistHolyrics,
                             },
                           ]}
@@ -593,10 +588,10 @@ export default function Louvor() {
                             setRehearsalPlaylist(tracks);
                             setRehearsalIndex(0);
                           }}
-                          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-xs font-semibold hover:opacity-90 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95"
+                          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-xs font-semibold hover:opacity-90 transition-all shadow-sm cursor-pointer active:scale-95"
                           title="Ouvir playlist completa do setlist com players de áudio/vídeo"
                         >
-                          <span>🎧</span> Ensaio Online
+                          Ensaio Online
                         </button>
                       )}
                     </div>
@@ -751,9 +746,9 @@ export default function Louvor() {
                                   href={item.song.spotifyUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold transition-all flex items-center gap-1"
+                                  className="px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold transition-all"
                                 >
-                                  <span>🎧</span> Spotify
+                                  Spotify
                                 </a>
                               )}
 
@@ -1033,24 +1028,24 @@ export default function Louvor() {
                       ]);
                       setRehearsalIndex(0);
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-xs font-bold flex items-center gap-1.5 hover:opacity-90 transition-all cursor-pointer shadow-sm"
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-xs font-bold hover:opacity-90 transition-all cursor-pointer shadow-sm"
                   >
-                    🎧 Ouvir no Ensaio Online
+                    Ouvir no Ensaio Online
                   </button>
                 )}
                 {isLouvorVolunteer && selectedSongDetails.cifraClubUrl && (
                   <a href={selectedSongDetails.cifraClubUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100">
-                    🎸 Abrir no Cifra Club ↗
+                    Abrir no Cifra Club ↗
                   </a>
                 )}
                 {selectedSongDetails.youtubeUrl && (
                   <a href={selectedSongDetails.youtubeUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100">
-                    📺 Assistir no YouTube ↗
+                    Assistir no YouTube ↗
                   </a>
                 )}
                 {selectedSongDetails.spotifyUrl && (
                   <a href={selectedSongDetails.spotifyUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold transition-all">
-                    🎧 Ouvir no Spotify ↗
+                    Ouvir no Spotify ↗
                   </a>
                 )}
               </div>

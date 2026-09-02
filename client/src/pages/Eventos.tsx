@@ -4,6 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../store";
 import { CULTO_TEMPLATES } from "../data/templates";
 import { EventMediaModal } from "../components/EventMediaModal";
+import { ActionMenu } from "../components/ui";
 
 interface Evento {
   id: string | number;
@@ -270,43 +271,48 @@ export default function Eventos() {
                       )}
                     </div>
                     <div className="flex items-center gap-3 text-sm text-[#7c6ea8] flex-wrap">
-                      <span>🕒 {horario}</span>
-                      {evento.theme && <span className="text-indigo-600 font-medium">📖 Tema: {evento.theme}</span>}
-                      {evento.preacher && <span className="text-[#5b5077]">🎙️ {evento.preacher}</span>}
+                      <span>{horario}</span>
+                      {evento.theme && <span className="text-indigo-600 font-medium">Tema: {evento.theme}</span>}
+                      {evento.preacher && <span className="text-[#5b5077]">Preletor: {evento.preacher}</span>}
                     </div>
                   </div>
 
                   {/* Ações */}
-                  <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <button
-                      type="button"
-                      onClick={() => setSelectedMediaEvent(evento)}
-                      className="text-xs px-3.5 py-1.5 rounded-lg border border-[#d4c7f7] bg-[#faf8ff] text-[#7c3aed] hover:bg-[#7c3aed] hover:text-white font-medium transition-all flex items-center gap-1.5 shadow-sm"
-                    >
-                      <span>🎨</span> Mídias & Telão
-                    </button>
-                    <button
-                      className="text-xs px-3.5 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-[#f5f3ff] hover:text-[#7c3aed] hover:border-[#c4b5fd] font-medium transition-colors"
+                      className="text-xs px-3.5 py-2 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-surface-2)] hover:border-[var(--color-primary)] font-medium transition-colors cursor-pointer shadow-sm"
                       onClick={() => navigate(`/escalas?eventId=${encodeURIComponent(String(evento.id))}`)}
                     >
                       Ver Escala
                     </button>
-                    {canManageEvents && (
-                      <>
-                        <button
-                          className="text-xs px-3 py-1.5 rounded-lg border border-[#e5e0f8] text-[#5b5077] hover:bg-gray-50 transition-colors"
-                          onClick={() => editarEvento(evento)}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                          onClick={() => excluirEvento(String(evento.id))}
-                        >
-                          Excluir
-                        </button>
-                      </>
-                    )}
+                    <ActionMenu
+                      label="Ações"
+                      items={[
+                        {
+                          id: "media",
+                          label: "Mídias & Telão",
+                          description: "Gerenciar fundos e slides",
+                          onClick: () => setSelectedMediaEvent(evento),
+                        },
+                        ...(canManageEvents
+                          ? [
+                              {
+                                id: "edit",
+                                label: "Editar Evento",
+                                description: "Alterar data, horário e tema",
+                                onClick: () => editarEvento(evento),
+                              },
+                              {
+                                id: "delete",
+                                label: "Excluir Evento",
+                                description: "Remover este evento",
+                                variant: "danger" as const,
+                                onClick: () => excluirEvento(String(evento.id)),
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
                   </div>
                 </div>
               </div>

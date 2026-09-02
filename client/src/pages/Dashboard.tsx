@@ -73,7 +73,7 @@ export default function Dashboard() {
   const [pushPanelOpen, setPushPanelOpen] = useState(false);
   const [pushMembers, setPushMembers] = useState<{ id: string; name: string; email: string | null; pushDevices: number }[]>([]);
   const [pushTarget, setPushTarget] = useState<"ALL" | string>("ALL");
-  const [pushTitle, setPushTitle] = useState("Aviso da Igreja 📢");
+  const [pushTitle, setPushTitle] = useState("Aviso da Igreja");
   const [pushBody, setPushBody] = useState("");
   const [pushMembersLoading, setPushMembersLoading] = useState(false);
   const [logsModalOpen, setLogsModalOpen] = useState(false);
@@ -205,28 +205,24 @@ export default function Dashboard() {
       id: "notify",
       label: "Enviar Notificação",
       description: "Disparar push para voluntários",
-      icon: <span>📢</span>,
       onClick: openPushPanel,
     },
     {
       id: "backup",
       label: "Exportar Backup JSON",
       description: "Download de dados da igreja",
-      icon: <span>📥</span>,
       onClick: handleDownloadBackup,
     },
     {
       id: "logs",
       label: "Logs & Dispositivos",
       description: "Auditoria e status de aparelhos",
-      icon: <span>📊</span>,
       onClick: () => setLogsModalOpen(true),
     },
     {
       id: "seed",
       label: "Limpar Dados de Teste",
       description: "Remover voluntários de exemplo",
-      icon: <span>🗑️</span>,
       variant: "danger",
       onClick: openSeedCleanup,
     },
@@ -289,7 +285,7 @@ export default function Dashboard() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-[var(--color-text)]">
-                Ativar notificações no celular 📲
+                Ativar notificações no celular
               </h3>
               <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 max-w-xl">
                 Não perca suas escalas! Receba lembretes automáticos e avisos importantes diretamente na tela de bloqueio, mesmo com o app fechado.
@@ -317,17 +313,17 @@ export default function Dashboard() {
       {loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-2xl p-5 border border-[var(--color-border)] animate-pulse">
-              <div className="w-10 h-10 rounded-xl bg-gray-100 mb-3" />
-              <div className="h-8 w-16 bg-gray-100 rounded mb-1" />
-              <div className="h-3 w-24 bg-gray-100 rounded" />
+            <div key={i} className="bg-[var(--color-surface)] rounded-2xl p-5 border border-[var(--color-border)] animate-pulse">
+              <div className="w-10 h-10 rounded-xl bg-[var(--color-surface-2)] mb-3" />
+              <div className="h-8 w-16 bg-[var(--color-surface-2)] rounded mb-1" />
+              <div className="h-3 w-24 bg-[var(--color-surface-2)] rounded" />
             </div>
           ))}
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           {statCards.map((stat) => (
-            <div key={stat.label} className="bg-white rounded-2xl p-5 border border-[var(--color-border)] hover:shadow-md transition-shadow">
+            <div key={stat.label} className="bg-[var(--color-surface)] rounded-2xl p-5 border border-[var(--color-border)] hover:shadow-md transition-all">
               <div className="flex items-start justify-between mb-3">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -345,7 +341,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-[var(--color-border)] overflow-hidden">
+      <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] overflow-hidden">
         <div className="px-6 py-4 border-b border-[var(--color-border-light)] flex items-center justify-between">
           <h2 className="font-semibold text-[var(--color-text)]">Próximos Eventos</h2>
           <button
@@ -435,7 +431,7 @@ export default function Dashboard() {
                         onChange={(e) => setPushTarget(e.target.value)}
                         className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)]"
                       >
-                        <option value="ALL">📢 Todos os membros ({pushMembers.length})</option>
+                        <option value="ALL">Todos os membros ({pushMembers.length})</option>
                         {pushMembers.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.name} {m.pushDevices > 0 ? `(${m.pushDevices} dispositivo${m.pushDevices > 1 ? "s" : ""})` : "(sem push ativo)"}

@@ -604,7 +604,6 @@ export default function Escalas() {
       id: "auto",
       label: "Gerar Escala Automática",
       description: "Distribuição inteligente de funções",
-      icon: <span>⚡</span>,
       onClick: () => {
         setAutoResult(null);
         setModalAutoOpen(true);
@@ -614,14 +613,12 @@ export default function Escalas() {
       id: "excel",
       label: importingExcel ? "Importando Planilha..." : "Importar Planilha Excel",
       description: "Carregar eventos e escalas via .xlsx",
-      icon: <span>📥</span>,
       onClick: () => excelInputRef.current?.click(),
     },
     {
       id: "print",
       label: "Imprimir / Salvar PDF",
       description: "Visualização otimizada de impressão",
-      icon: <span>🖨️</span>,
       onClick: () => window.print(),
     },
   ];
@@ -741,39 +738,39 @@ export default function Escalas() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendário */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-[#e5e0f8] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#f0eefe] flex items-center justify-between">
+        <div className="lg:col-span-2 bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] overflow-hidden">
+          <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigateMonth(-1)}
-                className="w-8 h-8 rounded-lg border border-[#e5e0f8] flex items-center justify-center hover:bg-gray-50 transition-colors"
+                className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center hover:bg-[var(--color-surface-2)] transition-colors"
               >
-                <svg className="w-4 h-4 text-[#7c6ea8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-[var(--color-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <h2 className="font-semibold text-[#1e1b4b]">{mesNomes[mesAtual.month]} {mesAtual.year}</h2>
+              <h2 className="font-semibold text-[var(--color-text)]">{mesNomes[mesAtual.month]} {mesAtual.year}</h2>
               <button
                 onClick={() => navigateMonth(1)}
-                className="w-8 h-8 rounded-lg border border-[#e5e0f8] flex items-center justify-center hover:bg-gray-50 transition-colors"
+                className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center hover:bg-[var(--color-surface-2)] transition-colors"
               >
-                <svg className="w-4 h-4 text-[#7c6ea8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-[var(--color-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
               </button>
             </div>
             <div className="flex items-center gap-2 text-xs">
-              <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: "#7c3aed" }} />
-              <span className="text-[#7c6ea8]">Com escala</span>
+              <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: "var(--color-primary)" }} />
+              <span className="text-[var(--color-muted)]">Com escala</span>
               <span className="w-3 h-3 rounded-full inline-block bg-amber-400 ml-2" />
-              <span className="text-[#7c6ea8]">Incompleto</span>
+              <span className="text-[var(--color-muted)]">Incompleto</span>
             </div>
           </div>
           <div className="p-4">
             {/* Days header */}
             <div className="grid grid-cols-7 mb-2">
               {dias.map((d) => (
-                <div key={d} className="text-center text-xs font-semibold text-[#7c6ea8] py-1">
+                <div key={d} className="text-center text-xs font-semibold text-[var(--color-muted)] py-1">
                   {d}
                 </div>
               ))}
@@ -800,23 +797,22 @@ export default function Escalas() {
                       key={day}
                       onClick={() => setDiaSelecionado(day === diaSelecionado ? null : day)}
                       className={[
-                        "relative aspect-square rounded-xl text-sm font-medium transition-all",
+                        "relative aspect-square rounded-xl text-sm font-medium transition-all cursor-pointer",
                         isSelected
                           ? "text-white"
                           : temEscala
-                            ? "text-[#1e1b4b] hover:bg-[#f5f3ff]"
-                            : "text-[#7c6ea8] hover:bg-gray-50",
+                            ? "text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
+                            : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]",
                       ].join(" ")}
-                      style={isSelected ? { backgroundColor: "#7c3aed" } : {}}
+                      style={isSelected ? { backgroundColor: "var(--color-primary)" } : {}}
                     >
                       {isToday && !isSelected && (
-                        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#7c3aed]" />
+                        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]" />
                       )}
                       {day}
                       {temEscala && !isSelected && (
                         <span
-                          className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                          style={{ backgroundColor: "#7c3aed" }}
+                          className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--color-primary)]"
                         />
                       )}
                     </button>
@@ -828,9 +824,9 @@ export default function Escalas() {
         </div>
 
         {/* Escala do dia */}
-        <div className="bg-white rounded-2xl border border-[#e5e0f8] overflow-hidden flex flex-col">
-          <div className="px-6 py-4 border-b border-[#f0eefe]">
-            <h2 className="font-semibold text-[#1e1b4b]">
+        <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] overflow-hidden flex flex-col">
+          <div className="px-6 py-4 border-b border-[var(--color-border)]">
+            <h2 className="font-semibold text-[var(--color-text)]">
               {diaSelecionado
                 ? `${diaSelecionado} de ${mesNomes[mesAtual.month]}`
                 : "Selecione um dia"}
@@ -840,7 +836,7 @@ export default function Escalas() {
                 <select
                   value={filtroMinisterio}
                   onChange={(e) => setFiltroMinisterio(e.target.value)}
-                  className="text-xs border border-[#e5e0f8] rounded-lg px-2 py-1 text-[#5b5077] bg-white focus:outline-none focus:border-[#a78bfa]"
+                  className="text-xs border border-[var(--color-border)] rounded-lg px-2 py-1 text-[var(--color-text)] bg-[var(--color-surface-2)] focus:outline-none focus:border-[var(--color-primary)]"
                 >
                   <option>Todos</option>
                   {MINISTERIOS.map((m) => (
@@ -881,7 +877,7 @@ export default function Escalas() {
                 className="my-6 border-0 bg-transparent shadow-none"
               />
             ) : (
-              <div className="divide-y divide-[#f0eefe]">
+              <div className="divide-y divide-[var(--color-border)]">
                 {itemsFiltrados.map((item) => {
                   const roleName = item.roleName;
                   const colors = MINISTERIO_COLORS[roleName] || { bg: "#f5f3ff", text: "#7c3aed" };
@@ -892,14 +888,14 @@ export default function Escalas() {
                   const isSwap = item.status === "SWAP_REQUESTED";
 
                   return (
-                    <div key={item.id} className={`px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#fafafe] transition-colors group ${focusedScheduleItemId === item.id ? "bg-[#faf5ff] ring-2 ring-inset ring-[#7c3aed]" : ""}`}>
+                    <div key={item.id} className={`px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[var(--color-surface-2)] transition-colors group ${focusedScheduleItemId === item.id ? "bg-[var(--color-primary-light)]/40 ring-2 ring-inset ring-[var(--color-primary)]" : ""}`}>
                       <div className="flex items-center gap-3 min-w-0">
                         <Avatar name={item.member.name} avatarKey={item.member.avatarKey} size={36} className="flex-shrink-0" />
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-[#1e1b4b] truncate">{item.member.name}</p>
+                            <p className="text-sm font-medium text-[var(--color-text)] truncate">{item.member.name}</p>
                             {isMyItem && (
-                              <span className="text-[10px] bg-violet-100 text-violet-700 font-bold px-1.5 py-0.2 rounded">Você</span>
+                              <span className="text-[10px] bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-bold px-1.5 py-0.2 rounded">Você</span>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -922,10 +918,10 @@ export default function Escalas() {
                           isDeclined ? "bg-rose-100 text-rose-700" :
                           isSwap ? "bg-sky-100 text-sky-700" : "bg-slate-100 text-slate-700"
                         }`}>
-                          {isConfirmed ? "Confirmado ✅" :
-                           isPending ? "Aguardando resposta ⏳" :
-                           isDeclined ? "Recusado ❌" :
-                           isSwap ? "Troca pendente 🔄" : item.status}
+                          {isConfirmed ? "Confirmado" :
+                           isPending ? "Aguardando resposta" :
+                           isDeclined ? "Recusado" :
+                           isSwap ? "Troca pendente" : item.status}
                         </span>
 
                         {/* Botões de Ação para o voluntário logado */}
@@ -954,10 +950,10 @@ export default function Escalas() {
                             {!isDeclined && !isSwap && (
                               <button
                                 onClick={() => openSwapModal(item)}
-                                className="px-2.5 py-1 rounded-lg border border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] text-xs font-semibold transition-all flex items-center gap-1"
+                                className="px-2.5 py-1 rounded-lg border border-[#c4b5fd] text-[#7c3aed] hover:bg-[#f5f3ff] text-xs font-semibold transition-all"
                                 title="Solicitar troca com outro voluntário"
                               >
-                                <span>🔄</span> Pedir Troca
+                                Pedir Troca
                               </button>
                             )}
                           </div>
@@ -1354,7 +1350,7 @@ export default function Escalas() {
                       className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
                       style={{ backgroundColor: "#7c3aed" }}
                     >
-                      {swapSubmitting ? "Enviando pedido..." : "Enviar Pedido de Troca 🔄"}
+                      {swapSubmitting ? "Enviando pedido..." : "Enviar Pedido de Troca"}
                     </button>
                   </div>
                 </div>

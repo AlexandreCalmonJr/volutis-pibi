@@ -19,7 +19,7 @@ import RegisterPage from "./pages/RegisterPage";
 import CadastroPage from "./pages/CadastroPage";
 import DefinirSenhaPage from "./pages/DefinirSenhaPage";
 import { useRealtimeNotifications } from "./ws";
-import { ToastHost } from "./components/ui";
+import { ToastHost, ThemeToggle } from "./components/ui";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { PullToRefresh } from "./components/PullToRefresh";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -178,11 +178,11 @@ function AppLayout() {
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="bg-white border-b border-[var(--color-border)] px-4 sm:px-6 py-4 flex items-center justify-between flex-shrink-0">
+        <header className="bg-[var(--color-surface)] border-b border-[var(--color-border)] px-4 sm:px-6 py-4 flex items-center justify-between flex-shrink-0 transition-colors">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center text-[var(--color-muted)] hover:bg-[var(--color-background)] transition-colors"
+              className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -202,14 +202,16 @@ function AppLayout() {
               </svg>
               <input
                 placeholder="Buscar..."
-                className="pl-9 pr-4 py-2 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-primary)] w-48 transition-all focus:w-64"
+                className="pl-9 pr-4 py-2 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-surface-2)] text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-primary)] w-48 transition-all focus:w-64"
               />
             </div>
+
+            <ThemeToggle />
 
             <div className="relative">
               <button
                 onClick={() => setNotificationsOpen((open) => !open)}
-                className="relative w-9 h-9 rounded-xl flex items-center justify-center text-[var(--color-muted)] hover:bg-[var(--color-background)] transition-colors border border-[var(--color-border)]"
+                className="relative w-9 h-9 rounded-xl flex items-center justify-center text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] transition-colors border border-[var(--color-border)]"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -222,7 +224,7 @@ function AppLayout() {
               </button>
 
               {notificationsOpen && (
-                <div className="absolute right-0 mt-2 w-[360px] max-w-[90vw] rounded-2xl border border-[var(--color-border)] bg-white shadow-2xl overflow-hidden z-30">
+                <div className="absolute right-0 mt-2 w-[360px] max-w-[90vw] rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl overflow-hidden z-30 animate-in fade-in zoom-in-95 duration-150">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
                     <div>
                       <p className="text-sm font-semibold text-[var(--color-text)]">Notificações</p>
@@ -238,12 +240,12 @@ function AppLayout() {
                   </div>
 
                   {pushAvailable && pushEnabledServer && pushPermission !== "granted" && (
-                    <div className="px-4 py-3 border-b border-[var(--color-border)] bg-violet-50/60">
+                    <div className="px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-primary-light)]/40">
                       <p className="text-xs font-medium text-[var(--color-text)]">Ative as notificações do dispositivo para receber alertas mesmo com o app fechado.</p>
                       <button
                         onClick={handleEnablePush}
                         disabled={pushBusy || pushPermission === "denied"}
-                        className="mt-2 text-xs font-semibold text-[var(--color-primary)] disabled:opacity-40"
+                        className="mt-2 text-xs font-semibold text-[var(--color-primary)] disabled:opacity-40 cursor-pointer"
                       >
                         {pushPermission === "denied" ? "Permissão bloqueada no navegador" : pushBusy ? "Ativando..." : "Ativar notificações no celular"}
                       </button>
@@ -260,8 +262,8 @@ function AppLayout() {
                         <button
                           key={item.id}
                           onClick={() => handleNotificationClick(item)}
-                          className={`w-full text-left px-4 py-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-background)] transition-colors ${
-                            item.readAt ? "opacity-75" : "bg-violet-50/50"
+                          className={`w-full text-left px-4 py-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-2)] transition-colors ${
+                            item.readAt ? "opacity-75" : "bg-[var(--color-primary-light)]/20"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
@@ -278,7 +280,7 @@ function AppLayout() {
                     )}
                   </div>
 
-                  <div className="px-4 py-3 border-t border-[var(--color-border)] bg-[var(--color-background)]">
+                  <div className="px-4 py-3 border-t border-[var(--color-border)] bg-[var(--color-surface-2)]">
                     <button
                       onClick={() => {
                         navigate("/comunicacao");

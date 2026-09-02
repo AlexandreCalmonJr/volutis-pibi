@@ -564,35 +564,43 @@ export default function Perfil() {
                 <p className="mt-2 text-xs text-[#7c6ea8]">Use 8+ caracteres com maiúsculas, minúsculas, números e símbolo.</p>
               </div>
 
-              <button type="submit" disabled={passwordSaving} className="px-5 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>
-                {passwordSaving ? "Atualizando senha..." : "Atualizar senha"}
-              </button>
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={passwordSaving}
+                  className="px-5 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 hover:opacity-90 transition-all cursor-pointer shadow-sm"
+                  style={{ backgroundColor: "var(--color-primary)" }}
+                >
+                  {passwordSaving ? "Atualizando senha..." : "Atualizar senha"}
+                </button>
+              </div>
             </form>
           </div>
 
-
           {/* Autenticação em Duas Etapas (2FA / MFA) */}
-          <div className="bg-white dark:bg-[var(--color-surface)] rounded-2xl border border-[#e5e0f8] dark:border-[var(--color-border)] p-6 space-y-4">
+          <div className="mt-8 bg-[var(--color-surface-2)]/50 dark:bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-6 space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 flex items-center justify-center text-lg">
-                  🔐
+                <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#1e1b4b] dark:text-[var(--color-ink)]">
+                  <h3 className="text-base font-bold text-[var(--color-text)]">
                     Autenticação em 2 Etapas (2FA)
                   </h3>
-                  <p className="text-xs text-[#7c6ea8] dark:text-[var(--color-muted)]">
+                  <p className="text-xs text-[var(--color-muted)]">
                     Segurança extra com Google Authenticator ou Authy
                   </p>
                 </div>
               </div>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${twoFaEnabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
-                {twoFaEnabled ? "✅ Ativado" : "Inativo"}
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${twoFaEnabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"}`}>
+                {twoFaEnabled ? "Ativado" : "Inativo"}
               </span>
             </div>
 
-            <p className="text-xs text-[#5b5077] dark:text-[var(--color-text-secondary)] leading-relaxed">
+            <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
               Proteja sua conta gerando um código temporário de 6 dígitos no seu aplicativo autenticador a cada login.
             </p>
 
@@ -602,7 +610,7 @@ export default function Perfil() {
               disabled={twoFaLoading}
               className="px-4 py-2.5 rounded-xl border border-violet-300 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-xs font-bold hover:bg-violet-100 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
-              {twoFaLoading ? "Gerando QR Code..." : twoFaEnabled ? "Reconfigurar 2FA 📲" : "Configurar 2FA 📲"}
+              {twoFaLoading ? "Gerando QR Code..." : twoFaEnabled ? "Reconfigurar 2FA" : "Configurar 2FA"}
             </button>
           </div>
         </div>
@@ -741,7 +749,7 @@ export default function Perfil() {
 
           <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-[#1e1b4b]">Notificações no Celular 📲</h3>
+              <h3 className="text-base font-bold text-[#1e1b4b]">Notificações no Celular</h3>
               {isSupported && (
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isSubscribed ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
                   <span className={`w-2 h-2 rounded-full ${isSubscribed ? "bg-emerald-500" : "bg-amber-500"}`} />
@@ -949,8 +957,12 @@ export default function Perfil() {
             <div className="fixed inset-0 bg-black/60 backdrop-blur-md" onClick={() => setTwoFaModalOpen(false)} />
             <div className="relative bg-white dark:bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in-95 duration-200">
               <div className="flex items-start justify-between border-b border-[var(--color-border)] pb-3 flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">🔐</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 flex items-center justify-center">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
                   <div>
                     <h3 className="font-bold text-base text-[var(--color-ink)]">
                       Configurar Autenticador (2FA)

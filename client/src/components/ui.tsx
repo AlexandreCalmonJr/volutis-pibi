@@ -7,10 +7,10 @@ export { EmptyState } from "./EmptyState";
 
 /* ── Status chip ────────────────────────────────────────── */
 const STATUS_META: Record<string, { label: string; cls: string }> = {
-  PENDING: { label: "⏳ Pendente", cls: "bg-[var(--color-accent-warm-light)] text-[var(--color-warn)]" },
-  CONFIRMED: { label: "✅ Confirmado", cls: "bg-[var(--color-ok-light)] text-[var(--color-ok)]" },
-  DECLINED: { label: "❌ Recusado", cls: "bg-[var(--color-danger-light)] text-[var(--color-danger)]" },
-  SWAP_REQUESTED: { label: "🔄 Troca solicitada", cls: "bg-[var(--color-primary-light)] text-[var(--color-accent-soft)]" },
+  PENDING: { label: "Pendente", cls: "bg-[var(--color-accent-warm-light)] text-[var(--color-warn)]" },
+  CONFIRMED: { label: "Confirmado", cls: "bg-[var(--color-ok-light)] text-[var(--color-ok)]" },
+  DECLINED: { label: "Recusado", cls: "bg-[var(--color-danger-light)] text-[var(--color-danger)]" },
+  SWAP_REQUESTED: { label: "Troca solicitada", cls: "bg-[var(--color-primary-light)] text-[var(--color-accent-soft)]" },
 };
 
 export function StatusChip({ status }: { status: string }) {

@@ -62,16 +62,16 @@ export function DevotionalCard() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full bg-violet-600 text-white text-[11px] font-bold uppercase tracking-wider shadow-sm">
-            📖 Versículo do Dia
+            Versículo do Dia
           </span>
         </div>
 
         <button
           onClick={handleShare}
-          className="px-3 py-1 rounded-xl border border-violet-300 dark:border-violet-800 bg-white/80 dark:bg-slate-900/80 text-violet-700 dark:text-violet-300 text-xs font-semibold hover:bg-violet-50 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+          className="px-3.5 py-1.5 rounded-xl border border-violet-300 dark:border-violet-800 bg-white/80 dark:bg-slate-900/80 text-violet-700 dark:text-violet-300 text-xs font-semibold hover:bg-violet-50 transition-all shadow-sm active:scale-95 cursor-pointer"
           title="Copiar versículo formatado para o WhatsApp"
         >
-          {copied ? "✅ Copiado!" : "📋 Compartilhar"}
+          {copied ? "Copiado!" : "Compartilhar"}
         </button>
       </div>
 
@@ -90,7 +90,7 @@ export function DevotionalCard() {
       {/* Reflection */}
       <div className="pt-2 border-t border-violet-200/50 dark:border-violet-900/40">
         <p className={`text-xs text-[var(--color-text-secondary)] leading-relaxed ${isExpanded ? "" : "line-clamp-2"}`}>
-          💡 <span className="font-semibold text-[var(--color-ink)]">Reflexão:</span> {devotional.reflection}
+          <span className="font-semibold text-[var(--color-ink)]">Reflexão:</span> {devotional.reflection}
         </p>
         {devotional.reflection.length > 100 && (
           <button
