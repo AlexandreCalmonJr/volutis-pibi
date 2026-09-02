@@ -290,6 +290,12 @@ export default function Eventos() {
                       label="Ações"
                       items={[
                         {
+                          id: "chat",
+                          label: "Chat do Culto",
+                          description: "Conversar com a equipe escalada",
+                          onClick: () => navigate(`/chat?eventId=${encodeURIComponent(String(evento.id))}`),
+                        },
+                        {
                           id: "media",
                           label: "Mídias & Telão",
                           description: "Gerenciar fundos e slides",

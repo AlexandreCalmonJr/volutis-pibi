@@ -94,14 +94,14 @@ export default function Comunicacao() {
 
   const user = useAuth((s) => s.user);
   const isLeaderOrAdmin = user?.role === "ADMIN" || user?.role === "MINISTRY_LEADER";
-  const requestedTab = tabParam === "notificacoes" ? tabParam : tabParam === "whatsapp" && isLeaderOrAdmin ? tabParam : tabParam === "feed" ? tabParam : "chat";
+  const requestedTab = tabParam === "notificacoes" ? "notificacoes" : "whatsapp";
   const notifications = useNotifications((s) => s.items);
   const setNotifications = useNotifications((s) => s.setItems);
   const markReadLocal = useNotifications((s) => s.markReadLocal);
   const markAllReadLocal = useNotifications((s) => s.markAllReadLocal);
 
   useEffect(() => {
-    setAba(requestedTab);
+    setAba(requestedTab as any);
   }, [requestedTab]);
 
   useEffect(() => {
@@ -446,28 +446,15 @@ export default function Comunicacao() {
     await fetchFeed();
   }
 
-  function handleChangeTab(nextTab: "chat" | "feed" | "notificacoes" | "whatsapp") {
+  function handleChangeTab(nextTab: "notificacoes" | "whatsapp") {
     setAba(nextTab);
     const params = new URLSearchParams(searchParams);
     params.set("tab", nextTab);
-    if (nextTab !== "chat") {
-      params.delete("eventId");
-      params.delete("messageId");
-    } else if (eventId) {
-      params.set("eventId", eventId);
-    }
+    params.delete("eventId");
+    params.delete("messageId");
     if (nextTab !== "notificacoes") {
       params.delete("notificationId");
     }
-    setSearchParams(params, { replace: true });
-  }
-
-  function handleSelectEvent(nextEventId: string) {
-    setEventId(nextEventId);
-    const params = new URLSearchParams(searchParams);
-    params.set("tab", "chat");
-    params.set("eventId", nextEventId);
-    params.delete("messageId");
     setSearchParams(params, { replace: true });
   }
 
@@ -479,240 +466,97 @@ export default function Comunicacao() {
     navigate(target.path);
   }
 
+  if (!isLeaderOrAdmin) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto py-8">
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-8 text-center space-y-4 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-violet-100 dark:bg-violet-950/60 text-[var(--color-primary)] mx-auto flex items-center justify-center">
+            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-[var(--color-ink)]" style={{ fontFamily: "'Fraunces', serif" }}>
+              Comunicação & Conversas
+            </h2>
+            <p className="text-sm text-[var(--color-muted)] mt-1.5 max-w-md mx-auto">
+              A aba de disparos oficiais é restrita aos líderes e à administração. Acesse os chats e murais das suas equipes nos botões abaixo:
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => navigate("/chat")}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:opacity-95 cursor-pointer shadow-sm"
+            >
+              Abrir Chats dos Cultos
+            </button>
+            <button
+              onClick={() => navigate("/ministerios")}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] font-semibold text-sm hover:bg-[var(--color-surface)] cursor-pointer"
+            >
+              Acessar Meu Ministério
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>
-            Comunicação
+          <h1 className="text-2xl font-bold text-[var(--color-ink)]" style={{ fontFamily: "'Fraunces', serif" }}>
+            Central de Comunicação & Disparos
           </h1>
-          <p className="text-[#5b5077] text-sm mt-1">
-            Chat por evento · Notificações{isLeaderOrAdmin ? " · WhatsApp & Comunicados" : ""}
+          <p className="text-[var(--color-muted)] text-sm mt-1">
+            Disparos oficiais para a igreja, conexão WhatsApp e histórico de notificações
           </p>
+        </div>
+
+        {/* Links rápidos para Chat e Hub de Ministérios */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("/chat")}
+            className="px-3.5 py-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink)] text-xs font-semibold hover:bg-[var(--color-surface-2)] transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <svg className="w-4 h-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            Chats dos Cultos ↗
+          </button>
+          <button
+            onClick={() => navigate("/ministerios")}
+            className="px-3.5 py-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink)] text-xs font-semibold hover:bg-[var(--color-surface-2)] transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <svg className="w-4 h-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Hub dos Ministérios ↗
+          </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white border border-[#e5e0f8] rounded-xl p-1 w-fit">
-        {(["chat", "feed", "notificacoes", ...(isLeaderOrAdmin ? ["whatsapp"] : [])] as const).map((a) => (
-          <button
-            key={a}
-            onClick={() => handleChangeTab(a as any)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${aba === a ? "text-white shadow-sm" : "text-[#7c6ea8] hover:bg-gray-50"}`}
-            style={aba === a ? { backgroundColor: "#7c3aed" } : {}}
-          >
-            {a === "chat" ? "Chats de Evento" : a === "feed" ? "Feed" : a === "notificacoes" ? "Notificações" : "WhatsApp & Disparos"}
-          </button>
-        ))}
+      <div className="flex gap-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-1 w-fit">
+        <button
+          onClick={() => handleChangeTab("whatsapp")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+            aba === "whatsapp" ? "bg-[var(--color-primary)] text-white shadow-sm" : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]"
+          }`}
+        >
+          WhatsApp & Disparos
+        </button>
+        <button
+          onClick={() => handleChangeTab("notificacoes")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+            aba === "notificacoes" ? "bg-[var(--color-primary)] text-white shadow-sm" : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]"
+          }`}
+        >
+          Notificações Oficiais
+        </button>
       </div>
-
-      {aba === "feed" && (
-        <div className="grid grid-cols-1 xl:grid-cols-[380px_minmax(0,1fr)] gap-6">
-          <div className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-4 h-fit">
-            <div>
-              <h3 className="font-bold text-[#1e1b4b]">Feed da Igreja</h3>
-              <p className="text-xs text-[#7c6ea8] mt-1">Compartilhe ideias, fotos, áudios e links com a equipe.</p>
-            </div>
-            <form onSubmit={handleCreateFeedPost} className="space-y-3">
-              <textarea value={feedForm.content} onChange={(e) => setFeedForm((prev) => ({ ...prev, content: e.target.value }))} rows={5} placeholder="Conte uma novidade, deixe um recado ou organize a equipe..." className="w-full px-4 py-3 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] focus:outline-none focus:border-[#7c3aed] resize-none" />
-              <div className="grid grid-cols-2 gap-3">
-                <select value={feedForm.mediaType} onChange={(e) => setFeedForm((prev) => ({ ...prev, mediaType: e.target.value }))} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
-                  <option value="IMAGE">Foto</option>
-                  <option value="AUDIO">Áudio</option>
-                  <option value="LINK">Link</option>
-                </select>
-                <input value={feedForm.mediaUrl} onChange={(e) => setFeedForm((prev) => ({ ...prev, mediaUrl: e.target.value }))} placeholder="URL da mídia" className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
-              </div>
-              <input value={feedForm.linkUrl} onChange={(e) => setFeedForm((prev) => ({ ...prev, linkUrl: e.target.value }))} placeholder="URL extra (opcional)" className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
-              <button type="submit" disabled={postingFeed} className="w-full py-3 px-4 rounded-xl text-white font-medium text-sm transition-all shadow-sm hover:opacity-90 disabled:opacity-40" style={{ backgroundColor: "#7c3aed" }}>{postingFeed ? "Publicando..." : "Publicar no feed"}</button>
-            </form>
-          </div>
-          <div className="space-y-4">
-            {loadingFeed ? (
-              <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8 text-center text-sm text-[#7c6ea8]">Carregando feed...</div>
-            ) : feedPosts.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-[#e5e0f8] p-8 text-center text-sm text-[#7c6ea8]">Ainda não há publicações. Faça a primeira!</div>
-            ) : (
-              feedPosts.map((post) => (
-                <div key={post.id} className="bg-white rounded-2xl border border-[#e5e0f8] p-6 space-y-4">
-                  <div className="flex items-start gap-3">
-                    <Avatar name={post.member?.name || post.authorName} photoUrl={post.member?.photoUrl} avatarKey={post.member?.avatarKey} size={40} />
-                    <div className="min-w-0">
-                      <p className="font-semibold text-[#1e1b4b]">{post.authorName}</p>
-                      <p className="text-xs text-[#7c6ea8]">{formatNotificationDate(post.createdAt)}</p>
-                    </div>
-                  </div>
-                  {post.content && <p className="text-sm text-[#1e1b4b] whitespace-pre-wrap">{post.content}</p>}
-                  {post.mediaUrl && post.mediaType === "IMAGE" && <img src={post.mediaUrl} alt="Publicação" className="w-full rounded-2xl border border-[#ede9fe] object-cover max-h-[420px]" />}
-                  {post.mediaUrl && post.mediaType === "AUDIO" && <audio controls className="w-full"><source src={post.mediaUrl} /></audio>}
-                  {post.linkUrl && <a href={post.linkUrl} target="_blank" rel="noopener noreferrer" className="inline-flex rounded-xl bg-[#f5f3ff] px-4 py-2 text-sm font-semibold text-[#7c3aed]">Abrir link compartilhado</a>}
-                  <div className="border-t border-[#f0eefe] pt-4 space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[#7c6ea8]">Comentários ({post.comments?.length || 0})</p>
-                    <div className="space-y-3">
-                      {(post.comments || []).map((comment: any) => (
-                        <div key={comment.id} className="bg-[#faf8ff] rounded-xl p-3 border border-[#ede9fe]">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Avatar name={comment.member?.name || comment.authorName} photoUrl={comment.member?.photoUrl} avatarKey={comment.member?.avatarKey} size={28} />
-                            <p className="text-xs font-semibold text-[#1e1b4b]">{comment.authorName}</p>
-                            <span className="text-[11px] text-[#7c6ea8]">{formatNotificationDate(comment.createdAt)}</span>
-                          </div>
-                          <p className="text-sm text-[#5b5077]">{comment.content}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <input value={feedCommentDrafts[post.id] || ""} onChange={(e) => setFeedCommentDrafts((prev) => ({ ...prev, [post.id]: e.target.value }))} placeholder="Comente nesta publicação" className="flex-1 px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl" />
-                      <button type="button" onClick={() => void handleFeedComment(post.id)} className="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style={{ backgroundColor: "#7c3aed" }}>Comentar</button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Chat */}
-      {aba === "chat" && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4" style={{ height: "calc(100vh - 280px)", minHeight: "400px" }}>
-          {/* Event list */}
-          <div className="bg-white rounded-2xl border border-[#e5e0f8] overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-[#f0eefe]">
-              <p className="text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider">Eventos</p>
-            </div>
-            <div className="flex-1 overflow-y-auto divide-y divide-[#f0eefe]">
-              {loadingEvents ? (
-                <div className="p-6 text-center text-sm text-[#7c6ea8]">Carregando eventos...</div>
-              ) : events.length === 0 ? (
-                <div className="p-6 text-center text-sm text-[#7c6ea8]">Nenhum evento encontrado.</div>
-              ) : (
-                events.map((ev) => {
-                  const ativo = eventId === ev.id;
-                  return (
-                    <button
-                      key={ev.id}
-                      onClick={() => handleSelectEvent(ev.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${ativo ? "bg-[#f5f3ff]" : "hover:bg-gray-50"}`}
-                    >
-                      <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                        style={{ backgroundColor: "#7c3aed" }}
-                      >
-                        {ev.title?.[0] || "E"}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${ativo ? "text-[#7c3aed]" : "text-[#1e1b4b]"}`}>
-                          {ev.title}
-                        </p>
-                        <p className="text-xs text-[#7c6ea8] truncate">{formatDate(ev.date)}</p>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Chat window */}
-          <div className="lg:col-span-3 bg-white rounded-2xl border border-[#e5e0f8] overflow-hidden flex flex-col">
-            {/* Chat header */}
-            <div className="px-6 py-4 border-b border-[#f0eefe] flex items-center gap-3">
-              <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                style={{ backgroundColor: "#7c3aed" }}
-              >
-                {selectedEvent?.title?.[0] || "E"}
-              </div>
-              <div>
-                <p className="font-semibold text-[#1e1b4b]">{selectedEvent?.title || "Selecione um evento"}</p>
-                <p className="text-xs text-[#7c6ea8]">
-                  {selectedEvent ? `${messages.length} mensagens` : ""}
-                </p>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {chatError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {chatError}
-                </div>
-              )}
-              {!eventId ? (
-                <div className="flex-1 flex items-center justify-center h-full">
-                  <p className="text-sm text-[#7c6ea8]">Selecione um evento para ver as mensagens.</p>
-                </div>
-              ) : loadingMessages ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-sm text-[#7c6ea8]">Carregando mensagens...</p>
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-sm text-[#7c6ea8]">Nenhuma mensagem ainda. Envie a primeira!</p>
-                </div>
-              ) : (
-                messages.map((msg) => {
-                  const mine = isMyMessage(msg);
-                  const sender = toChatSender(msg);
-                  return (
-                    <div key={msg.id} className={`flex gap-3 ${mine ? "flex-row-reverse" : ""} ${highlightedMessageId === msg.id ? "rounded-2xl ring-2 ring-[#7c3aed] p-2" : ""}`}>
-                      {!mine && (
-                        <Avatar name={sender.name} photoUrl={sender.photoUrl} avatarKey={sender.avatarKey} size={32} className="flex-shrink-0 mt-0.5" />
-                      )}
-                      <div className={`max-w-sm ${mine ? "items-end" : "items-start"} flex flex-col`}>
-                        {!mine && (
-                          <p className="text-xs font-medium text-[#5b5077] mb-1">{sender.name}</p>
-                        )}
-                        <div
-                          className="px-4 py-2.5 rounded-2xl text-sm"
-                          style={
-                            mine
-                              ? { backgroundColor: "#7c3aed", color: "white", borderBottomRightRadius: "4px" }
-                              : { backgroundColor: "#f5f3ff", color: "#1e1b4b", borderBottomLeftRadius: "4px" }
-                          }
-                        >
-                          {msg.content}
-                        </div>
-                        <p className="text-xs text-[#7c6ea8] mt-1">{formatTime(msg.createdAt)}</p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Input */}
-            <div className="px-6 py-4 border-t border-[#f0eefe]">
-              <div className="flex gap-3">
-                <input
-                  value={novaMensagem}
-                  onChange={(e) => setNovaMensagem(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  disabled={!eventId || sending}
-                  placeholder={selectedEvent ? `Mensagem para ${selectedEvent.title}...` : "Selecione um evento..."}
-                  className="flex-1 px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] placeholder:text-[#c4b5fd] focus:outline-none focus:border-[#a78bfa] transition-colors disabled:opacity-50"
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={!eventId || !novaMensagem.trim() || sending}
-                  className="px-4 py-2.5 rounded-xl text-white transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  style={{ backgroundColor: "#7c3aed" }}
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Notificações */}
       {aba === "notificacoes" && (

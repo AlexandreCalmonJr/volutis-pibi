@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../store";
 import { Avatar } from "../components/Avatar";
@@ -72,6 +73,7 @@ function prettyStatus(status: string) {
 }
 
 export default function MinisteriosPage() {
+  const navigate = useNavigate();
   const user = useAuth((s) => s.user);
   const isAdmin = user?.role === "ADMIN";
   const canManage = user?.role === "ADMIN" || user?.role === "MINISTRY_LEADER";
@@ -294,7 +296,14 @@ export default function MinisteriosPage() {
           <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>Ministérios e Liderança</h1>
           <p className="text-[#5b5077] text-sm mt-1">Administre ministérios, papéis de liderança e transferências com aprovação dos líderes.</p>
         </div>
-        <button onClick={loadData} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-[#f5f3ff]">Atualizar</button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate("/ministerios")} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-[#f5f3ff] cursor-pointer">
+            Ver Hub da Equipe ↗
+          </button>
+          <button onClick={loadData} className="px-4 py-2 rounded-xl border border-[#e5e0f8] text-[#7c3aed] text-sm font-semibold hover:bg-[#f5f3ff] cursor-pointer">
+            Atualizar
+          </button>
+        </div>
       </div>
 
       {feedback && <div className={`rounded-2xl border px-4 py-3 text-sm ${feedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>{feedback.text}</div>}

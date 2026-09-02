@@ -13,6 +13,8 @@ const Relatorios = lazy(() => import("./pages/Relatorios"));
 const Triagem = lazy(() => import("./pages/TriagemPage"));
 const Convites = lazy(() => import("./pages/ConvitesPage"));
 const Ministerios = lazy(() => import("./pages/MinisteriosPage"));
+const MinistryHub = lazy(() => import("./pages/MinistryHubPage"));
+const EventChat = lazy(() => import("./pages/EventChatPage"));
 const UsuariosAdmin = lazy(() => import("./pages/UsuariosAdminPage"));
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -36,13 +38,14 @@ const pageTitles: Record<string, string> = {
   "/eventos": "Eventos",
   "/voluntarios": "Voluntários",
   "/comunicacao": "Comunicação",
+  "/chat": "Chats dos Cultos",
   "/perfil": "Perfil",
   "/louvor": "Louvor",
   "/relatorios": "Relatórios",
   "/triagem": "Triagem",
   "/usuarios": "Usuários",
   "/convites": "Convites",
-  "/ministerios": "Ministérios",
+  "/ministerios": "Ministérios & Equipes",
 };
 
 function EscalaDeepLink() {
@@ -312,13 +315,16 @@ function AppLayout() {
                     <Route path="/eventos" element={<Eventos />} />
                     <Route path="/voluntarios" element={<Voluntarios />} />
                     <Route path="/comunicacao" element={<Comunicacao />} />
+                    <Route path="/chat" element={<EventChat />} />
                     <Route path="/perfil" element={<Perfil />} />
                     <Route path="/louvor" element={<Louvor />} />
                     <Route path="/relatorios" element={<LeaderRoute><Relatorios /></LeaderRoute>} />
                     <Route path="/triagem" element={<LeaderRoute><Triagem /></LeaderRoute>} />
                     <Route path="/usuarios" element={<LeaderRoute><UsuariosAdmin /></LeaderRoute>} />
                     <Route path="/convites" element={<LeaderRoute><Convites /></LeaderRoute>} />
-                    <Route path="/ministerios" element={<LeaderRoute><Ministerios /></LeaderRoute>} />
+                    <Route path="/ministerios" element={<MinistryHub />} />
+                    <Route path="/ministerios/:id" element={<MinistryHub />} />
+                    <Route path="/ministerios-gestao" element={<LeaderRoute><Ministerios /></LeaderRoute>} />
                     <Route path="/escala/:id" element={<EscalaDeepLink />} />
                     <Route path="*" element={<div className="text-center py-20"><p className="text-lg font-semibold text-[var(--color-text)]">Página não encontrada</p><p className="text-sm text-[var(--color-muted)] mt-2">O endpoint que você procura não existe.</p></div>} />
                   </Routes>
