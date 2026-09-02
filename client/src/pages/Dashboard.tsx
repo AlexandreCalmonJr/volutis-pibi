@@ -5,6 +5,7 @@ import { useAuth } from "../store";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { DevotionalCard } from "../components/DevotionalCard";
 import { AdminLogsModal } from "../components/AdminLogsModal";
+import { ModalPortal } from "../components/ModalPortal";
 
 interface DashboardEvent {
   id: string;
@@ -398,164 +399,168 @@ export default function Dashboard() {
       </div>
 
       {pushPanelOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setPushPanelOpen(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-[var(--color-text)]">Enviar notificação</h2>
-                <p className="text-sm text-[var(--color-text-secondary)] mt-1">Envie para um membro específico ou para todos</p>
-              </div>
-              <button onClick={() => setPushPanelOpen(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-lg">×</button>
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
-              {pushTestFeedback && (
-                <div className={`rounded-xl border px-4 py-3 text-sm ${pushTestFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
-                  {pushTestFeedback.text}
+        <ModalPortal isOpen={pushPanelOpen}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setPushPanelOpen(false)} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] flex flex-col animate-in zoom-in-95 duration-150">
+              <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--color-text)]">Enviar notificação</h2>
+                  <p className="text-sm text-[var(--color-text-secondary)] mt-1">Envie para um membro específico ou para todos</p>
                 </div>
-              )}
+                <button onClick={() => setPushPanelOpen(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-lg">×</button>
+              </div>
 
-              {pushMembersLoading ? (
-                <div className="py-8 text-center text-sm text-[var(--color-muted)]">Carregando membros...</div>
-              ) : (
-                <>
-                  <div>
-                    <label className="block text-sm font-semibold text-[var(--color-text)] mb-1.5">Destinatário</label>
-                    <select
-                      value={pushTarget}
-                      onChange={(e) => setPushTarget(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)]"
-                    >
-                      <option value="ALL">📢 Todos os membros ({pushMembers.length})</option>
-                      {pushMembers.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name} {m.pushDevices > 0 ? `(${m.pushDevices} dispositivo${m.pushDevices > 1 ? "s" : ""})` : "(sem push ativo)"}
-                        </option>
-                      ))}
-                    </select>
+              <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
+                {pushTestFeedback && (
+                  <div className={`rounded-xl border px-4 py-3 text-sm ${pushTestFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+                    {pushTestFeedback.text}
                   </div>
+                )}
 
-                  <div>
-                    <label className="block text-sm font-semibold text-[var(--color-text)] mb-1.5">Título</label>
-                    <input
-                      value={pushTitle}
-                      onChange={(e) => setPushTitle(e.target.value)}
-                      placeholder="Ex: Aviso importante"
-                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-primary)]"
-                    />
-                  </div>
+                {pushMembersLoading ? (
+                  <div className="py-8 text-center text-sm text-[var(--color-muted)]">Carregando membros...</div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-semibold text-[var(--color-text)] mb-1.5">Destinatário</label>
+                      <select
+                        value={pushTarget}
+                        onChange={(e) => setPushTarget(e.target.value)}
+                        className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)]"
+                      >
+                        <option value="ALL">📢 Todos os membros ({pushMembers.length})</option>
+                        {pushMembers.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} {m.pushDevices > 0 ? `(${m.pushDevices} dispositivo${m.pushDevices > 1 ? "s" : ""})` : "(sem push ativo)"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-semibold text-[var(--color-text)] mb-1.5">Mensagem</label>
-                    <textarea
-                      value={pushBody}
-                      onChange={(e) => setPushBody(e.target.value)}
-                      placeholder="Digite a mensagem da notificação..."
-                      rows={3}
-                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-primary)] resize-none"
-                    />
-                  </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-[var(--color-text)] mb-1.5">Título</label>
+                      <input
+                        value={pushTitle}
+                        onChange={(e) => setPushTitle(e.target.value)}
+                        placeholder="Ex: Aviso importante"
+                        className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-primary)]"
+                      />
+                    </div>
 
-                  {pushTarget !== "ALL" && (() => {
-                    const selected = pushMembers.find((m) => m.id === pushTarget);
-                    return selected && selected.pushDevices === 0 ? (
-                      <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-                        ⚠️ Este membro não possui dispositivos com push ativo. A notificação aparecerá no app, mas não chegará como notificação no celular. O membro precisa abrir o app e ativar as notificações.
-                      </div>
-                    ) : null;
-                  })()}
+                    <div>
+                      <label className="block text-sm font-semibold text-[var(--color-text)] mb-1.5">Mensagem</label>
+                      <textarea
+                        value={pushBody}
+                        onChange={(e) => setPushBody(e.target.value)}
+                        placeholder="Digite a mensagem da notificação..."
+                        rows={3}
+                        className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-primary)] resize-none"
+                      />
+                    </div>
 
-                  <div className="rounded-xl bg-violet-50/60 border border-violet-200 px-4 py-3 text-xs text-violet-800">
-                    💡 A notificação será entregue via push no celular (se o membro ativou) e também aparecerá dentro do app em tempo real via WebSocket.
-                  </div>
-                </>
-              )}
-            </div>
+                    {pushTarget !== "ALL" && (() => {
+                      const selected = pushMembers.find((m) => m.id === pushTarget);
+                      return selected && selected.pushDevices === 0 ? (
+                        <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                          ⚠️ Este membro não possui dispositivos com push ativo. A notificação aparecerá no app, mas não chegará como notificação no celular. O membro precisa abrir o app e ativar as notificações.
+                        </div>
+                      ) : null;
+                    })()}
 
-            <div className="px-6 py-4 border-t border-[var(--color-border)] flex justify-end gap-3">
-              <button onClick={() => setPushPanelOpen(false)} className="px-4 py-2 rounded-xl border border-[var(--color-border)] text-sm font-semibold text-[var(--color-text-secondary)]">Fechar</button>
-              <button
-                onClick={runPushTest}
-                disabled={pushTestBusy || !pushBody.trim() || pushMembersLoading}
-                className="px-5 py-2 rounded-xl bg-[#7c3aed] text-white text-sm font-semibold disabled:opacity-50 hover:bg-[#6d28d9] transition-colors"
-              >
-                {pushTestBusy ? "Enviando..." : pushTarget === "ALL" ? `Enviar para todos (${pushMembers.length})` : "Enviar"}
-              </button>
+                    <div className="rounded-xl bg-violet-50/60 border border-violet-200 px-4 py-3 text-xs text-violet-800">
+                      💡 A notificação será entregue via push no celular (se o membro ativou) e também aparecerá dentro do app em tempo real via WebSocket.
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="px-6 py-4 border-t border-[var(--color-border)] flex justify-end gap-3 flex-shrink-0">
+                <button onClick={() => setPushPanelOpen(false)} className="px-4 py-2 rounded-xl border border-[var(--color-border)] text-sm font-semibold text-[var(--color-text-secondary)]">Fechar</button>
+                <button
+                  onClick={runPushTest}
+                  disabled={pushTestBusy || !pushBody.trim() || pushMembersLoading}
+                  className="px-5 py-2 rounded-xl bg-[#7c3aed] text-white text-sm font-semibold disabled:opacity-50 hover:bg-[#6d28d9] transition-colors"
+                >
+                  {pushTestBusy ? "Enviando..." : pushTarget === "ALL" ? `Enviar para todos (${pushMembers.length})` : "Enviar"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {seedOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSeedOpen(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-[var(--color-text)]">Limpeza de dados para Produção</h2>
-                <p className="text-sm text-[var(--color-text-secondary)] mt-1">Remove registros de teste e seed, sem mexer na conta do administrador.</p>
-              </div>
-              <button onClick={() => setSeedOpen(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200">×</button>
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
-              {seedFeedback && (
-                <div className={`rounded-xl border px-4 py-3 text-sm ${seedFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
-                  {seedFeedback.text}
+        <ModalPortal isOpen={seedOpen}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSeedOpen(false)} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] flex flex-col animate-in zoom-in-95 duration-150">
+              <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--color-text)]">Limpeza de dados para Produção</h2>
+                  <p className="text-sm text-[var(--color-text-secondary)] mt-1">Remove registros de teste e seed, sem mexer na conta do administrador.</p>
                 </div>
-              )}
+                <button onClick={() => setSeedOpen(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-lg">×</button>
+              </div>
 
-              {seedLoading ? (
-                <div className="py-10 text-center text-sm text-[var(--color-muted)]">Carregando prévia...</div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
-                      <input type="checkbox" checked={seedOptions.removeVolunteers} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeVolunteers: e.target.checked }))} />
-                      <div>
-                        <p className="font-semibold text-[var(--color-text)]">Membros demo/teste</p>
-                        <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontrados: {seedPreview?.counts.volunteers ?? 0}</p>
-                      </div>
-                    </label>
-                    <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
-                      <input type="checkbox" checked={seedOptions.removeEvents} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeEvents: e.target.checked }))} />
-                      <div>
-                        <p className="font-semibold text-[var(--color-text)]">Eventos de seed</p>
-                        <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontrados: {seedPreview?.counts.events ?? 0}</p>
-                      </div>
-                    </label>
-                    <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
-                      <input type="checkbox" checked={seedOptions.removeSongs} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeSongs: e.target.checked }))} />
-                      <div>
-                        <p className="font-semibold text-[var(--color-text)]">Músicas demo</p>
-                        <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontradas: {seedPreview?.counts.songs ?? 0}</p>
-                      </div>
-                    </label>
-                    <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
-                      <input type="checkbox" checked={seedOptions.removeMinistries} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeMinistries: e.target.checked }))} />
-                      <div>
-                        <p className="font-semibold text-[var(--color-text)]">Ministérios de seed</p>
-                        <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontrados: {seedPreview?.counts.ministries ?? 0} · removíveis agora: {seedPreview?.counts.removableMinistries ?? 0}</p>
-                      </div>
-                    </label>
+              <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
+                {seedFeedback && (
+                  <div className={`rounded-xl border px-4 py-3 text-sm ${seedFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+                    {seedFeedback.text}
                   </div>
+                )}
 
-                  <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-                    Ministérios com membros vinculados não são apagados automaticamente. O administrador principal `admin@pibi.org.br` também é preservado.
-                  </div>
-                </>
-              )}
-            </div>
+                {seedLoading ? (
+                  <div className="py-10 text-center text-sm text-[var(--color-muted)]">Carregando prévia...</div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
+                        <input type="checkbox" checked={seedOptions.removeVolunteers} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeVolunteers: e.target.checked }))} />
+                        <div>
+                          <p className="font-semibold text-[var(--color-text)]">Membros demo/teste</p>
+                          <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontrados: {seedPreview?.counts.volunteers ?? 0}</p>
+                        </div>
+                      </label>
+                      <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
+                        <input type="checkbox" checked={seedOptions.removeEvents} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeEvents: e.target.checked }))} />
+                        <div>
+                          <p className="font-semibold text-[var(--color-text)]">Eventos de seed</p>
+                          <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontrados: {seedPreview?.counts.events ?? 0}</p>
+                        </div>
+                      </label>
+                      <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
+                        <input type="checkbox" checked={seedOptions.removeSongs} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeSongs: e.target.checked }))} />
+                        <div>
+                          <p className="font-semibold text-[var(--color-text)]">Músicas demo</p>
+                          <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontradas: {seedPreview?.counts.songs ?? 0}</p>
+                        </div>
+                      </label>
+                      <label className="rounded-xl border border-[var(--color-border)] p-4 flex items-start gap-3">
+                        <input type="checkbox" checked={seedOptions.removeMinistries} onChange={(e) => setSeedOptions((prev) => ({ ...prev, removeMinistries: e.target.checked }))} />
+                        <div>
+                          <p className="font-semibold text-[var(--color-text)]">Ministérios de seed</p>
+                          <p className="text-xs text-[var(--color-text-secondary)] mt-1">Encontrados: {seedPreview?.counts.ministries ?? 0} · removíveis agora: {seedPreview?.counts.removableMinistries ?? 0}</p>
+                        </div>
+                      </label>
+                    </div>
 
-            <div className="px-6 py-4 border-t border-[var(--color-border)] flex justify-end gap-3">
-              <button onClick={() => setSeedOpen(false)} className="px-4 py-2 rounded-xl border border-[var(--color-border)] text-sm font-semibold text-[var(--color-text-secondary)]">Fechar</button>
-              <button onClick={runSeedCleanup} disabled={seedLoading || seedSaving} className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold disabled:opacity-50">
-                {seedSaving ? "Limpando..." : "Executar limpeza"}
-              </button>
+                    <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                      Ministérios com membros vinculados não são apagados automaticamente. O administrador principal `admin@pibi.org.br` também é preservado.
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="px-6 py-4 border-t border-[var(--color-border)] flex justify-end gap-3 flex-shrink-0">
+                <button onClick={() => setSeedOpen(false)} className="px-4 py-2 rounded-xl border border-[var(--color-border)] text-sm font-semibold text-[var(--color-text-secondary)]">Fechar</button>
+                <button onClick={runSeedCleanup} disabled={seedLoading || seedSaving} className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold disabled:opacity-50">
+                  {seedSaving ? "Limpando..." : "Executar limpeza"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Modal de Logs & Dispositivos do Administrador */}

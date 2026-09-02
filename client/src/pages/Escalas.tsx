@@ -5,6 +5,7 @@ import { useAuth } from "../store";
 import { MINISTERIO_COLORS, MINISTERIOS } from "../lib/constants";
 import { Avatar } from "../components/Avatar";
 import { Skeleton, ListItemSkeleton } from "../components/Skeleton";
+import { ModalPortal } from "../components/ModalPortal";
 
 const dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -660,53 +661,56 @@ export default function Escalas() {
       )}
 
       {importPreviewOpen && importPreviewSummary && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 max-h-[85vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4">
-              <div>
-                <h3 className="font-bold text-lg text-[#1e1b4b]">Prévia da importação de escala</h3>
-                <p className="text-xs text-[#7c6ea8]">Revise as linhas antes de gravar no banco.</p>
+        <ModalPortal isOpen={importPreviewOpen && !!importPreviewSummary}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setImportPreviewOpen(false)} />
+            <div className="relative bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] my-auto overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4 flex-shrink-0">
+                <div>
+                  <h3 className="font-bold text-lg text-[#1e1b4b]">Prévia da importação de escala</h3>
+                  <p className="text-xs text-[#7c6ea8]">Revise as linhas antes de gravar no banco.</p>
+                </div>
+                <button onClick={() => setImportPreviewOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600">✕</button>
               </div>
-              <button onClick={() => setImportPreviewOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-              <div className="rounded-xl bg-[#f5f3ff] p-3"><p className="text-lg font-bold text-[#1e1b4b]">{importPreviewSummary.total}</p><p className="text-xs text-[#7c6ea8]">Linhas</p></div>
-              <div className="rounded-xl bg-emerald-50 p-3"><p className="text-lg font-bold text-emerald-700">{importPreviewSummary.ready}</p><p className="text-xs text-emerald-700">Prontas</p></div>
-              <div className="rounded-xl bg-amber-50 p-3"><p className="text-lg font-bold text-amber-700">{importPreviewSummary.warnings}</p><p className="text-xs text-amber-700">Avisos</p></div>
-              <div className="rounded-xl bg-rose-50 p-3"><p className="text-lg font-bold text-rose-700">{importPreviewSummary.errors}</p><p className="text-xs text-rose-700">Erros</p></div>
-            </div>
-            <div className="overflow-y-auto border border-[#ede9fe] rounded-xl">
-              <table className="w-full text-sm">
-                <thead className="bg-[#faf8ff] sticky top-0">
-                  <tr>
-                    <th className="text-left px-4 py-2">Linha</th>
-                    <th className="text-left px-4 py-2">Evento</th>
-                    <th className="text-left px-4 py-2">Função</th>
-                    <th className="text-left px-4 py-2">Voluntário</th>
-                    <th className="text-left px-4 py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {importPreviewRows.slice(0, 50).map((row) => (
-                    <tr key={`${row.row}-${row.memberName}-${row.roleName}`} className="border-t border-[#f0eefe]">
-                      <td className="px-4 py-2">{row.row}</td>
-                      <td className="px-4 py-2">{row.eventTitle}</td>
-                      <td className="px-4 py-2">{row.roleName}</td>
-                      <td className="px-4 py-2">{row.memberName}</td>
-                      <td className="px-4 py-2"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${row.status === "ready" ? "bg-emerald-100 text-emerald-700" : row.status === "warning" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"}`}>{row.message}</span></td>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center flex-shrink-0">
+                <div className="rounded-xl bg-[#f5f3ff] p-3"><p className="text-lg font-bold text-[#1e1b4b]">{importPreviewSummary.total}</p><p className="text-xs text-[#7c6ea8]">Linhas</p></div>
+                <div className="rounded-xl bg-emerald-50 p-3"><p className="text-lg font-bold text-emerald-700">{importPreviewSummary.ready}</p><p className="text-xs text-emerald-700">Prontas</p></div>
+                <div className="rounded-xl bg-amber-50 p-3"><p className="text-lg font-bold text-amber-700">{importPreviewSummary.warnings}</p><p className="text-xs text-amber-700">Avisos</p></div>
+                <div className="rounded-xl bg-rose-50 p-3"><p className="text-lg font-bold text-rose-700">{importPreviewSummary.errors}</p><p className="text-xs text-rose-700">Erros</p></div>
+              </div>
+              <div className="overflow-y-auto border border-[#ede9fe] rounded-xl flex-1">
+                <table className="w-full text-sm">
+                  <thead className="bg-[#faf8ff] sticky top-0">
+                    <tr>
+                      <th className="text-left px-4 py-2">Linha</th>
+                      <th className="text-left px-4 py-2">Evento</th>
+                      <th className="text-left px-4 py-2">Função</th>
+                      <th className="text-left px-4 py-2">Voluntário</th>
+                      <th className="text-left px-4 py-2">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="pt-3 flex items-center justify-end gap-2 border-t border-[#f0eefe]">
-              <button type="button" onClick={() => setImportPreviewOpen(false)} disabled={importingExcel} className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all">Cancelar</button>
-              <button type="button" onClick={confirmImportExcel} disabled={importingExcel || importPreviewSummary.errors > 0} className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all shadow-sm disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>
-                {importingExcel ? "Importando..." : "Confirmar importação"}
-              </button>
+                  </thead>
+                  <tbody>
+                    {importPreviewRows.slice(0, 50).map((row) => (
+                      <tr key={`${row.row}-${row.memberName}-${row.roleName}`} className="border-t border-[#f0eefe]">
+                        <td className="px-4 py-2">{row.row}</td>
+                        <td className="px-4 py-2">{row.eventTitle}</td>
+                        <td className="px-4 py-2">{row.roleName}</td>
+                        <td className="px-4 py-2">{row.memberName}</td>
+                        <td className="px-4 py-2"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${row.status === "ready" ? "bg-emerald-100 text-emerald-700" : row.status === "warning" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"}`}>{row.message}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-[#f0eefe] flex-shrink-0">
+                <button type="button" onClick={() => setImportPreviewOpen(false)} disabled={importingExcel} className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all">Cancelar</button>
+                <button type="button" onClick={confirmImportExcel} disabled={importingExcel || importPreviewSummary.errors > 0} className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all shadow-sm disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>
+                  {importingExcel ? "Importando..." : "Confirmar importação"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -969,100 +973,105 @@ export default function Escalas() {
       </div>
 
       {modalAddOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5">
-            <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4">
-              <div>
-                <h3 className="font-bold text-lg text-[#1e1b4b]">{replacementItem ? "Substituir voluntário da escala" : "Adicionar voluntário à escala"}</h3>
-                <p className="text-xs text-[#7c6ea8]">{replacementItem ? `Escala atual: ${replacementItem.member.name} em ${replacementItem.eventTitle}` : "Escolha evento, ministério, função e voluntário."}</p>
-              </div>
-              <button onClick={() => setModalAddOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors">✕</button>
-            </div>
-
-            {addError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{addError}</div>}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Evento</label>
-                <select value={selectedEventForAdd} onChange={(e) => setSelectedEventForAdd(e.target.value)} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
-                  <option value="">Selecione o evento</option>
-                  {eventOptions.map((event) => (
-                    <option key={event.id} value={event.id}>{event.title} — {new Date(event.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Ministério</label>
-                <select value={selectedAddMinistryId} onChange={(e) => setSelectedAddMinistryId(e.target.value)} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
-                  <option value="">Selecione o ministério</option>
-                  {ministriesList.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Função</label>
-                <select value={selectedRoleName} onChange={(e) => setSelectedRoleName(e.target.value)} disabled={!selectedMinistry} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed] disabled:opacity-50">
-                  <option value="">Selecione a função</option>
-                  {(selectedMinistry?.roles ?? []).map((role) => (
-                    <option key={role.id} value={role.name}>{role.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Voluntário</label>
-                <select value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
-                  <option value="">Selecione o voluntário</option>
-                  {availableMembers.map((member) => (
-                    <option key={member.id} value={member.id}>{member.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 text-sm text-[#5b5077]">
-              <input type="checkbox" checked={forceAssign} onChange={(e) => setForceAssign(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
-              Permitir conflito de horário se o líder quiser forçar a escala
-            </label>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-[#5b5077] uppercase tracking-wider">Sugestões inteligentes</p>
-                {loadingSuggestions && <span className="text-[11px] text-[#7c6ea8]">Carregando...</span>}
-              </div>
-              {suggestions.length === 0 ? (
-                <div className="rounded-xl border border-[#ede9fe] bg-[#faf8ff] px-4 py-3 text-sm text-[#7c6ea8]">Selecione ministério e função para ver as melhores sugestões.</div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {suggestions.slice(0, 6).map((suggestion) => (
-                    <button key={suggestion.memberId} onClick={() => setSelectedMemberId(suggestion.memberId)} className={`rounded-xl border p-3 text-left transition-colors ${selectedMemberId === suggestion.memberId ? "border-[#7c3aed] bg-[#faf5ff]" : "border-[#ede9fe] hover:bg-[#faf8ff]"}`}>
-                      <div className="flex items-center gap-3">
-                        <Avatar name={suggestion.name} photoUrl={suggestion.photoUrl} avatarKey={suggestion.avatarKey} size={36} />
-                        <div>
-                          <p className="text-sm font-semibold text-[#1e1b4b]">{suggestion.name}</p>
-                          <p className="text-[11px] text-[#7c6ea8]">Últimos 90 dias: {suggestion.timesServedLast90d} escala(s)</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+        <ModalPortal isOpen={modalAddOpen}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModalAddOpen(false)} />
+            <div className="relative bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4 flex-shrink-0">
+                <div>
+                  <h3 className="font-bold text-lg text-[#1e1b4b]">{replacementItem ? "Substituir voluntário da escala" : "Adicionar voluntário à escala"}</h3>
+                  <p className="text-xs text-[#7c6ea8]">{replacementItem ? `Escala atual: ${replacementItem.member.name} em ${replacementItem.eventTitle}` : "Escolha evento, ministério, função e voluntário."}</p>
                 </div>
-              )}
-            </div>
+                <button onClick={() => setModalAddOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors">✕</button>
+              </div>
 
-            <div className="pt-3 flex items-center justify-end gap-2 border-t border-[#f0eefe]">
-              <button type="button" onClick={() => setModalAddOpen(false)} disabled={addingVolunteer} className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all">Cancelar</button>
-              <button type="button" onClick={handleAddVolunteer} disabled={addingVolunteer || !selectedEventForAdd || !selectedRoleName || !selectedMemberId} className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>
-                {addingVolunteer ? (replacementItem ? "Substituindo..." : "Adicionando...") : (replacementItem ? "Confirmar substituição" : "Confirmar voluntário")}
-              </button>
+              {addError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{addError}</div>}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Evento</label>
+                  <select value={selectedEventForAdd} onChange={(e) => setSelectedEventForAdd(e.target.value)} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
+                    <option value="">Selecione o evento</option>
+                    {eventOptions.map((event) => (
+                      <option key={event.id} value={event.id}>{event.title} — {new Date(event.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Ministério</label>
+                  <select value={selectedAddMinistryId} onChange={(e) => setSelectedAddMinistryId(e.target.value)} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
+                    <option value="">Selecione o ministério</option>
+                    {ministriesList.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Função</label>
+                  <select value={selectedRoleName} onChange={(e) => setSelectedRoleName(e.target.value)} disabled={!selectedMinistry} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed] disabled:opacity-50">
+                    <option value="">Selecione a função</option>
+                    {(selectedMinistry?.roles ?? []).map((role) => (
+                      <option key={role.id} value={role.name}>{role.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">Voluntário</label>
+                  <select value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)} className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]">
+                    <option value="">Selecione o voluntário</option>
+                    {availableMembers.map((member) => (
+                      <option key={member.id} value={member.id}>{member.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-[#5b5077]">
+                <input type="checkbox" checked={forceAssign} onChange={(e) => setForceAssign(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
+                Permitir conflito de horário se o líder quiser forçar a escala
+              </label>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-[#5b5077] uppercase tracking-wider">Sugestões inteligentes</p>
+                  {loadingSuggestions && <span className="text-[11px] text-[#7c6ea8]">Carregando...</span>}
+                </div>
+                {suggestions.length === 0 ? (
+                  <div className="rounded-xl border border-[#ede9fe] bg-[#faf8ff] px-4 py-3 text-sm text-[#7c6ea8]">Selecione ministério e função para ver as melhores sugestões.</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {suggestions.slice(0, 6).map((suggestion) => (
+                      <button key={suggestion.memberId} onClick={() => setSelectedMemberId(suggestion.memberId)} className={`rounded-xl border p-3 text-left transition-colors ${selectedMemberId === suggestion.memberId ? "border-[#7c3aed] bg-[#faf5ff]" : "border-[#ede9fe] hover:bg-[#faf8ff]"}`}>
+                        <div className="flex items-center gap-3">
+                          <Avatar name={suggestion.name} photoUrl={suggestion.photoUrl} avatarKey={suggestion.avatarKey} size={36} />
+                          <div>
+                            <p className="text-sm font-semibold text-[#1e1b4b]">{suggestion.name}</p>
+                            <p className="text-[11px] text-[#7c6ea8]">Últimos 90 dias: {suggestion.timesServedLast90d} escala(s)</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-[#f0eefe] flex-shrink-0">
+                <button type="button" onClick={() => setModalAddOpen(false)} disabled={addingVolunteer} className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all">Cancelar</button>
+                <button type="button" onClick={handleAddVolunteer} disabled={addingVolunteer || !selectedEventForAdd || !selectedRoleName || !selectedMemberId} className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>
+                  {addingVolunteer ? (replacementItem ? "Substituindo..." : "Adicionando...") : (replacementItem ? "Confirmar substituição" : "Confirmar voluntário")}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Modal de Geração Automática */}
       {modalAutoOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 animate-in fade-in zoom-in duration-200">
+        <ModalPortal isOpen={modalAutoOpen}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModalAutoOpen(false)} />
+            <div className="relative bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in duration-200">
             <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-[#ede9fe] flex items-center justify-center text-xl">
@@ -1209,122 +1218,126 @@ export default function Escalas() {
             )}
           </div>
         </div>
-      )}
+      </ModalPortal>
+    )}
 
       {/* Modal de Solicitar Troca de Escala */}
       {swapModalOpen && swapItem && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-xl">
-                  🔄
+        <ModalPortal isOpen={swapModalOpen && !!swapItem}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSwapModalOpen(false)} />
+            <div className="relative bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e0f8] space-y-5 my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-[#f0eefe] pb-4 flex-shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-xl">
+                    🔄
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-[#1e1b4b]">Solicitar Troca de Escala</h3>
+                    <p className="text-xs text-[#7c6ea8]">Envie um pedido para outro voluntário assumir sua vaga</p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => setSwapModalOpen(false)}
+                  className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Resumo da vaga */}
+              <div className="p-3.5 bg-[#f8f7ff] border border-[#ede9fe] rounded-xl flex items-center justify-between flex-shrink-0">
                 <div>
-                  <h3 className="font-bold text-lg text-[#1e1b4b]">Solicitar Troca de Escala</h3>
-                  <p className="text-xs text-[#7c6ea8]">Envie um pedido para outro voluntário assumir sua vaga</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSwapModalOpen(false)}
-                className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Resumo da vaga */}
-            <div className="p-3.5 bg-[#f8f7ff] border border-[#ede9fe] rounded-xl flex items-center justify-between">
-              <div>
-                <p className="font-bold text-sm text-[#1e1b4b]">{swapItem.eventTitle}</p>
-                <p className="text-xs text-[#7c6ea8] mt-0.5">
-                  Função: <strong className="text-[#7c3aed]">{swapItem.roleName}</strong>
-                </p>
-              </div>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 font-semibold">
-                Sua Vaga
-              </span>
-            </div>
-
-            {swapSuccess && (
-              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
-                <span>✅</span> {swapSuccess}
-              </div>
-            )}
-
-            {swapError && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
-                <span>⚠️</span> {swapError}
-              </div>
-            )}
-
-            {!swapSuccess && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">
-                    Trocar com qual voluntário? *
-                  </label>
-                  {loadingCandidates ? (
-                    <div className="py-3 text-center text-xs text-[#7c6ea8]">Buscando voluntários disponíveis...</div>
-                  ) : (
-                    <select
-                      value={swapTargetMemberId}
-                      onChange={(e) => setSwapTargetMemberId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]"
-                    >
-                      <option value="">Selecione um voluntário...</option>
-                      {swapCandidates.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  <p className="text-[11px] text-[#7c6ea8] mt-1">
-                    Mostrando voluntários habilitados para esta função sem conflito de horário.
+                  <p className="font-bold text-sm text-[#1e1b4b]">{swapItem.eventTitle}</p>
+                  <p className="text-xs text-[#7c6ea8] mt-0.5">
+                    Função: <strong className="text-[#7c3aed]">{swapItem.roleName}</strong>
                   </p>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">
-                    Mensagem / Motivo (opcional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={swapMessage}
-                    onChange={(e) => setSwapMessage(e.target.value)}
-                    placeholder="Ex: Não poderei neste dia por motivo de viagem. Consegue cobrir minha vaga?"
-                    className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]"
-                  />
-                </div>
-
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 leading-relaxed">
-                  ℹ️ <strong>Como funciona a troca:</strong> O voluntário convidado receberá uma notificação no app e celular. O líder do ministério também será notificado. Assim que o voluntário aceitar, a escala será transferida para ele automaticamente.
-                </div>
-
-                <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#f0eefe]">
-                  <button
-                    type="button"
-                    onClick={() => setSwapModalOpen(false)}
-                    disabled={swapSubmitting}
-                    className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSendSwapRequest}
-                    disabled={swapSubmitting || !swapTargetMemberId}
-                    className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
-                    style={{ backgroundColor: "#7c3aed" }}
-                  >
-                    {swapSubmitting ? "Enviando pedido..." : "Enviar Pedido de Troca 🔄"}
-                  </button>
-                </div>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 font-semibold">
+                  Sua Vaga
+                </span>
               </div>
-            )}
+
+              {swapSuccess && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                  <span>✅</span> {swapSuccess}
+                </div>
+              )}
+
+              {swapError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
+                  <span>⚠️</span> {swapError}
+                </div>
+              )}
+
+              {!swapSuccess && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">
+                      Trocar com qual voluntário? *
+                    </label>
+                    {loadingCandidates ? (
+                      <div className="py-3 text-center text-xs text-[#7c6ea8]">Buscando voluntários disponíveis...</div>
+                    ) : (
+                      <select
+                        value={swapTargetMemberId}
+                        onChange={(e) => setSwapTargetMemberId(e.target.value)}
+                        className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]"
+                      >
+                        <option value="">Selecione um voluntário...</option>
+                        {swapCandidates.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <p className="text-[11px] text-[#7c6ea8] mt-1">
+                      Mostrando voluntários habilitados para esta função sem conflito de horário.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#5b5077] uppercase tracking-wider mb-1.5">
+                      Mensagem / Motivo (opcional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={swapMessage}
+                      onChange={(e) => setSwapMessage(e.target.value)}
+                      placeholder="Ex: Não poderei neste dia por motivo de viagem. Consegue cobrir minha vaga?"
+                      className="w-full px-3.5 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] bg-white focus:outline-none focus:border-[#7c3aed]"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 leading-relaxed">
+                    ℹ️ <strong>Como funciona a troca:</strong> O voluntário convidado receberá uma notificação no app e celular. O líder do ministério também será notificado. Assim que o voluntário aceitar, a escala será transferida para ele automaticamente.
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#f0eefe] flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSwapModalOpen(false)}
+                      disabled={swapSubmitting}
+                      className="px-4 py-2 text-xs font-medium text-[#5b5077] hover:bg-gray-100 rounded-xl transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSendSwapRequest}
+                      disabled={swapSubmitting || !swapTargetMemberId}
+                      className="px-5 py-2.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+                      style={{ backgroundColor: "#7c3aed" }}
+                    >
+                      {swapSubmitting ? "Enviando pedido..." : "Enviar Pedido de Troca 🔄"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

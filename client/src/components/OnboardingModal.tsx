@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../store";
 import { api } from "../api";
+import { ModalPortal } from "./ModalPortal";
 
 interface Step {
   title: string;
@@ -104,8 +105,10 @@ export function OnboardingModal() {
   const step = STEPS[currentStep];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-6 relative overflow-hidden animate-in zoom-in-95 duration-200">
+    <ModalPortal isOpen={true}>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md" onClick={handleFinish} />
+        <div className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-6 my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in-95 duration-200">
         {/* Decorative ambient gradient */}
         <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-violet-600/20 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-48 h-48 rounded-full bg-indigo-600/20 blur-3xl pointer-events-none" />
@@ -198,5 +201,6 @@ export function OnboardingModal() {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

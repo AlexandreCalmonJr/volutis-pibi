@@ -3,6 +3,7 @@ import { api } from "../api";
 import { useAuth } from "../store";
 import { AVATAR_OPTIONS, Avatar, getInitials } from "../components/Avatar";
 import { usePushNotifications } from "../hooks/usePushNotifications";
+import { ModalPortal } from "../components/ModalPortal";
 
 interface MinistryLink {
   id: string;
@@ -942,81 +943,84 @@ export default function Perfil() {
 
       {/* Modal 2FA / MFA Setup */}
       {twoFaModalOpen && twoFaData && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="flex items-start justify-between border-b border-[var(--color-border)] pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">🔐</span>
-                <div>
-                  <h3 className="font-bold text-base text-[var(--color-ink)]">
-                    Configurar Autenticador (2FA)
-                  </h3>
-                  <p className="text-xs text-[var(--color-muted)]">
-                    Google Authenticator, Authy ou Microsoft Authenticator
-                  </p>
+        <ModalPortal isOpen={twoFaModalOpen && !!twoFaData}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md" onClick={() => setTwoFaModalOpen(false)} />
+            <div className="relative bg-white dark:bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in-95 duration-200">
+              <div className="flex items-start justify-between border-b border-[var(--color-border)] pb-3 flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🔐</span>
+                  <div>
+                    <h3 className="font-bold text-base text-[var(--color-ink)]">
+                      Configurar Autenticador (2FA)
+                    </h3>
+                    <p className="text-xs text-[var(--color-muted)]">
+                      Google Authenticator, Authy ou Microsoft Authenticator
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <button
-                onClick={() => setTwoFaModalOpen(false)}
-                className="w-8 h-8 rounded-lg hover:bg-[var(--color-surface-2)] text-[var(--color-muted)] flex items-center justify-center"
-              >
-                ✕
-              </button>
-            </div>
-
-            {twoFaFeedback && (
-              <div className={`rounded-2xl border px-4 py-3 text-xs font-semibold ${twoFaFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                {twoFaFeedback.text}
-              </div>
-            )}
-
-            <div className="space-y-3 text-center">
-              <p className="text-xs text-[var(--color-text-secondary)]">
-                1. Escaneie o QR Code abaixo com o aplicativo autenticador no seu celular:
-              </p>
-
-              <div className="flex justify-center p-3 bg-white rounded-2xl border border-[var(--color-border)] shadow-inner w-fit mx-auto">
-                <img
-                  src={twoFaData.qrCodeDataUrl}
-                  alt="QR Code 2FA"
-                  className="w-44 h-44 object-contain"
-                />
+                <button
+                  onClick={() => setTwoFaModalOpen(false)}
+                  className="w-8 h-8 rounded-lg hover:bg-[var(--color-surface-2)] text-[var(--color-muted)] flex items-center justify-center"
+                >
+                  ✕
+                </button>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-center">
-                <p className="text-[10px] uppercase font-bold text-[var(--color-muted)]">
-                  Chave Manual (se preferir digitar):
+              {twoFaFeedback && (
+                <div className={`rounded-2xl border px-4 py-3 text-xs font-semibold ${twoFaFeedback.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
+                  {twoFaFeedback.text}
+                </div>
+              )}
+
+              <div className="space-y-3 text-center">
+                <p className="text-xs text-[var(--color-text-secondary)]">
+                  1. Escaneie o QR Code abaixo com o aplicativo autenticador no seu celular:
                 </p>
-                <code className="text-xs font-mono font-bold text-violet-600 select-all">
-                  {twoFaData.secret}
-                </code>
-              </div>
 
-              <div className="space-y-2 pt-1 text-left">
-                <label className="block text-xs font-bold text-[var(--color-ink)]">
-                  2. Digite o código de 6 dígitos gerado:
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={twoFaCode}
-                  onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="000000"
-                  className="w-full text-center tracking-widest text-2xl font-mono font-bold py-2.5 px-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-violet-600"
-                />
-              </div>
+                <div className="flex justify-center p-3 bg-white rounded-2xl border border-[var(--color-border)] shadow-inner w-fit mx-auto">
+                  <img
+                    src={twoFaData.qrCodeDataUrl}
+                    alt="QR Code 2FA"
+                    className="w-44 h-44 object-contain"
+                  />
+                </div>
 
-              <button
-                type="button"
-                onClick={handleVerify2Fa}
-                disabled={twoFaCode.length !== 6 || twoFaVerifying}
-                className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-sm font-bold shadow-lg shadow-violet-500/25 transition-all cursor-pointer"
-              >
-                {twoFaVerifying ? "Verificando..." : "Validar e Ativar 2FA ✅"}
-              </button>
+                <div className="p-2.5 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-center">
+                  <p className="text-[10px] uppercase font-bold text-[var(--color-muted)]">
+                    Chave Manual (se preferir digitar):
+                  </p>
+                  <code className="text-xs font-mono font-bold text-violet-600 select-all">
+                    {twoFaData.secret}
+                  </code>
+                </div>
+
+                <div className="space-y-2 pt-1 text-left">
+                  <label className="block text-xs font-bold text-[var(--color-ink)]">
+                    2. Digite o código de 6 dígitos gerado:
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={twoFaCode}
+                    onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="000000"
+                    className="w-full text-center tracking-widest text-2xl font-mono font-bold py-2.5 px-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-violet-600"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleVerify2Fa}
+                  disabled={twoFaCode.length !== 6 || twoFaVerifying}
+                  className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-sm font-bold shadow-lg shadow-violet-500/25 transition-all cursor-pointer"
+                >
+                  {twoFaVerifying ? "Verificando..." : "Validar e Ativar 2FA ✅"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

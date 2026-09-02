@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { api } from "../api";
 import { useAuth } from "../store";
 import { useInvites, type InviteAPI } from "../hooks/useAdminData";
+import { ModalPortal } from "../components/ModalPortal";
 
 interface MinistryOption {
   id: string;
@@ -237,10 +238,11 @@ export default function ConvitesPage() {
 
       {/* Create Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-6">
+        <ModalPortal isOpen={showModal}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between mb-6 flex-shrink-0">
               <h2 className="text-lg font-bold text-[#1e1b4b]">Novo Convite</h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -419,7 +421,8 @@ export default function ConvitesPage() {
             )}
           </div>
         </div>
-      )}
+      </ModalPortal>
+    )}
     </div>
   );
 }

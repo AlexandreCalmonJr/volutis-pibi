@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
 import { useAuth } from "../store";
+import { ModalPortal } from "./ModalPortal";
 
 export interface EventMediaAsset {
   id: string;
@@ -177,10 +178,12 @@ export function EventMediaModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-[#e5e0f8]">
-        {/* Header */}
-        <div className="px-6 py-5 border-b border-[#f0eefe] flex items-center justify-between bg-gradient-to-r from-[#faf8ff] to-[#f5f0ff]">
+    <ModalPortal isOpen={true}>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-white rounded-3xl max-w-2xl w-full my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col shadow-2xl border border-[#e5e0f8] animate-in zoom-in-95 duration-150">
+          {/* Header */}
+          <div className="px-6 py-5 border-b border-[#f0eefe] flex items-center justify-between bg-gradient-to-r from-[#faf8ff] to-[#f5f0ff] flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#7c3aed]/10 text-[#7c3aed] flex items-center justify-center text-xl">
               🎨
@@ -456,7 +459,7 @@ export function EventMediaModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-[#f0eefe] bg-[#faf8ff] flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-[#f0eefe] bg-[#faf8ff] flex items-center justify-between flex-shrink-0">
           <p className="text-[11px] text-[#7c6ea8]">
             💡 <strong>Dica:</strong> Salve os papéis de parede na pasta de projeção do Holyrics ou OBS.
           </p>
@@ -470,5 +473,6 @@ export function EventMediaModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

@@ -4,6 +4,7 @@ import { api } from "../api";
 import { MINISTERIO_COLORS, MINISTERIOS } from "../lib/constants";
 import { Avatar } from "../components/Avatar";
 import { MetricCardSkeleton, TableSkeleton } from "../components/Skeleton";
+import { ModalPortal } from "../components/ModalPortal";
 
 interface Ministry {
   id: number;
@@ -68,9 +69,10 @@ function ProfileModal({ member, loading, feedback, onApprove, onDeactivate, onCl
   const roles = member.ministryMembers[0]?.roles;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <ModalPortal isOpen={true}>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] overflow-y-auto animate-in zoom-in-95 duration-150">
         <div className="px-6 pt-6 pb-4 text-center" style={{ backgroundColor: color + "10" }}>
           <button
             onClick={onClose}
@@ -207,7 +209,8 @@ function ProfileModal({ member, loading, feedback, onApprove, onDeactivate, onCl
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </ModalPortal>
   );
 }
 

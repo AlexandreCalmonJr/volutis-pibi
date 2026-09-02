@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
+import { ModalPortal } from "./ModalPortal";
 
 interface AuditLog {
   id: string;
@@ -64,38 +65,35 @@ export function AdminLogsModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
   const registeredCount = membersPush.filter((m) => m.pushDevices > 0).length;
 
   return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
-    >
-      <div className="bg-white dark:bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl max-w-2xl w-full shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[var(--color-border)] p-5 sm:p-6 pb-4">
-          <div className="flex items-center gap-2.5">
-            <span className="w-10 h-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center text-lg shadow-md shadow-violet-500/20">
-              📊
-            </span>
-            <div>
-              <h3 className="font-bold text-base sm:text-lg text-[var(--color-ink)]">
-                Central de Logs & Dispositivos (Admin)
-              </h3>
-              <p className="text-xs text-[var(--color-muted)]">
-                Acompanhe status de notificações, aparelhos cadastrados e ações do sistema
-              </p>
+    <ModalPortal isOpen={true}>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-white dark:bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl max-w-2xl w-full shadow-2xl flex flex-col my-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] animate-in zoom-in-95 duration-150 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-[var(--color-border)] p-5 sm:p-6 pb-4 flex-shrink-0">
+            <div className="flex items-center gap-2.5">
+              <span className="w-10 h-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center text-lg shadow-md shadow-violet-500/20">
+                📊
+              </span>
+              <div>
+                <h3 className="font-bold text-base sm:text-lg text-[var(--color-ink)]">
+                  Central de Logs & Dispositivos (Admin)
+                </h3>
+                <p className="text-xs text-[var(--color-muted)]">
+                  Acompanhe status de notificações, aparelhos cadastrados e ações do sistema
+                </p>
+              </div>
             </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl hover:bg-[var(--color-surface-2)] text-[var(--color-muted)] hover:text-[var(--color-ink)] flex items-center justify-center transition-colors cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl hover:bg-[var(--color-surface-2)] text-[var(--color-muted)] hover:text-[var(--color-ink)] flex items-center justify-center transition-colors cursor-pointer"
-          >
-            ✕
-          </button>
-        </div>
 
-        {/* Tabs & Search */}
-        <div className="p-4 sm:px-6 bg-[var(--color-surface-2)] border-b border-[var(--color-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Tabs & Search */}
+          <div className="p-4 sm:px-6 bg-[var(--color-surface-2)] border-b border-[var(--color-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0">
           <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] w-fit">
             <button
               onClick={() => setActiveTab("devices")}
@@ -229,7 +227,7 @@ export function AdminLogsModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[var(--color-border)] bg-[var(--color-surface-2)] flex justify-end">
+        <div className="p-4 border-t border-[var(--color-border)] bg-[var(--color-surface-2)] flex justify-end flex-shrink-0">
           <button
             onClick={onClose}
             className="px-5 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition-all cursor-pointer shadow-sm"
@@ -239,5 +237,6 @@ export function AdminLogsModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
