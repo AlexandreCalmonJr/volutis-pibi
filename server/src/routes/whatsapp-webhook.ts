@@ -9,6 +9,7 @@ import {
   disconnectNativeWhatsApp,
 } from "../services/whatsapp.service.js";
 import { notifyMember } from "../services/notification.service.js";
+import { whatsAppQueue } from "../services/whatsapp-queue.service.js";
 import { respondToScheduleByPhone } from "../services/schedule-response.service.js";
 import { requireAuth, requireRole, type AuthUser } from "../middleware/auth.js";
 
@@ -133,30 +134,28 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
 
     const uniqueMembers = Array.from(new Map(members.map((m) => [m.id, m])).values());
 
-    let sentWhatsappCount = 0;
+    let enqueuedWhatsappCount = 0;
     for (const m of uniqueMembers) {
-      // 1. Notificação interna em tempo real (WebSocket)
+      // 1. Notificação interna em tempo real (WebSocket in-app + Web Push)
       await notifyMember(m.id, {
         type: "ANNOUNCEMENT",
         title: "📢 Comunicado da Igreja",
         body: body.message,
-      });
+      }).catch(() => {});
 
-      // 2. WhatsApp
+      // 2. WhatsApp enfileirado com vazão controlada anti-ban (2.5s entre disparos)
       if (m.phone) {
         const formattedMessage = `📢 *Comunicado Volut PIBI*\n\nOlá, ${m.name}! 🙌\n\n${body.message}\n\n🙏 Deus abençoe!`;
-        const sent = await sendWhatsAppMessage({
-          to: m.phone,
-          text: formattedMessage,
-        });
-        if (sent) sentWhatsappCount++;
+        whatsAppQueue.enqueue(m.phone, formattedMessage);
+        enqueuedWhatsappCount++;
       }
     }
 
     return {
       ok: true,
       totalRecipients: uniqueMembers.length,
-      sentViaWhatsapp: sentWhatsappCount,
+      sentViaWhatsapp: enqueuedWhatsappCount,
+      queued: true,
     };
   });
 

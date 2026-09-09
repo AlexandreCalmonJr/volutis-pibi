@@ -43,7 +43,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export async function buildServer() {
-  const app = Fastify({ logger: { level: process.env.LOG_LEVEL || "info" } });
+  const app = Fastify({
+    logger: { level: process.env.LOG_LEVEL || "info" },
+    connectionTimeout: 15000,
+    keepAliveTimeout: 10000,
+  });
 
   const isProd = process.env.NODE_ENV === "production";
 
@@ -57,6 +61,9 @@ export async function buildServer() {
     crossOriginResourcePolicy: { policy: "cross-origin" },
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: false, // Disabled to allow media/iframes (YouTube, Spotify, etc.) and PWA service workers
+    noSniff: true,
+    xssFilter: true,
+    hidePoweredBy: true,
   });
 
   // Response compression (gzip/brotli)

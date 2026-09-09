@@ -9,11 +9,11 @@ import type { AuthUser } from "../middleware/auth.js";
 import { whatsAppQueue } from "../services/whatsapp-queue.service.js";
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  name: z.string().min(2),
+  email: z.string().email("Formato de e-mail inválido"),
+  password: z.string().min(8, "A senha deve ter no mínimo 8 caracteres"),
+  name: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   phone: z.string().optional(),
-  inviteCode: z.string().min(4),
+  inviteCode: z.string().min(4, "Código de convite inválido"),
 });
 
 const loginSchema = z.object({
@@ -22,8 +22,8 @@ const loginSchema = z.object({
 });
 
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(6),
-  newPassword: z.string().min(6),
+  currentPassword: z.string().min(1, "Senha atual obrigatória"),
+  newPassword: z.string().min(8, "A nova senha deve ter no mínimo 8 caracteres"),
 });
 
 const REFRESH_DAYS = 30;
