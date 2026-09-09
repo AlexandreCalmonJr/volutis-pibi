@@ -4,6 +4,7 @@ import { useAuth } from "../store";
 import { AVATAR_OPTIONS, Avatar, getInitials } from "../components/Avatar";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { ModalPortal } from "../components/ModalPortal";
+import { compressImage } from "../utils/imageCompressor";
 
 interface MinistryLink {
   id: string;
@@ -31,6 +32,7 @@ interface ProfileData {
   name: string;
   phone?: string | null;
   photoUrl?: string | null;
+  bannerUrl?: string | null;
   avatarKey?: string | null;
   instruments: string[];
   birthDate?: string | null;
@@ -179,10 +181,12 @@ export default function Perfil() {
     name: "",
     phone: "",
     photoUrl: "",
+    bannerUrl: "",
     avatarKey: "violet",
     birthDate: "",
     instrumentsText: "",
   });
+  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   async function loadProfileData() {
     const [profileData, scheduleData] = await Promise.all([
@@ -197,10 +201,65 @@ export default function Perfil() {
       name: profileData.name ?? "",
       phone: profileData.phone ?? "",
       photoUrl: profileData.photoUrl ?? "",
+      bannerUrl: profileData.bannerUrl ?? "",
       avatarKey: profileData.avatarKey ?? "violet",
       birthDate: profileData.birthDate ? profileData.birthDate.slice(0, 10) : "",
       instrumentsText: profileData.instruments.join(", "),
     });
+  }
+
+  async function handleBannerFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingBanner(true);
+      setFeedback(null);
+      // Comprime a imagem no navegador usando WebP de alta qualidade e tamanho reduzido
+      const compressedBase64 = await compressImage(file, {
+        maxWidth: 1280,
+        maxHeight: 520,
+        quality: 0.85,
+        mimeType: "image/webp",
+      });
+
+      const updated = await api<ProfileData>("/my/profile", {
+        method: "PUT",
+        body: {
+          bannerUrl: compressedBase64,
+        },
+      });
+
+      setProfile(updated);
+      setForm((prev) => ({ ...prev, bannerUrl: updated.bannerUrl ?? "" }));
+      setFeedback({ type: "ok", text: "Banner de capa atualizado com sucesso!" });
+    } catch (err: any) {
+      setFeedback({ type: "error", text: err?.message || "Não foi possível carregar o banner de capa." });
+    } finally {
+      setUploadingBanner(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleRemoveBanner() {
+    if (!confirm("Deseja remover seu banner de capa?")) return;
+    try {
+      setUploadingBanner(true);
+      setFeedback(null);
+      const updated = await api<ProfileData>("/my/profile", {
+        method: "PUT",
+        body: {
+          bannerUrl: null,
+        },
+      });
+      setProfile(updated);
+      setForm((prev) => ({ ...prev, bannerUrl: "" }));
+      setFeedback({ type: "ok", text: "Banner de capa removido." });
+    } catch (err: any) {
+      setFeedback({ type: "error", text: err?.message || "Não foi possível remover o banner." });
+    } finally {
+      setUploadingBanner(false);
+    }
   }
 
   useEffect(() => {
@@ -269,6 +328,7 @@ export default function Perfil() {
           name: form.name.trim(),
           phone: form.phone.trim() || undefined,
           photoUrl: form.photoUrl.trim() || undefined,
+          bannerUrl: form.bannerUrl.trim() || undefined,
           avatarKey: form.avatarKey,
           birthDate: form.birthDate ? new Date(`${form.birthDate}T12:00:00`).toISOString() : undefined,
           instruments,
@@ -416,11 +476,68 @@ export default function Perfil() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl border border-[#e5e0f8] overflow-hidden">
-        <div className="px-6 py-8 md:px-8 bg-gradient-to-r from-[#f5f3ff] to-[#eef2ff] flex flex-col md:flex-row gap-6 md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <Avatar name={profile.name} photoUrl={profile.photoUrl} avatarKey={profile.avatarKey} size={80} />
-            <div>
+      {/* Cartão de Perfil com Banner de Capa */}
+      <div className="bg-white rounded-3xl border border-[#e5e0f8] overflow-hidden shadow-xs">
+        {/* Área do Banner */}
+        <div className="relative w-full h-44 sm:h-56 md:h-64 bg-slate-900 overflow-hidden group">
+          {profile.bannerUrl ? (
+            <img
+              src={profile.bannerUrl}
+              alt={`Banner de ${profile.name}`}
+              className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-700 relative flex items-center justify-center">
+              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]" />
+              <div className="text-white/40 text-xs font-semibold uppercase tracking-widest pointer-events-none select-none">
+                Adicione um banner de capa personalizado
+              </div>
+            </div>
+          )}
+
+          {/* Gradiente escuro no rodapé do banner para contraste */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20 pointer-events-none" />
+
+          {/* Controles de Capa Flutuantes */}
+          <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-2">
+            <label className="px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 backdrop-blur-md text-white text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shadow-sm border border-white/20 hover:border-white/40">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{uploadingBanner ? "Otimizando..." : profile.bannerUrl ? "Alterar Capa" : "Adicionar Capa"}</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleBannerFile}
+                disabled={uploadingBanner}
+                className="hidden"
+              />
+            </label>
+
+            {profile.bannerUrl && (
+              <button
+                type="button"
+                onClick={handleRemoveBanner}
+                disabled={uploadingBanner}
+                title="Remover Capa"
+                className="p-1.5 rounded-xl bg-black/60 hover:bg-rose-600/80 backdrop-blur-md text-white transition-all cursor-pointer border border-white/20"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Informações do Membro e Métricas */}
+        <div className="px-6 pb-6 pt-3 md:px-8 bg-white flex flex-col md:flex-row gap-6 md:items-center md:justify-between">
+          <div className="flex items-start gap-4 -mt-12 sm:-mt-14 relative z-10">
+            <div className="ring-4 ring-white rounded-full shadow-md bg-white">
+              <Avatar name={profile.name} photoUrl={profile.photoUrl} avatarKey={profile.avatarKey} size={84} />
+            </div>
+            <div className="pt-2">
               <h1 className="text-2xl font-bold text-[#1e1b4b]" style={{ fontFamily: "'Fraunces', serif" }}>{profile.name}</h1>
               <p className="text-sm text-[#6d5fa1]">{user?.email}</p>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -431,19 +548,19 @@ export default function Perfil() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:min-w-[260px]">
-            <div className="rounded-2xl bg-white/70 border border-white px-4 py-3">
+            <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
               <p className="text-xs uppercase tracking-wider text-[#7c6ea8] font-semibold">Ministérios</p>
               <p className="mt-1 text-xl font-bold text-[#1e1b4b]">{profile.ministryMembers.length}</p>
             </div>
-            <div className="rounded-2xl bg-white/70 border border-white px-4 py-3">
+            <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
               <p className="text-xs uppercase tracking-wider text-[#7c6ea8] font-semibold">Badges</p>
               <p className="mt-1 text-xl font-bold text-[#1e1b4b]">{profile.badges.length}</p>
             </div>
-            <div className="rounded-2xl bg-white/70 border border-white px-4 py-3">
+            <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
               <p className="text-xs uppercase tracking-wider text-[#7c6ea8] font-semibold">Perfil completo</p>
               <p className="mt-1 text-xl font-bold text-[#1e1b4b]">{profileCompletion}%</p>
             </div>
-            <div className="rounded-2xl bg-white/70 border border-white px-4 py-3">
+            <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
               <p className="text-xs uppercase tracking-wider text-[#7c6ea8] font-semibold">Trocas pendentes</p>
               <p className="mt-1 text-xl font-bold text-[#1e1b4b]">{swapInvites?.length ?? 0}</p>
             </div>
@@ -484,9 +601,16 @@ export default function Perfil() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">Foto (URL)</label>
+                <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">Foto de Perfil (URL)</label>
                 <input value={form.photoUrl} onChange={(e) => setForm((prev) => ({ ...prev, photoUrl: e.target.value }))} placeholder="https://..." className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] focus:outline-none focus:border-[#a78bfa]" />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">Banner de Capa (URL)</label>
+                <input value={form.bannerUrl} onChange={(e) => setForm((prev) => ({ ...prev, bannerUrl: e.target.value }))} placeholder="https://..." className="w-full px-4 py-2.5 text-sm border border-[#e5e0f8] rounded-xl text-[#1e1b4b] focus:outline-none focus:border-[#a78bfa]" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#7c6ea8] uppercase tracking-wider mb-1.5">Avatar</label>
                 <div className="grid grid-cols-3 gap-3">
@@ -516,7 +640,7 @@ export default function Perfil() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <button type="submit" disabled={saving} className="px-5 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#7c3aed" }}>
+              <button type="submit" disabled={saving} className="px-5 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 cursor-pointer shadow-xs" style={{ backgroundColor: "#7c3aed" }}>
                 {saving ? "Salvando..." : "Salvar perfil"}
               </button>
               <button type="button" onClick={logout} className="px-5 py-3 rounded-xl text-sm font-semibold border border-[#e5e0f8] text-[#5b5077] hover:bg-gray-50">

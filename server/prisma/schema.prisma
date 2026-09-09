@@ -89,9 +89,12 @@ model Member {
   name           String
   phone          String? // formato E.164 p/ links wa.me (ex: 5571999999999)
   photoUrl       String?
+  bannerUrl      String? // Imagem de capa / banner de perfil do usuário
   avatarKey      String?   @default("violet")
   instruments    String    @default("[]") // JSON array
   birthDate      DateTime?
+  isHelpdesk     Boolean   @default(false) // Membro delegado como suporte na Central de Ajuda
+  helpdeskRole   String?   // Cargo/atuação no plantão da Central de Ajuda
   approvalStatus String    @default("ACTIVE") // PENDING | ACTIVE | INACTIVE | AWAITING_BAPTISM
   approvedAt     DateTime?
   approvedBy     String?

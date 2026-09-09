@@ -32,6 +32,7 @@ import { whatsappWebhookRoutes } from "./routes/whatsapp-webhook.js";
 import { devotionalRoutes } from "./routes/devotional.js";
 import { reportsRoutes } from "./routes/reports.js";
 import { uploadRoutes } from "./routes/upload.js";
+import { helpdeskRoutes } from "./routes/helpdesk.js";
 import { websocketHandler } from "./websocket/handler.js";
 import { startReminderScheduler } from "./services/scheduler.service.js";
 import { startDatabaseCleanupScheduler } from "./services/cleanup.service.js";
@@ -243,6 +244,7 @@ export async function buildServer() {
   await app.register(devotionalRoutes, { prefix: "/api" });
   await app.register(reportsRoutes, { prefix: "/api" });
   await app.register(uploadRoutes, { prefix: "/api" });
+  await app.register(helpdeskRoutes, { prefix: "/api" });
   await app.register(websocketHandler);
 
   // Servir uploads de mídias e avatares com cache HTTP eficiente

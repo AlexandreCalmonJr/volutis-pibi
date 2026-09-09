@@ -1,7 +1,28 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../store";
+import { api } from "../api";
+import { Avatar } from "../components/Avatar";
 import { ModalPortal } from "../components/ModalPortal";
+
+interface HelpdeskContact {
+  id: string;
+  name: string;
+  phone?: string | null;
+  photoUrl?: string | null;
+  bannerUrl?: string | null;
+  avatarKey?: string | null;
+  helpdeskRole?: string | null;
+  ministryMembers?: Array<{ ministry: { name: string } }>;
+}
+
+interface MemberOption {
+  id: string;
+  name: string;
+  phone?: string | null;
+  photoUrl?: string | null;
+  avatarKey?: string | null;
+}
 
 interface FAQItem {
   id: string;
@@ -138,6 +159,121 @@ export default function AjudaPage() {
   const [newResposta, setNewResposta] = useState("");
   const [newCategoria, setNewCategoria] = useState<"GERAL" | "MIDIA" | "LOUVOR" | "DIACONIA">("GERAL");
   const [newPassosText, setNewPassosText] = useState("");
+
+  // Contatos de Plantão & Delegação
+  const [contacts, setContacts] = useState<HelpdeskContact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(true);
+  const [delegatesModalOpen, setDelegatesModalOpen] = useState(false);
+  const [availableMembers, setAvailableMembers] = useState<MemberOption[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [editDelegates, setEditDelegates] = useState<Array<{ memberId: string; name: string; helpdeskRole: string; phone?: string | null; photoUrl?: string | null; avatarKey?: string | null }>>([]);
+  const [newDelegateMemberId, setNewDelegateMemberId] = useState("");
+  const [newDelegateRole, setNewDelegateRole] = useState("");
+  const [savingDelegates, setSavingDelegates] = useState(false);
+  const [delegatesFeedback, setDelegatesFeedback] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    loadContacts();
+  }, []);
+
+  async function loadContacts() {
+    try {
+      setLoadingContacts(true);
+      const data = await api<HelpdeskContact[]>("/helpdesk/contacts");
+      setContacts(data || []);
+    } catch (err) {
+      console.error("Erro ao carregar contatos do plantão:", err);
+    } finally {
+      setLoadingContacts(false);
+    }
+  }
+
+  async function openDelegatesModal() {
+    setDelegatesFeedback(null);
+    setNewDelegateMemberId("");
+    setNewDelegateRole("");
+    setEditDelegates(
+      contacts.map((c) => ({
+        memberId: c.id,
+        name: c.name,
+        helpdeskRole: c.helpdeskRole || "Suporte Geral",
+        phone: c.phone,
+        photoUrl: c.photoUrl,
+        avatarKey: c.avatarKey,
+      }))
+    );
+    setDelegatesModalOpen(true);
+
+    if (availableMembers.length === 0) {
+      try {
+        setLoadingMembers(true);
+        const members = await api<MemberOption[]>("/members");
+        setAvailableMembers(members || []);
+      } catch (err) {
+        console.error("Erro ao carregar lista de membros:", err);
+      } finally {
+        setLoadingMembers(false);
+      }
+    }
+  }
+
+  function handleAddDelegate() {
+    if (!newDelegateMemberId || !newDelegateRole.trim()) return;
+    const member = availableMembers.find((m) => m.id === newDelegateMemberId);
+    if (!member) return;
+
+    const exists = editDelegates.some((d) => d.memberId === member.id);
+    if (exists) {
+      setEditDelegates((prev) =>
+        prev.map((d) => (d.memberId === member.id ? { ...d, helpdeskRole: newDelegateRole.trim() } : d))
+      );
+    } else {
+      setEditDelegates((prev) => [
+        ...prev,
+        {
+          memberId: member.id,
+          name: member.name,
+          helpdeskRole: newDelegateRole.trim(),
+          phone: member.phone,
+          photoUrl: member.photoUrl,
+          avatarKey: member.avatarKey,
+        },
+      ]);
+    }
+    setNewDelegateMemberId("");
+    setNewDelegateRole("");
+  }
+
+  function handleRemoveDelegate(memberId: string) {
+    setEditDelegates((prev) => prev.filter((d) => d.memberId !== memberId));
+  }
+
+  async function handleSaveDelegates(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingDelegates(true);
+    setDelegatesFeedback(null);
+    try {
+      const payload = {
+        delegates: editDelegates.map((d) => ({
+          memberId: d.memberId,
+          helpdeskRole: d.helpdeskRole,
+        })),
+      };
+      const res = await api<{ success: boolean; message: string; contacts: HelpdeskContact[] }>("/helpdesk/delegates", {
+        method: "PUT",
+        body: payload,
+      });
+      setContacts(res.contacts || []);
+      setDelegatesFeedback({ type: "ok", text: res.message || "Responsáveis atualizados com sucesso!" });
+      setTimeout(() => {
+        setDelegatesModalOpen(false);
+      }, 1000);
+    } catch (err: any) {
+      setDelegatesFeedback({ type: "error", text: err?.message || "Não foi possível salvar os responsáveis." });
+    } finally {
+      setSavingDelegates(false);
+    }
+  }
 
   function handleSaveFaq(e: React.FormEvent) {
     e.preventDefault();
@@ -292,43 +428,112 @@ export default function AjudaPage() {
 
       {/* Diretório de Plantão: "Quem Procurar" */}
       <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-5 sm:p-7 shadow-sm space-y-4">
-        <div>
-          <h2 className="text-lg font-bold text-[var(--color-ink)]" style={{ fontFamily: "'Fraunces', serif" }}>
-            Quem Procurar no Dia do Culto
-          </h2>
-          <p className="text-xs text-[var(--color-muted)]">
-            Contatos diretos dos coordenadores de plantão para apoio imediato
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {PLANTAO_CONTATOS.map((c, i) => (
-            <div
-              key={i}
-              className="bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-col justify-between space-y-3"
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-[var(--color-ink)]" style={{ fontFamily: "'Fraunces', serif" }}>
+              Quem Procurar no Dia do Culto
+            </h2>
+            <p className="text-xs text-[var(--color-muted)]">
+              Contatos diretos dos coordenadores e responsáveis delegados de plantão para apoio imediato
+            </p>
+          </div>
+          {user?.role === "ADMIN" && (
+            <button
+              onClick={openDelegatesModal}
+              className="px-3.5 py-2 rounded-xl bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800/60 text-xs font-semibold hover:bg-violet-100 dark:hover:bg-violet-900/60 transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-xs"
             >
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary)]">
-                  {c.cargo}
-                </span>
-                <p className="font-bold text-sm text-[var(--color-ink)] mt-0.5">{c.responsavel}</p>
-                <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">{c.atua}</p>
-              </div>
-
-              <a
-                href={`https://wa.me/${c.whatsapp}?text=${encodeURIComponent("Olá, estou escalado no culto e preciso de apoio com " + c.cargo)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
-              >
-                <span>Chamar no WhatsApp</span>
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </a>
-            </div>
-          ))}
+              <span>⚙️</span>
+              <span>Delegar Responsáveis</span>
+            </button>
+          )}
         </div>
+
+        {loadingContacts ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin w-7 h-7 border-2 border-[var(--color-border)] border-t-[var(--color-primary)] rounded-full" />
+          </div>
+        ) : contacts.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {contacts.map((c) => {
+              const cleanPhone = c.phone ? c.phone.replace(/\D/g, "") : "";
+              const fullPhone = cleanPhone.length > 0 ? (cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`) : "";
+              const ministriesStr = c.ministryMembers?.map((m) => m.ministry.name).join(", ");
+
+              return (
+                <div
+                  key={c.id}
+                  className="bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-violet-300 dark:hover:border-violet-700 transition-all"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={c.name} photoUrl={c.photoUrl} avatarKey={c.avatarKey} size={40} />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary)] block truncate">
+                          {c.helpdeskRole || "Plantão de Apoio"}
+                        </span>
+                        <p className="font-bold text-sm text-[var(--color-ink)] truncate">{c.name}</p>
+                      </div>
+                    </div>
+                    {ministriesStr && (
+                      <p className="text-[11px] text-[var(--color-muted)] leading-tight">
+                        Ministérios: <span className="text-[var(--color-ink)] font-medium">{ministriesStr}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {fullPhone ? (
+                    <a
+                      href={`https://wa.me/${fullPhone}?text=${encodeURIComponent(
+                        `Olá ${c.name}, estou escalado no culto e preciso de apoio com ${c.helpdeskRole || "Central de Ajuda"}`
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <span>Chamar no WhatsApp</span>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                    </a>
+                  ) : (
+                    <div className="w-full py-1.5 px-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-[var(--color-muted)] text-[11px] text-center font-medium">
+                      Telefone não informado
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {PLANTAO_CONTATOS.map((c, i) => (
+              <div
+                key={i}
+                className="bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-col justify-between space-y-3"
+              >
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary)]">
+                    {c.cargo}
+                  </span>
+                  <p className="font-bold text-sm text-[var(--color-ink)] mt-0.5">{c.responsavel}</p>
+                  <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">{c.atua}</p>
+                </div>
+
+                <a
+                  href={`https://wa.me/${c.whatsapp}?text=${encodeURIComponent("Olá, estou escalado no culto e preciso de apoio com " + c.cargo)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                >
+                  <span>Chamar no WhatsApp</span>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Seção de FAQ Pesquisável com Filtros */}
@@ -533,6 +738,189 @@ export default function AjudaPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* Modal de Delegação de Responsáveis de Plantão (Apenas ADMIN) */}
+      {delegatesModalOpen && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl w-full max-w-xl p-6 space-y-5 max-h-[90vh] overflow-y-auto shadow-xl animate-in fade-in zoom-in-95">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary)]">
+                    Administração da Central
+                  </span>
+                  <h3 className="text-lg font-bold text-[var(--color-ink)] mt-0.5" style={{ fontFamily: "'Fraunces', serif" }}>
+                    Delegar Responsáveis de Plantão
+                  </h3>
+                  <p className="text-xs text-[var(--color-muted)]">
+                    Escolha os membros que darão suporte e plantão no dia do culto.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setDelegatesModalOpen(false)}
+                  className="w-8 h-8 rounded-full border border-[var(--color-border)] flex items-center justify-center text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] text-xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {delegatesFeedback && (
+                <div
+                  className={`rounded-xl border p-3 text-xs font-medium ${
+                    delegatesFeedback.type === "ok"
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200"
+                      : "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-800 dark:text-red-200"
+                  }`}
+                >
+                  {delegatesFeedback.text}
+                </div>
+              )}
+
+              {/* Lista dos responsáveis já definidos */}
+              <div className="space-y-3">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[var(--color-muted)]">
+                  Equipe de Suporte Atual ({editDelegates.length})
+                </label>
+
+                {editDelegates.length === 0 ? (
+                  <div className="p-4 rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-2)] text-center text-xs text-[var(--color-muted)]">
+                    Nenhum membro delegado ainda. Adicione abaixo para ativar o plantão dinâmico!
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {editDelegates.map((item) => (
+                      <div
+                        key={item.memberId}
+                        className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-2)]"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <Avatar name={item.name} photoUrl={item.photoUrl} avatarKey={item.avatarKey as any} size={36} />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-[var(--color-ink)] truncate">{item.name}</p>
+                            <input
+                              type="text"
+                              value={item.helpdeskRole}
+                              onChange={(e) =>
+                                setEditDelegates((prev) =>
+                                  prev.map((d) => (d.memberId === item.memberId ? { ...d, helpdeskRole: e.target.value } : d))
+                                )
+                              }
+                              placeholder="Cargo/Área de suporte"
+                              className="mt-1 w-full text-[11px] font-semibold text-[var(--color-primary)] bg-transparent border-b border-dashed border-violet-300 dark:border-violet-700 focus:outline-none focus:border-violet-500 pb-0.5"
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDelegate(item.memberId)}
+                          className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                          title="Remover do plantão"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Adicionar novo responsável */}
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-3.5">
+                <span className="text-xs font-bold text-[var(--color-ink)] block">
+                  + Adicionar Membro ao Plantão
+                </span>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[var(--color-muted)] mb-1">
+                      Membro da Igreja
+                    </label>
+                    <select
+                      value={newDelegateMemberId}
+                      onChange={(e) => setNewDelegateMemberId(e.target.value)}
+                      disabled={loadingMembers}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
+                    >
+                      <option value="">
+                        {loadingMembers ? "Carregando membros..." : "-- Selecione um membro cadastrado --"}
+                      </option>
+                      {availableMembers.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} {m.phone ? `(${m.phone})` : "(sem telefone)"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[var(--color-muted)] mb-1">
+                      Função no Plantão
+                    </label>
+                    <input
+                      type="text"
+                      value={newDelegateRole}
+                      onChange={(e) => setNewDelegateRole(e.target.value)}
+                      placeholder="Ex: Suporte de TI & Telão, Coordenação de Mídia..."
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-primary)]"
+                    />
+
+                    {/* Sugestões rápidas de cargo */}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {[
+                        "Suporte de TI & Telão",
+                        "Coordenação de Mídia & Live",
+                        "Sonorização & Louvor",
+                        "Diaconia & Portaria",
+                      ].map((sug) => (
+                        <button
+                          key={sug}
+                          type="button"
+                          onClick={() => setNewDelegateRole(sug)}
+                          className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-surface-2)] hover:bg-violet-100 dark:hover:bg-violet-950/60 text-[var(--color-muted)] hover:text-violet-700 transition-colors cursor-pointer border border-[var(--color-border)]"
+                        >
+                          + {sug}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddDelegate}
+                    disabled={!newDelegateMemberId || !newDelegateRole.trim()}
+                    className="w-full py-2 px-3 rounded-xl bg-violet-100 dark:bg-violet-950/60 hover:bg-violet-200 text-violet-700 dark:text-violet-300 font-semibold text-xs transition-colors disabled:opacity-40 cursor-pointer"
+                  >
+                    + Incluir na Lista
+                  </button>
+                </div>
+              </div>
+
+              {/* Rodapé de Ações */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[var(--color-border)]">
+                <button
+                  type="button"
+                  onClick={() => setDelegatesModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl border border-[var(--color-border)] text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveDelegates}
+                  disabled={savingDelegates}
+                  className="px-5 py-2 text-xs font-semibold rounded-xl text-white shadow-sm hover:opacity-90 transition-all cursor-pointer disabled:opacity-50"
+                  style={{ backgroundColor: "#7c3aed" }}
+                >
+                  {savingDelegates ? "Salvando..." : "Salvar Responsáveis"}
+                </button>
+              </div>
             </div>
           </div>
         </ModalPortal>

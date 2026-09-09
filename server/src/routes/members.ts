@@ -14,8 +14,9 @@ function stripPII(m: any, role: string) {
 
 const memberSchema = z.object({
   name: z.string().min(2),
-  phone: z.string().optional(),
-  photoUrl: z.string().url().optional(),
+  phone: z.string().optional().nullable(),
+  photoUrl: z.string().optional().nullable(),
+  bannerUrl: z.string().optional().nullable(),
   avatarKey: z.enum(["violet", "blue", "emerald", "amber", "rose", "slate"]).optional(),
   instruments: z.array(z.string()).default([]),
   birthDate: z.string().datetime().optional(),
@@ -70,6 +71,7 @@ export async function memberRoutes(app: FastifyInstance) {
     const updated = await prisma.$transaction(async (tx) => {
       const nextPhone = normalizeOptionalString(body.phone);
       const nextPhotoUrl = normalizeOptionalString(body.photoUrl);
+      const nextBannerUrl = normalizeOptionalString(body.bannerUrl);
       const nextName = normalizeOptionalString(body.name);
 
       const savedMember = await tx.member.update({
@@ -78,6 +80,7 @@ export async function memberRoutes(app: FastifyInstance) {
           name: nextName ?? undefined,
           phone: nextPhone,
           photoUrl: nextPhotoUrl,
+          bannerUrl: nextBannerUrl,
           avatarKey: body.avatarKey,
           instruments: body.instruments ? toJson(body.instruments) : undefined,
           birthDate: body.birthDate ? new Date(body.birthDate) : body.birthDate === null ? null : undefined,
