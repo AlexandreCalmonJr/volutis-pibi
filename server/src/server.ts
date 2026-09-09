@@ -91,8 +91,50 @@ export async function buildServer() {
     }),
   });
 
+  // Configuração segura de CORS por ambiente
+  const configuredOrigins = [
+    ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(",") : []),
+    ...(process.env.APP_URL ? [process.env.APP_URL] : []),
+  ]
+    .map((o) => o.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+
   await app.register(cors, {
-    origin: true,
+    origin: (origin, cb) => {
+      // Requisições sem header Origin (ex: chamadas diretas de servidor, healthchecks, mobile)
+      if (!origin) {
+        return cb(null, true);
+      }
+
+      // Em ambiente de desenvolvimento ou testes, aceita qualquer origem ou localhost
+      if (!isProd) {
+        return cb(null, true);
+      }
+
+      const normalizedOrigin = origin.replace(/\/+$/, "");
+
+      // Em produção: se nenhuma origem explícita foi definida nas variáveis de ambiente,
+      // emite alerta de log mas permite para evitar interrupção de serviço não intencional
+      if (configuredOrigins.length === 0) {
+        app.log.warn({ origin }, "CORS em produção sem CORS_ORIGINS ou APP_URL configurados no .env");
+        return cb(null, true);
+      }
+
+      const isAllowed = configuredOrigins.some((allowed) => {
+        if (allowed === normalizedOrigin) return true;
+        if (allowed.startsWith("*.")) {
+          return normalizedOrigin.endsWith(allowed.slice(1));
+        }
+        return false;
+      });
+
+      if (isAllowed) {
+        return cb(null, true);
+      }
+
+      app.log.warn({ origin, configuredOrigins }, "CORS bloqueado para origem não autorizada");
+      return cb(new Error("Origem não permitida pela política de CORS"), false);
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],

@@ -5,12 +5,17 @@ node_modules/
 dist/
 client/dist/
 
-# Banco de dados local SQLite
+# Banco de dados local SQLite / dumps
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
+*.sqlite
+*.sqlite3
 server/prisma/*.db
+server/prisma/*.db-*
+server/prisma/*.sqlite*
+prisma/*.db
 
 # Variáveis de ambiente (segredos)
 .env

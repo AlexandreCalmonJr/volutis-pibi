@@ -4,7 +4,7 @@
  */
 
 import { prisma } from "../lib/db.js";
-import { acquireSchedulerLease } from "../lib/scheduler-lock.js";
+import { acquireSchedulerLease, releaseSchedulerLease } from "../lib/scheduler-lock.js";
 import { notifyMember } from "./notification.service.js";
 import { sendInteractiveScheduleReminder } from "./whatsapp.service.js";
 
@@ -91,6 +91,8 @@ export async function processScheduleReminders(): Promise<number> {
   } catch (err: any) {
     console.error("[Scheduler] Erro ao processar lembretes de escala:", err);
     return 0;
+  } finally {
+    await releaseSchedulerLease(LEASE_KEY);
   }
 }
 

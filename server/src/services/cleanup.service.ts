@@ -4,14 +4,26 @@
  */
 
 import { prisma } from "../lib/db.js";
+import { acquireSchedulerLease, releaseSchedulerLease } from "../lib/scheduler-lock.js";
 
 const CLEANUP_INTERVAL_MS = 12 * 60 * 60 * 1000; // a cada 12 horas
+const CLEANUP_LEASE_KEY = "database-cleanup";
+const CLEANUP_LEASE_TTL_MS = 15 * 60 * 1000; // 15 minutos
 
 export async function runDatabaseCleanup(): Promise<{
   expiredInvitesDeleted: number;
   expiredTokensDeleted: number;
   oldNotificationsDeleted: number;
 }> {
+  const leaseAcquired = await acquireSchedulerLease(CLEANUP_LEASE_KEY, CLEANUP_LEASE_TTL_MS);
+  if (!leaseAcquired) {
+    return {
+      expiredInvitesDeleted: 0,
+      expiredTokensDeleted: 0,
+      oldNotificationsDeleted: 0,
+    };
+  }
+
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
@@ -55,6 +67,8 @@ export async function runDatabaseCleanup(): Promise<{
       expiredTokensDeleted: 0,
       oldNotificationsDeleted: 0,
     };
+  } finally {
+    await releaseSchedulerLease(CLEANUP_LEASE_KEY);
   }
 }
 

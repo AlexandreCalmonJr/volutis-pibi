@@ -1,0 +1,24 @@
+# Dependências
+node_modules/
+
+# Builds
+dist/
+
+# Banco de dados local SQLite / Dumps
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+prisma/*.db
+prisma/*.sqlite*
+
+# Variáveis de ambiente
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+*.tsbuildinfo

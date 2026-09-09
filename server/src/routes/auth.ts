@@ -314,7 +314,25 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   // ── 2FA / MFA (Dois Fatores) ─────────────────────────────────
-  const pending2faSecrets = new Map<string, string>();
+  interface Pending2FAEntry {
+    secret: string;
+    expiresAt: number;
+    attempts: number;
+  }
+
+  const pending2faSecrets = new Map<string, Pending2FAEntry>();
+  const TWO_FACTOR_TTL_MS = 5 * 60 * 1000; // 5 minutos para WhatsApp
+  const SETUP_2FA_TTL_MS = 10 * 60 * 1000; // 10 minutos para escanear QR Code
+  const MAX_2FA_ATTEMPTS = 5;
+
+  function cleanupExpired2FA() {
+    const now = Date.now();
+    for (const [key, entry] of pending2faSecrets.entries()) {
+      if (entry.expiresAt <= now) {
+        pending2faSecrets.delete(key);
+      }
+    }
+  }
 
   function generateBase32Secret(length = 20): string {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -371,28 +389,48 @@ export async function authRoutes(app: FastifyInstance) {
   }
 
   app.post("/auth/2fa/setup", { preHandler: [async (req, r) => { try { await req.jwtVerify(); } catch { return r.code(401).send({ error: "Não autenticado" }); } }] }, async (req, reply) => {
+    cleanupExpired2FA();
     const auth = req.user as AuthUser;
     const secret = generateBase32Secret();
-    pending2faSecrets.set(auth.sub, secret);
+    pending2faSecrets.set(auth.sub, {
+      secret,
+      expiresAt: Date.now() + SETUP_2FA_TTL_MS,
+      attempts: 0,
+    });
 
     const otpauthUrl = `otpauth://totp/Volutis%20PIBI:${encodeURIComponent(auth.email || "usuario")}?secret=${secret}&issuer=Volutis%20PIBI`;
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
 
-    return reply.send({ secret, qrCodeDataUrl });
+    return reply.send({
+      secret,
+      qrCodeDataUrl,
+      expiresInSeconds: Math.floor(SETUP_2FA_TTL_MS / 1000),
+    });
   });
 
   app.post("/auth/2fa/verify", { preHandler: [async (req, r) => { try { await req.jwtVerify(); } catch { return r.code(401).send({ error: "Não autenticado" }); } }] }, async (req, reply) => {
+    cleanupExpired2FA();
     const auth = req.user as AuthUser;
     const body = z.object({ code: z.string().min(6).max(6) }).parse(req.body);
-    const secret = pending2faSecrets.get(auth.sub);
+    const entry = pending2faSecrets.get(auth.sub);
 
-    if (!secret) {
-      return reply.code(400).send({ error: "Nenhuma configuração de 2FA em andamento. Inicie novamente." });
+    if (!entry || entry.expiresAt <= Date.now()) {
+      if (entry) pending2faSecrets.delete(auth.sub);
+      return reply.code(400).send({ error: "Nenhuma configuração de 2FA em andamento ou o tempo limite expirou. Inicie novamente." });
     }
 
-    const isValid = verifyTotpCode(secret, body.code);
+    entry.attempts++;
+    if (entry.attempts > MAX_2FA_ATTEMPTS) {
+      pending2faSecrets.delete(auth.sub);
+      return reply.code(429).send({ error: "Limite de tentativas excedido. Inicie uma nova configuração de 2FA." });
+    }
+
+    const isValid = verifyTotpCode(entry.secret, body.code);
     if (!isValid) {
-      return reply.code(400).send({ error: "Código de 6 dígitos inválido ou expirado." });
+      const remaining = MAX_2FA_ATTEMPTS - entry.attempts;
+      return reply.code(400).send({
+        error: `Código de 6 dígitos inválido. ${remaining > 0 ? `Restam ${remaining} tentativa(s).` : "Inicie novamente."}`,
+      });
     }
 
     pending2faSecrets.delete(auth.sub);
@@ -401,6 +439,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   // ── 2FA via WhatsApp ─────────────────────────────────────────
   app.post("/auth/2fa/request-whatsapp", async (req, reply) => {
+    cleanupExpired2FA();
     const { email } = z.object({ email: z.string() }).parse(req.body);
     const user = await prisma.user.findFirst({
       where: { OR: [{ email: email.trim() }, { phone: email.trim() }] },
@@ -410,19 +449,38 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: "Usuário ou telefone não encontrado no sistema" });
     }
 
+    const existing = pending2faSecrets.get(`wa-${user.id}`);
+    const now = Date.now();
+    // Anti-spam: se solicitou há menos de 45 segundos, pedir para aguardar
+    if (existing && existing.expiresAt - now > (TWO_FACTOR_TTL_MS - 45 * 1000)) {
+      const waitSeconds = Math.ceil((existing.expiresAt - now - (TWO_FACTOR_TTL_MS - 45 * 1000)) / 1000);
+      return reply.code(429).send({
+        error: `Aguarde ${waitSeconds} segundos antes de solicitar um novo código via WhatsApp.`,
+      });
+    }
+
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    pending2faSecrets.set(`wa-${user.id}`, code);
+    pending2faSecrets.set(`wa-${user.id}`, {
+      secret: code,
+      expiresAt: now + TWO_FACTOR_TTL_MS,
+      attempts: 0,
+    });
 
     whatsAppQueue.enqueue(
       user.phone,
-      `🔒 *Volut PIBI*: Seu código de verificação é: *${code}*. Válido por 5 minutos. Não compartilhe com ninguém.`,
+      `🔒 *Volutis PIBI*: Seu código de verificação é: *${code}*. Válido por 5 minutos. Não compartilhe com ninguém.`,
       true
     );
 
-    return { success: true, message: "Código de 6 dígitos enviado para o seu WhatsApp cadastrado!" };
+    return {
+      success: true,
+      message: "Código de 6 dígitos enviado para o seu WhatsApp cadastrado!",
+      expiresInSeconds: Math.floor(TWO_FACTOR_TTL_MS / 1000),
+    };
   });
 
   app.post("/auth/2fa/verify-whatsapp", async (req, reply) => {
+    cleanupExpired2FA();
     const { email, code } = z.object({ email: z.string(), code: z.string().length(6) }).parse(req.body);
     const user = await prisma.user.findFirst({
       where: { OR: [{ email: email.trim() }, { phone: email.trim() }] },
@@ -430,9 +488,23 @@ export async function authRoutes(app: FastifyInstance) {
     });
     if (!user) return reply.code(404).send({ error: "Usuário não encontrado" });
 
-    const expected = pending2faSecrets.get(`wa-${user.id}`);
-    if (!expected || expected !== code.trim()) {
-      return reply.code(400).send({ error: "Código de verificação incorreto ou expirado." });
+    const entry = pending2faSecrets.get(`wa-${user.id}`);
+    if (!entry || entry.expiresAt <= Date.now()) {
+      if (entry) pending2faSecrets.delete(`wa-${user.id}`);
+      return reply.code(400).send({ error: "Código de verificação expirado ou inexistente. Solicite um novo código no WhatsApp." });
+    }
+
+    entry.attempts++;
+    if (entry.attempts > MAX_2FA_ATTEMPTS) {
+      pending2faSecrets.delete(`wa-${user.id}`);
+      return reply.code(429).send({ error: "Limite de tentativas incorretas excedido. Solicite um novo código no WhatsApp." });
+    }
+
+    if (entry.secret !== code.trim()) {
+      const remaining = MAX_2FA_ATTEMPTS - entry.attempts;
+      return reply.code(400).send({
+        error: `Código de verificação incorreto. ${remaining > 0 ? `Restam ${remaining} tentativa(s).` : "Solicite um novo código."}`,
+      });
     }
 
     pending2faSecrets.delete(`wa-${user.id}`);
