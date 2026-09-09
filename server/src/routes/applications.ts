@@ -43,6 +43,7 @@ const publicApplicationSchema = z.object({
   instruments: z.array(z.string()).default([]),
   availability: z.record(z.array(z.string())).optional(),
   ministryIds: z.array(z.string()).min(1, "Selecione pelo menos um ministério"),
+  isBaptized: z.boolean({ required_error: "Informe se você já é batizado(a)" }),
 });
 
 /** Formulário admin — com autenticação */
@@ -164,6 +165,7 @@ export async function applicationRoutes(app: FastifyInstance) {
           instruments: JSON.stringify(body.instruments),
           availability: body.availability ? JSON.stringify(body.availability) : undefined,
           source: "PUBLIC",
+          isBaptized: body.isBaptized,
           churchId: church.id,
         },
       });
@@ -184,13 +186,17 @@ export async function applicationRoutes(app: FastifyInstance) {
         name: application.name,
         phone: application.phone,
         churchName: church.name,
+        isBaptized: body.isBaptized,
       });
     }
 
     return reply.code(201).send({
       id: application.id,
       status: application.status,
-      message: "Cadastro realizado com sucesso! Aguardando aprovação do líder.",
+      isBaptized: body.isBaptized,
+      message: body.isBaptized
+        ? "Cadastro realizado com sucesso! Aguardando aprovação do líder."
+        : "Cadastro realizado! Como você ainda não é batizado(a), a liderança entrará em contato para orientá-lo(a) sobre as próximas etapas, incluindo o batismo.",
     });
   });
 
@@ -231,6 +237,7 @@ export async function applicationRoutes(app: FastifyInstance) {
     return applications.map((a) => ({
       ...a,
       instruments: fromJson(a.instruments),
+      isBaptized: a.isBaptized,
       availability: a.availability ? JSON.parse(a.availability) : null,
       preferences: a.preferences.map((p) => ({
         id: p.id,
@@ -395,7 +402,7 @@ export async function applicationRoutes(app: FastifyInstance) {
             avatarKey: body.avatarKey ?? application.avatarKey,
             instruments: application.instruments,
             churchId: auth.churchId!,
-            approvalStatus: "PENDING",
+            approvalStatus: application.isBaptized ? "PENDING" : "AWAITING_BAPTISM",
           },
         });
 
@@ -501,6 +508,72 @@ export async function applicationRoutes(app: FastifyInstance) {
       id: application.id,
       status: "REJECTED",
       message: "Candidato rejeitado",
+    };
+  });
+
+  /** POST /applications/:id/confirm-baptism — confirma batismo e ativa membro para servir */
+  app.post("/applications/:id/confirm-baptism", { preHandler: [requireRole("MINISTRY_LEADER")] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const auth = req.user as AuthUser;
+    if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+
+    const application = await prisma.application.findUnique({
+      where: { id },
+      include: { member: true, church: true },
+    });
+
+    if (!application || application.churchId !== auth.churchId) {
+      return reply.code(404).send({ error: "Candidato não encontrado" });
+    }
+
+    if (application.isBaptized) {
+      return reply.code(400).send({ error: "Candidato já é batizado" });
+    }
+
+    if (!application.memberId || !application.member) {
+      return reply.code(400).send({ error: "Candidato precisa ser aprovado antes de confirmar o batismo" });
+    }
+
+    if (application.member.approvalStatus !== "AWAITING_BAPTISM") {
+      return reply.code(400).send({ error: "Membro já foi liberado ou não está aguardando batismo" });
+    }
+
+    await prisma.$transaction([
+      prisma.application.update({
+        where: { id },
+        data: { isBaptized: true },
+      }),
+      prisma.member.update({
+        where: { id: application.memberId },
+        data: {
+          approvalStatus: "ACTIVE",
+          baptizedAt: new Date(),
+          baptizedBy: auth.memberId,
+        },
+      }),
+    ]);
+
+    // Notifica candidato por WhatsApp
+    if (application.phone) {
+      await sendWhatsAppMessage({
+        to: application.phone,
+        text: `🕊️ Parabéns, ${application.name}! Seu batismo foi registrado na ${application.church.name}. Agora você já pode ser escalado(a) nos ministérios! 🎉`,
+      }).catch(() => {});
+    }
+
+    // Notificação in-app
+    if (application.memberId) {
+      await notifyMember(application.memberId, {
+        type: "BAPTISM_CONFIRMED",
+        title: "🕊️ Batismo confirmado!",
+        body: `Parabéns! Seu batismo foi registrado e agora você pode ser escalado(a) para servir nos ministérios.`,
+      }).catch(() => {});
+    }
+
+    return {
+      id: application.id,
+      status: "BAPTISM_CONFIRMED",
+      message: "Batismo confirmado! Membro liberado para servir nos ministérios.",
     };
   });
 

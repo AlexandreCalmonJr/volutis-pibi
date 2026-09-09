@@ -271,6 +271,15 @@ export async function scheduleRoutes(app: FastifyInstance) {
       if (!(await belongsToChurch("member", body.memberId, auth.churchId)))
         return reply.code(404).send({ error: "Membro não encontrado" });
 
+      // Verificar se o membro está aguardando batismo
+      const memberRecord = await prisma.member.findUnique({ where: { id: body.memberId }, select: { approvalStatus: true } });
+      if (memberRecord?.approvalStatus === "AWAITING_BAPTISM") {
+        return reply.code(409).send({
+          error: "Voluntário aguardando batismo. Não pode ser escalado até o batismo ser confirmado pela liderança.",
+          code: "AWAITING_BAPTISM",
+        });
+      }
+
       const eligibleMemberships = await getEligibleMinistryMembershipsForRole(
         body.memberId,
         auth.churchId,

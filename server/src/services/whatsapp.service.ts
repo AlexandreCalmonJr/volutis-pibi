@@ -444,6 +444,7 @@ export interface ApplicationConfirmation {
   name: string;
   phone: string;
   churchName: string;
+  isBaptized?: boolean;
 }
 
 export interface ApprovalNotification {
@@ -464,11 +465,14 @@ export interface RejectionNotification {
  * Envia confirmação imediata de cadastro via WhatsApp.
  */
 export async function sendApplicationConfirmation(n: ApplicationConfirmation): Promise<boolean> {
+  const baptismNote = n.isBaptized === false
+    ? `\n🕊️ Como você informou que ainda não é batizado(a), a liderança da igreja entrará em contato para orientá-lo(a) sobre as próximas etapas, incluindo o batismo. Após o batismo, você será liberado(a) para servir!`
+    : `\n📋 Seu pedido está sendo analisado pelo líder do ministério.\nAssim que for aprovado(a), você receberá um link para criar sua senha e acessar o app.`;
+
   const message =
     `Olá, ${n.name}! 🙌\n\n` +
-    `Seu cadastro como voluntário(a) na *${n.churchName}* foi realizado com sucesso!\n\n` +
-    `📋 Seu pedido está sendo analisado pelo líder do ministério.\n` +
-    `Assim que for aprovado(a), você receberá um link para criar sua senha e acessar o app.\n\n` +
+    `Seu cadastro como voluntário(a) na *${n.churchName}* foi realizado com sucesso!\n` +
+    baptismNote + `\n\n` +
     `Obrigado pelo seu interesse em servir! 🙏 — Volut PIBI`;
 
   return sendWhatsAppMessage({ to: n.phone, text: message });

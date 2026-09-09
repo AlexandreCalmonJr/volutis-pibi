@@ -28,6 +28,8 @@ interface Application {
   availability: Record<string, string[]> | null;
   status: string;
   source: string;
+  isBaptized: boolean;
+  memberId?: string | null;
   notes: string | null;
   appliedAt: string;
   reviewedAt: string | null;
@@ -223,6 +225,25 @@ export default function TriagemPage() {
     }
   };
 
+  const handleConfirmBaptism = async () => {
+    if (!selectedApp) return;
+    if (!window.confirm(`Deseja confirmar o batismo de ${selectedApp.name}? Isso liberará o membro para ser escalado nos ministérios.`)) return;
+    setActionLoading(true);
+    setActionResult(null);
+    try {
+      const result = await api<{ message: string }>(`/applications/${selectedApp.id}/confirm-baptism`, {
+        method: "POST",
+      });
+      setActionResult({ type: "success", message: result.message || "Batismo confirmado com sucesso! Membro liberado para servir." });
+      setSelectedApp((prev) => prev ? { ...prev, isBaptized: true } : null);
+      fetchData();
+    } catch (e: any) {
+      setActionResult({ type: "error", message: e.message || "Erro ao confirmar batismo" });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "PENDING": return { bg: "#fef3c7", text: "#d97706", label: "Pendente" };
@@ -384,7 +405,7 @@ export default function TriagemPage() {
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-[#1e1b4b] group-hover:text-[#7c3aed] transition-colors">
                         {app.name}
                       </p>
@@ -394,6 +415,11 @@ export default function TriagemPage() {
                       >
                         {status.label}
                       </span>
+                      {!app.isBaptized && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                          ⏳ Não batizado
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-sm text-[#7c6ea8]">
                       {app.email && <span>{app.email}</span>}
@@ -531,6 +557,38 @@ export default function TriagemPage() {
                     </div>
                   </div>
 
+                  {/* Condição de Batismo */}
+                  <div className={`p-4 rounded-xl border ${selectedApp.isBaptized ? "bg-green-50/60 border-green-200" : "bg-amber-50/80 border-amber-200"}`}>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xl">{selectedApp.isBaptized ? "🕊️" : "⏳"}</span>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Condição de Batismo</p>
+                          <p className={`text-sm font-bold ${selectedApp.isBaptized ? "text-green-700" : "text-amber-800"}`}>
+                            {selectedApp.isBaptized ? "Membro Batizado" : "Ainda Não Batizado (Aguardando Batismo)"}
+                          </p>
+                        </div>
+                      </div>
+                      {!selectedApp.isBaptized && selectedApp.status === "APPROVED" && (
+                        <button
+                          type="button"
+                          onClick={handleConfirmBaptism}
+                          disabled={actionLoading}
+                          className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-600 text-white hover:bg-amber-700 transition shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          <span>🕊️</span> Confirmar Batismo
+                        </button>
+                      )}
+                    </div>
+                    {!selectedApp.isBaptized && (
+                      <p className="text-xs text-amber-700 mt-2">
+                        {selectedApp.status === "APPROVED"
+                          ? "Este voluntário foi aprovado, mas está bloqueado para ser escalado. Clique no botão acima para confirmar o batismo e liberá-lo."
+                          : "Ao aprovar este candidato, ele será cadastrado no sistema como 'Aguardando Batismo' e não poderá ser escalado até a realização do batismo."}
+                      </p>
+                    )}
+                  </div>
+
                   {selectedApp.instruments.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Instrumentos</p>
@@ -618,6 +676,18 @@ export default function TriagemPage() {
 
               {modalTab === "review" && selectedApp.status === "PENDING" && (
                 <div className="space-y-4">
+                  {!selectedApp.isBaptized && (
+                    <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
+                      <span className="text-lg">⏳</span>
+                      <div className="text-xs text-amber-800">
+                        <p className="font-semibold">Candidato ainda não batizado</p>
+                        <p className="mt-0.5 text-amber-700">
+                          Ao aprovar, o voluntário será registrado com status <strong>Aguardando Batismo</strong>. Ele terá acesso à conta mas estará <strong>bloqueado para escalas</strong> até o batismo ser confirmado.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">
                       Papel no ministério
@@ -743,6 +813,18 @@ export default function TriagemPage() {
                     className="px-4 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
                   >
                     {actionLoading ? "Processando..." : "Aprovar"}
+                  </button>
+                </div>
+              )}
+              {selectedApp.status === "APPROVED" && !selectedApp.isBaptized && (
+                <div className="flex gap-2 flex-1 justify-end">
+                  <button
+                    onClick={handleConfirmBaptism}
+                    disabled={actionLoading}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>🕊️</span>
+                    {actionLoading ? "Processando..." : "Confirmar Batismo"}
                   </button>
                 </div>
               )}

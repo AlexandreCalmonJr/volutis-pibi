@@ -22,7 +22,8 @@ export type NotificationType =
   | "SETLIST_UPDATED"
   | "ANNOUNCEMENT"
   | "FEED_POST"
-  | "FEED_COMMENT";
+  | "FEED_COMMENT"
+  | "BAPTISM_CONFIRMED";
 
 export interface Notification {
   id?: string;

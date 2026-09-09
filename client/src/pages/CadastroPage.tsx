@@ -27,6 +27,7 @@ interface FormData {
   instruments: string[];
   availability: Record<string, string[]>;
   ministryIds: string[];
+  isBaptized: boolean | null;
 }
 
 const DAYS = [
@@ -63,6 +64,7 @@ export default function CadastroPage() {
     instruments: [],
     availability: {},
     ministryIds: [],
+    isBaptized: null,
   });
 
   useEffect(() => {
@@ -120,6 +122,7 @@ export default function CadastroPage() {
           instruments: form.instruments,
           availability: Object.keys(form.availability).length > 0 ? form.availability : undefined,
           ministryIds: form.ministryIds,
+          isBaptized: form.isBaptized,
         }),
       });
 
@@ -165,17 +168,37 @@ export default function CadastroPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-50">
         <div className="text-center max-w-md mx-auto p-8">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+          <div className={`w-16 h-16 ${form.isBaptized ? 'bg-green-100' : 'bg-amber-100'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+            {form.isBaptized ? (
+              <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <span className="text-2xl">🕊️</span>
+            )}
           </div>
           <h1 className="text-xl font-bold text-gray-800 mb-2">Cadastro realizado!</h1>
-          <p className="text-gray-600 mb-4">
-            Seu pedido de cadastro foi enviado com sucesso. O líder do ministério irá analisar seu pedido e você receberá uma notificação quando for aprovado(a).
-          </p>
+          {form.isBaptized ? (
+            <p className="text-gray-600 mb-4">
+              Seu pedido de cadastro foi enviado com sucesso. O líder do ministério irá analisar seu pedido e você receberá uma notificação quando for aprovado(a).
+            </p>
+          ) : (
+            <div>
+              <p className="text-gray-600 mb-4">
+                Seu pedido de cadastro foi enviado com sucesso!
+              </p>
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-left">
+                <p className="text-sm text-amber-800 font-semibold">🕊️ Próximos passos:</p>
+                <ol className="text-sm text-amber-700 mt-2 space-y-1 list-decimal list-inside">
+                  <li>A liderança analisará seu pedido</li>
+                  <li>Você será orientado(a) sobre o batismo</li>
+                  <li>Após o batismo, será liberado(a) para servir</li>
+                </ol>
+              </div>
+            </div>
+          )}
           {form.phone && (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 mt-4">
               Você receberá uma confirmação via WhatsApp em breve.
             </p>
           )}
@@ -318,6 +341,51 @@ export default function CadastroPage() {
                 />
                 <p className="text-xs text-gray-400 mt-1">Separe por vírgula</p>
               </div>
+
+              {/* Pergunta sobre Batismo */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Você já é batizado(a)? *
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, isBaptized: true })}
+                    className={`p-4 rounded-xl border-2 text-center transition-all ${
+                      form.isBaptized === true
+                        ? "border-green-500 bg-green-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <span className="text-2xl block mb-1">✅</span>
+                    <span className="font-semibold text-gray-800 text-sm">Sim, sou batizado(a)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, isBaptized: false })}
+                    className={`p-4 rounded-xl border-2 text-center transition-all ${
+                      form.isBaptized === false
+                        ? "border-amber-500 bg-amber-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <span className="text-2xl block mb-1">⏳</span>
+                    <span className="font-semibold text-gray-800 text-sm">Ainda não</span>
+                  </button>
+                </div>
+
+                {form.isBaptized === false && (
+                  <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p className="text-sm text-amber-800 font-medium">
+                      🕊️ Não se preocupe! Você pode se inscrever normalmente.
+                    </p>
+                    <p className="text-sm text-amber-700 mt-1">
+                      A liderança da igreja entrará em contato para orientá-lo(a) sobre o batismo.
+                      Após o batismo, você será liberado(a) para servir nos ministérios.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -439,6 +507,10 @@ export default function CadastroPage() {
                   }
                   if (step === 1 && !form.email && !form.phone) {
                     setError("Informe pelo menos um e-mail ou telefone");
+                    return;
+                  }
+                  if (step === 1 && form.isBaptized === null) {
+                    setError("Informe se você já é batizado(a)");
                     return;
                   }
                   if (step === 2 && form.ministryIds.length === 0) {

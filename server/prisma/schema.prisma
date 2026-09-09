@@ -92,9 +92,11 @@ model Member {
   avatarKey      String?   @default("violet")
   instruments    String    @default("[]") // JSON array
   birthDate      DateTime?
-  approvalStatus String    @default("ACTIVE") // PENDING | ACTIVE | INACTIVE
+  approvalStatus String    @default("ACTIVE") // PENDING | ACTIVE | INACTIVE | AWAITING_BAPTISM
   approvedAt     DateTime?
   approvedBy     String?
+  baptizedAt     DateTime?                     // data em que o batismo foi confirmado no sistema
+  baptizedBy     String?                       // memberId de quem confirmou o batismo
 
   user   User?   @relation(fields: [userId], references: [id])
   userId String? @unique
@@ -398,6 +400,7 @@ model Application {
   notes        String?  // notas internas do líder
   status       String   @default("PENDING") // PENDING | APPROVED | REJECTED
   source       String   @default("PUBLIC") // PUBLIC | ADMIN | EXISTING
+  isBaptized   Boolean  @default(true)       // false = candidato ainda não batizado, aguardando batismo para servir
   appliedAt    DateTime @default(now())
   reviewedAt   DateTime?
   reviewedBy   String?  // memberId do líder que revisou

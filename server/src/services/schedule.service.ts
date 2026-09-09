@@ -72,6 +72,14 @@ export async function getEligibleMinistryMembershipsForRole(
   churchId: string,
   roleName: string
 ) {
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: { approvalStatus: true },
+  });
+  if (member?.approvalStatus === "AWAITING_BAPTISM" || member?.approvalStatus === "INACTIVE") {
+    return [];
+  }
+
   const memberships = await prisma.ministryMember.findMany({
     where: {
       memberId,
@@ -114,6 +122,8 @@ export async function suggestVolunteers(
   const suggestions: Suggestion[] = [];
 
   for (const mm of candidates) {
+    if (mm.member.approvalStatus === "AWAITING_BAPTISM" || mm.member.approvalStatus === "INACTIVE") continue;
+
     const roles = fromJson(mm.roles);
     if (roles.length > 0 && !roles.includes(roleName)) continue;
 
