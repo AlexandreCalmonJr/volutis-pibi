@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ModalPortal } from "./ModalPortal";
+import { downloadIcsFile, getGoogleCalendarUrl } from "../utils/calendar";
 
 export interface ScheduleCardItem {
   id: string;
@@ -297,6 +298,62 @@ export function ScheduleCardModal({ isOpen, onClose, event, churchName = "Primei
             >
               <span>{copiedText ? "Texto Copiado! ✓" : "Texto WhatsApp"}</span>
             </button>
+          </div>
+
+          {/* Sincronização com Calendário Pessoal */}
+          <div className="border-t border-[var(--color-border)] pt-3">
+            <p className="text-[11px] font-semibold text-[var(--color-muted)] uppercase tracking-wider mb-2">
+              📅 Adicionar à Minha Agenda
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!event) return;
+                  const eventDate = new Date(event.date);
+                  if (event.startTime && /^\d{2}:\d{2}$/.test(event.startTime)) {
+                    const [h, m] = event.startTime.split(":").map(Number);
+                    eventDate.setHours(h, m, 0, 0);
+                  }
+                  window.open(
+                    getGoogleCalendarUrl({
+                      title: `${event.title} — ${churchName}`,
+                      description: `Escala de voluntários no culto/evento: ${event.title}\nEquipe: ${event.scheduleItems.map((i) => `${i.roleName}: ${i.member.name}`).join(", ")}`,
+                      startDate: eventDate,
+                      location: churchName,
+                    }),
+                    "_blank"
+                  );
+                }}
+                className="py-2.5 px-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <span>🗓️</span> Google Agenda
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!event) return;
+                  const eventDate = new Date(event.date);
+                  if (event.startTime && /^\d{2}:\d{2}$/.test(event.startTime)) {
+                    const [h, m] = event.startTime.split(":").map(Number);
+                    eventDate.setHours(h, m, 0, 0);
+                  }
+                  downloadIcsFile(
+                    {
+                      title: `${event.title} — ${churchName}`,
+                      description: `Escala de voluntários: ${event.scheduleItems.map((i) => `${i.roleName}: ${i.member.name}`).join(", ")}`,
+                      startDate: eventDate,
+                      location: churchName,
+                    },
+                    `escala-${event.title.toLowerCase().replace(/\s+/g, "-")}.ics`
+                  );
+                }}
+                className="py-2.5 px-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <span>📥</span> Baixar .ICS (Apple / Outlook)
+              </button>
+            </div>
           </div>
         </div>
       </div>

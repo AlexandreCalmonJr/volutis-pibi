@@ -32,6 +32,7 @@ import { api } from "./api";
 import { resolveNotificationTarget } from "./lib/notifications";
 import { Avatar } from "./components/Avatar";
 import { getPushConfig, registerPushSubscription } from "./push";
+import InstallPwaPrompt from "./components/InstallPwaPrompt";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -349,6 +350,7 @@ export default function App() {
     <>
       <ToastHost />
       <NetworkStatus />
+      <InstallPwaPrompt />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
