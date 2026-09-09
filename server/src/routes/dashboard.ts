@@ -2,12 +2,19 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/db.js";
 import { requireRole } from "../middleware/auth.js";
 import type { AuthUser } from "../middleware/auth.js";
+import { appCache } from "../lib/cache.js";
 
 export async function dashboardRoutes(app: FastifyInstance) {
-  /** GET /dashboard/stats — dados reais para o Dashboard */
+  /** GET /dashboard/stats — dados reais para o Dashboard com cache ultrarrápido */
   app.get("/dashboard/stats", { preHandler: [requireRole("MEMBER")] }, async (req, reply) => {
     const auth = req.user as AuthUser;
     if (!auth.churchId) return reply.code(400).send({ error: "Usuário sem igreja vinculada" });
+
+    const cacheKey = `dashboard:stats:${auth.churchId}`;
+    const cached = appCache.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -33,7 +40,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       }),
     ]);
 
-    return {
+    const result = {
       totalVolunteers,
       pendingApprovals,
       eventsThisMonth: eventsThisMonth.length,
@@ -45,5 +52,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
         scheduleCount: e._count.scheduleItems,
       })),
     };
+
+    appCache.set(cacheKey, result, 30); // 30 segundos de cache em memória
+    return result;
   });
 }

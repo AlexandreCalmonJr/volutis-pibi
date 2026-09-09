@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { api } from "../api";
 import { useAuth } from "../store";
 import { ModalPortal } from "./ModalPortal";
+import { compressImage } from "../utils/imageCompressor";
 
 export interface EventMediaAsset {
   id: string;
@@ -84,21 +85,42 @@ export function EventMediaModal({
     }
   }
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setFileName(file.name);
-    setFileSize(file.size);
     if (!mediaTitle) {
       setMediaTitle(file.name.replace(/\.[^/.]+$/, ""));
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFileDataUrl(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      if (file.type.startsWith("image/")) {
+        const compressed = await compressImage(file, {
+          maxWidth: 1920,
+          maxHeight: 1080,
+          quality: 0.85,
+          mimeType: "image/webp",
+        });
+        setFileDataUrl(compressed.dataUrl);
+        setFileSize(compressed.compressedSize);
+        setFileName(compressed.file.name);
+      } else {
+        setFileSize(file.size);
+        const reader = new FileReader();
+        reader.onload = () => {
+          setFileDataUrl(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch {
+      setFileSize(file.size);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFileDataUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   }
 
   async function handleUpload() {

@@ -238,13 +238,16 @@ export async function buildServer() {
   await app.register(uploadRoutes, { prefix: "/api" });
   await app.register(websocketHandler);
 
-  // Servir uploads de mídias e avatares
+  // Servir uploads de mídias e avatares com cache HTTP eficiente
   const uploadsDir = join(process.cwd(), "uploads");
   if (existsSync(uploadsDir)) {
     await app.register(fastifyStatic, {
       root: uploadsDir,
       prefix: "/uploads/",
       decorateReply: false,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias de cache no cliente
+      cacheControl: true,
+      etag: true,
     });
   }
 
@@ -257,12 +260,29 @@ export async function buildServer() {
       root: clientDist,
       prefix: "/",
       decorateReply: false,
+      etag: true,
+      setHeaders: (res, pathName) => {
+        // Assets com hash no nome (Vite /assets/*) podem ser cacheados com imutabilidade por 1 ano
+        if (pathName.includes("/assets/")) {
+          res.header("Cache-Control", "public, max-age=31536000, immutable");
+        } else if (
+          pathName.endsWith("index.html") ||
+          pathName.endsWith("sw.js") ||
+          pathName.endsWith("manifest.json")
+        ) {
+          // Arquivos de bootstrap do PWA e HTML devem revalidar sempre
+          res.header("Cache-Control", "no-cache, must-revalidate");
+        } else {
+          res.header("Cache-Control", "public, max-age=86400"); // 1 dia para ícones/favicon
+        }
+      },
     });
 
     app.setNotFoundHandler(async (req, reply) => {
       if (req.url.startsWith("/api") || req.url.startsWith("/ws") || req.url === "/health") {
         return reply.code(404).send({ error: "Rota não encontrada" });
       }
+      reply.header("Cache-Control", "no-cache, must-revalidate");
       return reply.sendFile("index.html");
     });
   }
